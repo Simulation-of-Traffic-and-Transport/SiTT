@@ -3,6 +3,9 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/sitt.svg)](https://pypi.org/project/sitt)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/sitt.svg)](https://pypi.org/project/sitt)
 
+Main repository: https://codeberg.org/SiTT/SiTT  
+Public mirror: https://github.com/Simulation-of-Traffic-and-Transport/SiTT
+
 -----
 
 **Table of Contents**

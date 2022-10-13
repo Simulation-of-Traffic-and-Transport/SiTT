@@ -30,9 +30,9 @@ classifiers = [
 dynamic = ["version", "dependencies"]
 
 [project.urls]
-Documentation = "https://github.com/unknown/sitt#readme"
-Issues = "https://github.com/unknown/sitt/issues"
-Source = "https://github.com/unknown/sitt"
+Documentation = "https://github.com/Simulation-of-Traffic-and-Transport/SiTT#readme"
+Issues = "https://codeberg.org/SiTT/SiTT/issues"
+Source = "https://codeberg.org/SiTT/SiTT"
 
 [tool.hatch.version]
 path = "sitt/__about__.py"
