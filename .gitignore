@@ -13,3 +13,5 @@ dist
 # Project files that should not go into git
 config.yaml
 *.pkl
+network.png
+possible_routes_*.png

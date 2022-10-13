@@ -16,9 +16,10 @@ from concurrent import futures
 
 import networkx as nx
 
-from sitt import Configuration, Parallelism, Context, SkipStep, State, SetOfResults, sim_runner
+from sitt import Configuration, Parallelism, Context, SkipStep, State, SetOfResults
+from sitt.sim_runner import run_simulation
 
-__all__ = ['Core', 'Preparation', 'Simulation', 'Output']
+__all__ = ['BaseClass', 'Core', 'Preparation', 'Simulation', 'Output']
 
 logger = logging.getLogger()
 
@@ -207,7 +208,7 @@ class Simulation(BaseClass):
             with futures.ProcessPoolExecutor() as e:
                 for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
                                                   self.config.simulation_end):
-                    results.append(e.submit(sim_runner, State(p), self.config, self.context, pickle=True))
+                    results.append(e.submit(run_simulation, State(p), self.config, self.context, pickle=True))
 
                 # wait for return values
                 for result in futures.as_completed(results):
@@ -221,7 +222,7 @@ class Simulation(BaseClass):
             with futures.ThreadPoolExecutor() as e:
                 for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
                                                   self.config.simulation_end):
-                    results.append(e.submit(sim_runner, State(p), self.config, self.context))
+                    results.append(e.submit(run_simulation, State(p), self.config, self.context))
 
                 # wait for return values
                 for result in futures.as_completed(results):
@@ -232,7 +233,7 @@ class Simulation(BaseClass):
         else:
             for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
                                               self.config.simulation_end):
-                print(sim_runner(State(p), self.config, self.context))
+                print(run_simulation(State(p), self.config, self.context))
                 # TODO: add to set of results
 
         logger.info("******** Simulation: finished ********")

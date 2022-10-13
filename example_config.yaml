@@ -107,7 +107,7 @@ preparation:
   - # class name
     class: Dummy
     # module name - should be in PYTHONPATH
-    module: preparation_modules.dummy
+    module: modules.preparation.dummy
     # variables to pass to the object (not in constructor, but set directly). Constructor must not have required parameters.
     args:
       test: Test Argument passed from config.
@@ -117,7 +117,7 @@ preparation:
 # You can chain modules by adding them to the preparation array. Here is an example using settings from the connection
 # settings defined above. It will load roads and hubs from the database.
 #  - class: PsqlSaveRoadsAndHubs
-#    module: preparation_modules.psql_save_roads_and_hubs
+#    module: modules.preparation.psql_save_roads_and_hubs
 #    args:
 #      connection: psql_default
 
@@ -171,33 +171,33 @@ preparation:
 # possible). Like above, "save_graphs_names" and "save_graphs_type" define file names and types (same possible values).
 
 #  - class: GraphLoad
-#    module: preparation_modules.graph_load
+#    module: modules.preparation.graph_load
 #    args:
 #      filename: 'saved_graph.pkl'
 #      skip: false
 #    conditions:
 #      file_must_exist: 'saved_graph.pkl'
 #  - class: ConditionalModule
-#    module: preparation_modules.conditional_module
+#    module: modules.preparation.conditional_module
 #    submodules:
 #      - class: PsqlReadRoadsAndHubs
-#        module: preparation_modules.psql_read_roads_and_hubs
+#        module: modules.preparation.psql_read_roads_and_hubs
 #        args:
 #          connection: psql_default
 #          strategy: merge
 #      - class: GeoTIFFHeightForRoadsAndHubs
-#        module: preparation_modules.geotiff_height_for_roads_and_hubs
+#        module: modules.preparation.geotiff_height_for_roads_and_hubs
 #        args:
 #          file: /home/mkalus/devel/privat/strada_playground/DTM Austria 10m v2 by Sonny.tif
 #          crs_from: "EPSG:4326"
 #          always_xy: true
 #          overwrite: false
 #      - class: PsqlSaveRoadsAndHubs
-#        module: preparation_modules.psql_save_roads_and_hubs
+#        module: modules.preparation.psql_save_roads_and_hubs
 #        args:
 #          connection: psql_default
 #      - class: CalculateRoadsAndHubs
-#        module: preparation_modules.calculate_roads_and_hubs
+#        module: modules.preparation.calculate_roads_and_hubs
 #        args:
 #          crs_from: EPSG:4326
 #          crs_to: EPSG:32633
@@ -208,20 +208,20 @@ preparation:
 #        class: context
 #        key: graph
 #  - class: GraphSave
-#    module: preparation_modules.graph_save
+#    module: modules.preparation.graph_save
 #    args:
 #      filename: 'saved_graph.pkl'
 #      skip: false
 #    conditions:
 #      not_file_must_exist: 'saved_graph.pkl'
 #  - class: PostCleanRawData
-#    module: preparation_modules.post_clean_raw_data
+#    module: modules.preparation.post_clean_raw_data
 #    args:
 #      hubs_and_roads: true
 #      force_gc: true
 #      skip: false
 #  - class: DebugDisplayRoadsAndHubs
-#    module: preparation_modules.debug_display_roads_and_hubs
+#    module: modules.preparation.debug_display_roads_and_hubs
 #    args:
 #      draw_network: true
 #      show_network: false
@@ -244,12 +244,12 @@ preparation:
 simulation:
   # dummy class which serves as template for simulation modules
   - class: Dummy
-    module: simulation_modules.dummy
+    module: modules.simulation.dummy
     args:
       test: Test argument
   # dummy runner that advances one leg per iteration - useful for testing
   - class: DummyRunner
-    module: simulation_modules.dummy_runner
+    module: modules.simulation.dummy_runner
     args:
       # kph of this agent
       speed: 5.0

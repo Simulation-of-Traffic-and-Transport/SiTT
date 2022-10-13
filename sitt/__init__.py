@@ -25,8 +25,8 @@ from sitt.base import (
     SimulationInterface,
     OutputInterface
 )
-from sitt.core import Core, Preparation, Simulation, Output
-from sitt.sim_runner import sim_runner
+from sitt.core import Core, BaseClass, Preparation, Simulation, Output
+from sitt.utils import is_truthy
 
 __all__ = [
     "__version__",
@@ -44,10 +44,11 @@ __all__ = [
     "SimulationInterface",
     "OutputInterface",
     "Core",
+    "BaseClass",
     "Preparation",
     "Simulation",
     "Output",
-    "sim_runner"
+    "is_truthy",
 ]
 
 logger: logging.Logger = logging.getLogger()

@@ -10,12 +10,12 @@ from pickle import dumps
 
 from sitt import State, Configuration, Context, Status
 
-__all__ = ['sim_runner']
+__all__ = ['run_simulation']
 
 logger = logging.getLogger()
 
 
-def sim_runner(state: State, config: Configuration, context: Context, pickle=False):
+def run_simulation(state: State, config: Configuration, context: Context, pickle=False):
     """Simulation runner - external to use it in multiprocessing and multithreading."""
 
     # this will count until 100 and break the state if there are no advances within 100 days
