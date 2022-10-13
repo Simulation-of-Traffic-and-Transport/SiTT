@@ -103,7 +103,7 @@ class PsqlSaveRoadsAndHubs(PreparationInterface):
             fields = [column(self.hubs_index_col), column(self.hubs_geom_col), column(self.hubs_overnight)]
             for field in self.hubs_extra_fields:
                 fields.append(column(field))
-            t = table(table_parts[2], *fields)
+            t = table(table_parts[2], *fields, schema=table_parts[0])
 
             for idx, row in context.raw_hubs.iterrows():
                 values = [(t.c[self.hubs_geom_col],

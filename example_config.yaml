@@ -254,9 +254,9 @@ simulation:
       # kph of this agent
       speed: 5.0
       # time taken is modified by slope in degrees multiplied by this number when ascending
-      ascend_slowdown_factor: 0.03
+      ascend_slowdown_factor: 0.05
       # time taken is modified by slope in degrees multiplied by this number when descending
-      descend_slowdown_factor: 0.01
+      descend_slowdown_factor: 0.025
 
 ########################################################################################################################
 # output steps
