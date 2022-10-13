@@ -39,12 +39,13 @@ path = "sitt/__about__.py"
 [tool.hatch.metadata.hooks.requirements_txt]
 files = ["requirements.txt"]
 
-[tool.hatch.build.targets.sdist]
-exclude = [
-  "/.idea",
-  "/.vscode",
-  "/.git",
-]
+# automatically checks .gitignore
+#[tool.hatch.build.targets.sdist]
+#exclude = [
+#  "/.idea",
+#  "/.vscode",
+#  "/.git",
+#]
 
 [tool.hatch.envs.default]
 dependencies = [

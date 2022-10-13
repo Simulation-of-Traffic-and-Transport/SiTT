@@ -9,6 +9,7 @@
 
 - [Installation](#installation)
 - [Documentation](#documentation)
+- [Examples](#examples)
 - [License](#license)
 
 ## Installation
@@ -19,11 +20,24 @@ You need Python 3.10 or later to run Si.T.T.
 pip install sitt
 ```
 
+After installation, you can run Si.T.T. using it as a module:
+
+```console
+python -m sitt
+```
+
+This will activate the command line interface and print a help message. For other ways to run Si.T.T., check out the
+examples below.
+
 ## Documentation
 
 You can read some documentation on the following pages:
 
 * [Si.T.T.'S General Concept](readmes/concept.md) (with figures)
+
+## Examples
+
+Can be found in the [examples directory](examples/README.md).
 
 ## License
 
