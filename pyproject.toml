@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-requirements-txt"]
 build-backend = "hatchling.build"
 
 [project]
@@ -27,8 +27,7 @@ classifiers = [
   "Topic :: Scientific/Engineering",
   "Typing :: Typed",
 ]
-dependencies = []
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 
 [project.urls]
 Documentation = "https://github.com/unknown/sitt#readme"
@@ -37,6 +36,8 @@ Source = "https://github.com/unknown/sitt"
 
 [tool.hatch.version]
 path = "sitt/__about__.py"
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -55,7 +56,7 @@ cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=sitt -
 no-cov = "cov --no-cov {args}"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["37", "38", "39", "310", "311"]
+python = ["310", "311"]
 
 [tool.coverage.run]
 branch = true

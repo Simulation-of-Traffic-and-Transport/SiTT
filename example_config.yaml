@@ -1,0 +1,270 @@
+# This is an example configuration file for Si.T.T.
+# It demonstrates how to set all the existing variables to make your simulation work.
+
+# Note that command line arguments override the values set in the configuration file. This makes it easier to change the
+# behavior of your simulation without having to edit your configuration file.
+
+# You can define some values dynamically, e.g. to keep secrets out of your config file. In order to do this, use the
+# YAML tag !Env as prefix of the values.
+#
+# Example:
+# args:
+#   myvalue: normal value
+#   mysecret: !Env "${SUPERSECRET}"
+#
+# Pass SUPERSECRET as environment variable to python to set this value. This also works for multiple strings like:
+# "Hello ${PLANET}! How are ${ADDRESS}?"
+#
+# Moreover, you can define YAML variables using & and *. See &psql_port example below.
+
+########################################################################################################################
+# runtime configuration
+
+# verbose output/logging
+verbose: false
+# suppress output/logging - will override quiet of set to true
+quiet: false
+
+# Skip certain steps in the simulation. Allowed values are none, simulation, output.
+# Naturally, setting the value to simulation will also skip the output.
+#skip_step: none
+
+# The following shorthands can be set, too:
+#skip_simulation: false
+#skip_output: false
+
+# How should the simulation steps be executed? Simulation can be run using multithreading or multiprocessing. Be aware
+# of the limits of multithreading in CPython (namely Global Interpreter Lock) and multiprocessing in general
+# (interprocess communication).
+simulation_parallelism: none
+# allowed values are none, multithreading, multiprocessing, defaults to none
+# break simulation step after this number of iterations, defaults to 100
+# break_simulation_after: 100
+
+########################################################################################################################
+# variables to use below - variables are normal YAML variables prefixed with &node anchors and aliased using *
+# example:
+# define using:
+#   psql_server: &psql_server 127.0.0.1
+# later use like this:
+#   server: *psql_server
+variables:
+  psql_port: &psql_port 5432
+
+########################################################################################################################
+# settings to use below
+settings:
+  connections:
+    # source connections can be defined here, so you do not have to add these repeatedly below.
+    # Here is an example of a PostgreSQL connection setting used for PsqlReadRoadsAndHubs and PsqlSaveRoadsAndHubs.
+    # It takes both environment variables (defined by YAML tags) and YAML node anchors.
+    # In our example the following environment variables are considered to be set:
+    # PSQL_SERVER=127.0.0.1
+    # PSQL_DB=sitt
+    # PSQL_PASSWORD=supersecret
+    # PSQL_USER=postgres
+    psql_default:
+      # Connection data for Postgres
+      server: !Env "${PSQL_SERVER}"
+      port: *psql_port
+      db: !Env "${PSQL_DB}"
+      user: !Env "${PSQL_USER}"
+      password: !Env "${PSQL_PASSWORD}"
+      # roads table definitions - the table name itself (can contain schema names as seen here)
+      roads_table_name: topology.recroads
+      # column name containing Postgis data
+      roads_geom_col: geom
+      # column name containing index name
+      roads_index_col: recroadid
+      # column names for both start and end hubs (must contain the hub id)
+      roads_hub_a_id: hubaid
+      roads_hub_b_id: hubbid
+      # coerce float conversion when loading Postgis data
+      roads_coerce_float: true
+      # hub table definitions - table name for hubs (can contain schema names as seen here)
+      hubs_table_name: topology.rechubs
+      # column name containing Postgis data
+      hubs_geom_col: geom
+      # column name containing index name
+      hubs_index_col: rechubid
+      # column name for overnight stay hubs
+      hubs_overnight: overnight
+      # extra fields that should go into our hub model - can be retrieved as instance variables later on
+      hubs_extra_fields:
+        - hubtypeid
+        - storage
+        - interchange
+        - market
+      # coerce float conversion when loading Postgis data
+      hubs_coerce_float: true
+
+########################################################################################################################
+# preparation steps
+
+# These steps define the classes to load in the preparation step and which parameters to set
+# The classes are loaded and executed in the order of loading
+preparation:
+  - # class name
+    class: Dummy
+    # module name - should be in PYTHONPATH
+    module: preparation_modules.dummy
+    # variables to pass to the object (not in constructor, but set directly). Constructor must not have required parameters.
+    args:
+      test: Test Argument passed from config.
+    # Execution conditions, see below
+    conditions: {}
+
+# You can chain modules by adding them to the preparation array. Here is an example using settings from the connection
+# settings defined above. It will load roads and hubs from the database.
+#  - class: PsqlSaveRoadsAndHubs
+#    module: preparation_modules.psql_save_roads_and_hubs
+#    args:
+#      connection: psql_default
+
+# Here is a full example of a preparation module that reads roads and hubs from a postgres database. It uses yaml tags
+# to set the connection parameters. Is also uses conditions to check for saved graph entries and either loads a saved
+# graph file from disk or creates a new one.
+#
+# GraphLoad will try to load a saved graph file from disk. By convention, we take the .pkl extension for Python Pickle
+# files (because this is what the file contains). Note the condition "file_must_exist" to only execute loading the
+# graph if the file exists on disk.
+#
+# The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to
+# repeat the conditions for every single step. In our example the check is not_data_must_exist. This will check if the
+# data does *not* exist (conditions can be negated by prefixing them with "not_"). Here the class instance "context"
+# will be tested for the instance variable "graph". What does this mean? Consider the first entry, GraphLoad. The
+# module will load a saved graph, if a save file exists. If it exists, context.graph will have been populated by the
+# time ConditionalModule is executed. Consequently, all the submodules will be skipped, if the graph was loaded. If not,
+# the ConditionalModule will be run (context.graph will be empty).
+#
+# PsqlReadRoadsAndHubs will load roads and hubs data from a Postgres database. connection will contain the connection
+# definition set above. There you can see what columns you have to define in order to define the data properly. More
+# on the data structure can be found in the docs.
+#
+# GeoTIFFHeightForRoadsAndHubs will set the heights of roads and hubs using a GeoTIFF image. "crs_from" defines the
+# geometric projection, "always_xy" will define the order of x and y, and "overwrite" can be set to true to overwrite
+# height data, if it exists already.
+#
+# PsqlSaveRoadsAndHubs will save the changed data back into the database. This is handy in our example, because the
+# calculation of heights from GEoTIFF is relatively expensive. So we speed up our preparation a tiny bit.
+#
+# CalculateRoadsAndHubs is an important module. It will take the raw data extracted from the database and create a
+# graph of all possible routes. "crs_from" is the original geographic projection (should be EPSG:4326 in most cases).
+# "crs_to" defines the target projection which should be one having meters as unit attribute (if unsure, check e.g.
+# https://epsg.io/32633). "length_including_heights" can be set to true to calculate the length of the legs more
+# accurately, including slopes degrees in the calculation. While this is more accurate, it seldom plays a major role
+# in the total length of the route.
+#
+# GraphSave is the counterpart of GraphLoad. It saves the graph to disk. Not the condition "not_file_must_exist" -
+# otherwise, the file will be overwritten each time the simulation is executed.
+#
+# PostCleanRawData: It is good practice to clean raw data at the end of the preparation run in order to save memory.
+# You can skip this step if you want to retain the raw data for some reason.
+#
+# DebugDisplayRoadsAndHubs is a utility module to check if everything went smoothly during preparation. The options are:
+# "draw_network": Draw or save a network graph. Dependent options are: "save_network": Save graph as file to disk.
+# "show_network": Display network on stdout (depends on platform). If save_network is true, "save_network_name" and
+# "save_network_type" will define the output file name and type. Possible file types are eps, jpeg, jpg, pdf, pgf, png,
+# ps, raw, rgba, svg, svgz, tif, tiff.
+# "display_routes": Display an example route. You need to define "start" and "end" hub ids. "show_graphs" will plot
+# graphs to stdout (depends on platform). "save_graphs" defines, if graphs should be saved (multiple files are
+# possible). Like above, "save_graphs_names" and "save_graphs_type" define file names and types (same possible values).
+
+#  - class: GraphLoad
+#    module: preparation_modules.graph_load
+#    args:
+#      filename: 'saved_graph.pkl'
+#      skip: false
+#    conditions:
+#      file_must_exist: 'saved_graph.pkl'
+#  - class: ConditionalModule
+#    module: preparation_modules.conditional_module
+#    submodules:
+#      - class: PsqlReadRoadsAndHubs
+#        module: preparation_modules.psql_read_roads_and_hubs
+#        args:
+#          connection: psql_default
+#          strategy: merge
+#      - class: GeoTIFFHeightForRoadsAndHubs
+#        module: preparation_modules.geotiff_height_for_roads_and_hubs
+#        args:
+#          file: /home/mkalus/devel/privat/strada_playground/DTM Austria 10m v2 by Sonny.tif
+#          crs_from: "EPSG:4326"
+#          always_xy: true
+#          overwrite: false
+#      - class: PsqlSaveRoadsAndHubs
+#        module: preparation_modules.psql_save_roads_and_hubs
+#        args:
+#          connection: psql_default
+#      - class: CalculateRoadsAndHubs
+#        module: preparation_modules.calculate_roads_and_hubs
+#        args:
+#          crs_from: EPSG:4326
+#          crs_to: EPSG:32633
+#          always_xy: true
+#          length_including_heights: true
+#    conditions:
+#      not_data_must_exist:
+#        class: context
+#        key: graph
+#  - class: GraphSave
+#    module: preparation_modules.graph_save
+#    args:
+#      filename: 'saved_graph.pkl'
+#      skip: false
+#    conditions:
+#      not_file_must_exist: 'saved_graph.pkl'
+#  - class: PostCleanRawData
+#    module: preparation_modules.post_clean_raw_data
+#    args:
+#      hubs_and_roads: true
+#      force_gc: true
+#      skip: false
+#  - class: DebugDisplayRoadsAndHubs
+#    module: preparation_modules.debug_display_roads_and_hubs
+#    args:
+#      draw_network: true
+#      show_network: false
+#      save_network: true
+#      save_network_name: network
+#      save_network_type: png
+#      display_routes: true
+#      start: HUBIDA
+#      end: HUBIDB
+#      show_graphs: false
+#      save_graphs: true
+#      save_graphs_names: possible_routes
+#      save_graphs_type: png
+
+########################################################################################################################
+# simulation steps
+
+# These steps define the classes to load in the simulation step and which parameters to set
+# The classes are loaded and executed in the order of loading
+simulation:
+  # dummy class which serves as template for simulation modules
+  - class: Dummy
+    module: simulation_modules.dummy
+    args:
+      test: Test argument
+  # dummy runner that advances one leg per iteration - useful for testing
+  - class: DummyRunner
+    module: simulation_modules.dummy_runner
+    args:
+      # kph of this agent
+      speed: 5.0
+      # time taken is modified by slope in degrees multiplied by this number when ascending
+      ascend_slowdown_factor: 0.03
+      # time taken is modified by slope in degrees multiplied by this number when descending
+      descend_slowdown_factor: 0.01
+
+########################################################################################################################
+# output steps
+
+# These steps define the classes to load in the output step and which parameters to set
+# The classes are loaded and executed in the order of loading
+#output:
+#  - class: Test1
+#    param1: Parameter 1
+#  - class: Test2
+#    param2: Parameter 2
