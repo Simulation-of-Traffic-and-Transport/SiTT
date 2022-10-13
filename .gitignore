@@ -1,0 +1,15 @@
+# Python related stuff
+__pycache__
+venv
+env
+.pytest_cache
+.coverage
+dist
+
+# IDEs
+.idea
+.vscode
+
+# Project files that should not go into git
+config.yaml
+*.pkl

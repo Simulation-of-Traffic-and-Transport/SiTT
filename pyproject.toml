@@ -4,24 +4,28 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sitt"
-description = 'Si.T.T. (Simulation of Traffic and Transport) simulates pre-industrial trade routes'
+description = 'Si.T.T. (Simulation of Traffic and Transport) is an agent-based simulation for pre-industrial trade routes.'
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = "MIT"
-keywords = []
+keywords = ["simulation", "history", "university", "trade", "ancient"]
 authors = [
   { name = "Maximilian Kalus", email = "info@auxnet.de" },
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 2 - Pre-Alpha",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Typing :: Typed",
 ]
 dependencies = []
 dynamic = ["version"]
@@ -33,6 +37,13 @@ Source = "https://github.com/unknown/sitt"
 
 [tool.hatch.version]
 path = "sitt/__about__.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.idea",
+  "/.vscode",
+  "/.git",
+]
 
 [tool.hatch.envs.default]
 dependencies = [
