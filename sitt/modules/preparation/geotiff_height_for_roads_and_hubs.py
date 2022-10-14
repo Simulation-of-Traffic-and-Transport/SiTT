@@ -3,6 +3,7 @@ import logging
 
 import geopandas as gp
 import rioxarray
+import yaml
 from pyproj import Transformer
 from shapely.geometry import shape
 
@@ -14,12 +15,13 @@ logger = logging.getLogger()
 class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
     """Set the height for roads and hubs using a GeoTIFF height map"""
 
-    def __init__(self):
+    def __init__(self, file: str | None = None, crs_from: str = "EPSG:4326", always_xy: bool = True,
+                 overwrite: bool = False):
         super().__init__()
-        self.file: str | None = None
-        self.crs_from: str = "EPSG:4326"
-        self.always_xy: bool = True
-        self.overwrite: bool = False
+        self.file: str | None = file
+        self.crs_from: str = crs_from
+        self.always_xy: bool = always_xy
+        self.overwrite: bool = overwrite
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -35,7 +37,8 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
 
         return context
 
-    def calculate_heights(self, rds, transformer: Transformer, raw: gp.geodataframe.GeoDataFrame, label: str) -> gp.geodataframe.GeoDataFrame:
+    def calculate_heights(self, rds, transformer: Transformer, raw: gp.geodataframe.GeoDataFrame,
+                          label: str) -> gp.geodataframe.GeoDataFrame:
         if raw is not None and len(raw):
             counter = 0
 
@@ -68,6 +71,9 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
                 logger.info("Calculated heights for %s: %d/%d", label, counter, len(raw))
 
         return raw
+
+    def __repr__(self):
+        return yaml.dump(self)
 
     def __str__(self):
         return "GeoTIFFHeightForRoadsAndHubs"

@@ -5,6 +5,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import yaml
 from shapely.geometry import GeometryCollection
 
 from sitt import Configuration, Context, PreparationInterface
@@ -13,29 +14,32 @@ logger = logging.getLogger()
 
 
 class DebugDisplayRoadsAndHubs(PreparationInterface):
-    def __init__(self):
+    def __init__(self, draw_network: bool = True, show_network: bool = True, save_network: bool = False,
+                 save_network_name: str = 'network', save_network_type: str = 'png', display_routes: bool = True,
+                 start: str | None = None, end: str | None = None, show_graphs: bool = True, save_graphs: bool = False,
+                 save_graphs_names: str = 'possible_routes', save_graphs_type: str = 'png'):
         super().__init__()
-        self.draw_network: bool = True
+        self.draw_network: bool = draw_network
         """draw the network graph"""
-        self.show_network: bool = True
+        self.show_network: bool = show_network
         """Plot graph to stdout"""
-        self.save_network: bool = False
+        self.save_network: bool = save_network
         """Save network to disk"""
-        self.save_network_name: str = 'network'
-        self.save_network_type: str = 'png'
+        self.save_network_name: str = save_network_name
+        self.save_network_type: str = save_network_type
         """possible values are eps, jpeg, jpg, pdf, pgf, png, ps, raw, rgba, svg, svgz, tif, tiff"""
-        self.display_routes: bool = True
+        self.display_routes: bool = display_routes
         """Calculate example routes"""
-        self.start: str | None = None
+        self.start: str | None = start
         """start hub id of example route"""
-        self.end: str | None = None
+        self.end: str | None = end
         """end hub id of example route"""
-        self.show_graphs: bool = True
+        self.show_graphs: bool = show_graphs
         """plot routes to stdout"""
-        self.save_graphs: bool = False
+        self.save_graphs: bool = save_graphs
         """Save all graphs to disk"""
-        self.save_graphs_names: str = 'possible_routes'
-        self.save_graphs_type: str = 'png'
+        self.save_graphs_names: str = save_graphs_names
+        self.save_graphs_type: str = save_graphs_type
         """possible values are eps, jpeg, jpg, pdf, pgf, png, ps, raw, rgba, svg, svgz, tif, tiff"""
 
     def run(self, config: Configuration, context: Context) -> Context:
@@ -154,6 +158,9 @@ class DebugDisplayRoadsAndHubs(PreparationInterface):
             logger.info("Skipping display of roads and hubs - no data.")
 
         return context
+
+    def __repr__(self):
+        return yaml.dump(self)
 
     def __str__(self):
         return 'DebugDisplayRoadsAndHubs'

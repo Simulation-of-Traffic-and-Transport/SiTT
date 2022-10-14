@@ -257,6 +257,8 @@ simulation:
       ascend_slowdown_factor: 0.05
       # time taken is modified by slope in degrees multiplied by this number when descending
       descend_slowdown_factor: 0.025
+      # time in subunits (hours) per day spend travelling
+      time_per_day: 8.0
 
 ########################################################################################################################
 # output steps

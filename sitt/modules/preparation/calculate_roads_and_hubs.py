@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import shapely.ops as sp_ops
+import yaml
 from pyproj import Transformer
 from shapely.geometry import LineString
 
@@ -16,12 +17,13 @@ logger = logging.getLogger()
 class CalculateRoadsAndHubs(PreparationInterface):
     """Prepare raw roads and hubs anc precalculate then into a graph"""
 
-    def __init__(self):
+    def __init__(self, crs_from: str = 'EPSG:4326', crs_to: str = 'EPSG:32633', always_xy: bool = True,
+                 length_including_heights: bool = False):
         super().__init__()
-        self.crs_from: str = 'EPSG:4326'
-        self.crs_to: str = 'EPSG:32633'
-        self.always_xy: bool = True
-        self.length_including_heights: bool = False
+        self.crs_from: str = crs_from
+        self.crs_to: str = crs_to
+        self.always_xy: bool = always_xy
+        self.length_including_heights: bool = length_including_heights
 
     def run(self, config: Configuration, context: Context) -> Context:
         logger.info("Preparing graph...")
@@ -77,7 +79,7 @@ class CalculateRoadsAndHubs(PreparationInterface):
 
                         # add height to length calculation
                         if self.length_including_heights:
-                            leg_length = np.sqrt([leg_length*leg_length + diff*diff])[0]
+                            leg_length = np.sqrt([leg_length * leg_length + diff * diff])[0]
 
                         # logger.info("%f, %f", diff, leg_length)
                         if leg_length > 0:
@@ -120,6 +122,9 @@ class CalculateRoadsAndHubs(PreparationInterface):
         context.graph = g
 
         return context
+
+    def __repr__(self):
+        return yaml.dump(self)
 
     def __str__(self):
         return "CalculateRoadsAndHubs"

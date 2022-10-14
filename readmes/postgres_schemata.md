@@ -13,13 +13,7 @@ CREATE TABLE topology.rechubs (
     id integer NOT NULL,
     geom public.geometry(PointZ,4326),
     rechubid text,
-    hubtypeid text,
-    explanationfileid text,
-    overnight text,
-    storage text,
-    numberofroutes bigint,
-    interchange text,
-    market text
+    overnight text
 );
 
 CREATE SEQUENCE topology.rec_hubs_id_seq
@@ -38,9 +32,7 @@ CREATE TABLE topology.recroads (
     geom public.geometry(LineStringZ,4326),
     recroadid text,
     hubaid text,
-    hubbid text,
-    dimensions text,
-    "ExplanationfileID" text
+    hubbid text
 );
 
 CREATE SEQUENCE topology.recroads_id_seq

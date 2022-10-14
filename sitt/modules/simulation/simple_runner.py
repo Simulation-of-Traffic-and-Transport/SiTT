@@ -4,6 +4,8 @@ Other than that, it does not take into account weather or other factors.
 """
 import logging
 
+import yaml
+
 from sitt import Configuration, Context, SimulationInterface, State, Status, is_truthy
 
 logger = logging.getLogger()
@@ -15,20 +17,26 @@ class SimpleRunner(SimulationInterface):
     slopes. Other than that, it does not take into account weather or other factors.
     """
 
-    def __init__(self):
+    def __init__(self, speed: float = 5.0, ascend_slowdown_factor: float = 0.05, descend_slowdown_factor: float = 0.025,
+                 time_per_day: float = 8.0):
         super().__init__()
-        self.speed = 5.0
+        self.speed: float = speed
         """kph of this agent"""
-        self.ascend_slowdown_factor = 0.03
+        self.ascend_slowdown_factor: float = ascend_slowdown_factor
         """time taken is modified by slope in degrees multiplied by this number when ascending"""
-        self.descend_slowdown_factor = 0.01
+        self.descend_slowdown_factor: float = descend_slowdown_factor
         """time taken is modified by slope in degrees multiplied by this number when descending"""
+        self.time_per_day: float = time_per_day
+        """Hours of walking per day"""
 
     def run_before(self, config: Configuration, context: Context, state: State) -> State:
         if not self.skip and logger.level <= logging.INFO:
             logger.info(
                 state.uid + " SimulationInterface SimpleRunner start day " + str(
                     state.step) + " at " + state.get_current_start_hub())
+
+        # set time available today
+        state.step_data.time_available = self.time_per_day
 
         return state
 
@@ -119,6 +127,9 @@ class SimpleRunner(SimulationInterface):
 
     def run_after(self, config: Configuration, context: Context, state: State) -> State:
         return state
+
+    def __repr__(self):
+        return yaml.dump(self)
 
     def __str__(self):
         return "SimpleRunner"

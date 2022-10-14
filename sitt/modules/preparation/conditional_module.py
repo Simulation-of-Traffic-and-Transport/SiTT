@@ -1,6 +1,8 @@
 """General conditional module that runs submodules as a group on a certain condition."""
 import logging
 
+import yaml
+
 from sitt import BaseClass, Configuration, Context, PreparationInterface
 
 logger = logging.getLogger()
@@ -9,9 +11,9 @@ logger = logging.getLogger()
 class ConditionalModule(BaseClass, PreparationInterface):
     """General conditional module that runs submodules as a group on a certain condition."""
 
-    def __init__(self):
+    def __init__(self, submodules: list[PreparationInterface] = []):
         super().__init__()
-        self.submodules: list[PreparationInterface] = []
+        self.submodules: list[PreparationInterface] = submodules
 
     def run(self, config: Configuration, context: Context) -> Context:
         # set config before run - might be needed for recursive stuff
@@ -23,6 +25,9 @@ class ConditionalModule(BaseClass, PreparationInterface):
                 context = module.run(self.config, context)
 
         return context
+
+    def __repr__(self):
+        return yaml.dump(self)
 
     def __str__(self):
         return 'ConditionalModule'

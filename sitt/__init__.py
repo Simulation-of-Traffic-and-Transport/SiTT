@@ -28,6 +28,10 @@ from sitt.base import (
 from sitt.core import Core, BaseClass, Preparation, Simulation, Output
 from sitt.utils import is_truthy
 
+import sitt.modules.preparation as preparation
+import sitt.modules.simulation as simulation
+import sitt.modules.output as output
+
 __all__ = [
     "__version__",
     "__author__",
@@ -49,6 +53,9 @@ __all__ = [
     "Simulation",
     "Output",
     "is_truthy",
+    "preparation",
+    "simulation",
+    "output"
 ]
 
 logger: logging.Logger = logging.getLogger()

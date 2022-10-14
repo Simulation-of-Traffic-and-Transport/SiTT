@@ -1,6 +1,8 @@
 """Dummy runner that just advances one step per iteration. Useful for testing."""
 import logging
 
+import yaml
+
 from sitt import Configuration, Context, SimulationInterface, State
 
 logger = logging.getLogger()
@@ -28,6 +30,9 @@ class DummyRunner(SimulationInterface):
 
     def run_after(self, config: Configuration, context: Context, state: State) -> State:
         return state
+
+    def __repr__(self):
+        return yaml.dump(self)
 
     def __str__(self):
         return "DummyRunner"
