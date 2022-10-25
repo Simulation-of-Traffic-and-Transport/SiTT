@@ -22,7 +22,6 @@ import yaml
 
 __all__ = [
     "SkipStep",
-    "Parallelism",
     "Configuration",
     "Context",
     "Status",
@@ -46,18 +45,6 @@ class SkipStep(Enum):
     NONE = "none"
     SIMULATION = "simulation"
     OUTPUT = "output"
-
-    def __str__(self):
-        return self.value
-
-
-class Parallelism(Enum):
-    """
-    Enum to represent parallelism of the simulation
-    """
-    NONE = "none"
-    THREADS = "multithreading"
-    PROCESSES = "multiprocessing"
 
     def __str__(self):
         return self.value
@@ -98,7 +85,6 @@ class Configuration:
         """"Start hub for simulation"""
         self.simulation_end: str | None = None
         """"End hub for simulation"""
-        self.simulation_parallelism: Parallelism = Parallelism.NONE
 
         self.break_simulation_after: int = 100
         """Break single simulation entity after not advancing for this many steps"""

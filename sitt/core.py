@@ -16,7 +16,7 @@ from concurrent import futures
 
 import networkx as nx
 
-from sitt import Configuration, Parallelism, Context, SkipStep, State, SetOfResults
+from sitt import Configuration, Context, SkipStep, State, SetOfResults
 from sitt.sim_runner import run_simulation
 
 __all__ = ['BaseClass', 'Core', 'Preparation', 'Simulation', 'Output']
@@ -194,7 +194,6 @@ class Simulation(BaseClass):
         if logger.level <= logging.INFO:
             logger.info("start:       " + self.config.simulation_start)
             logger.info("end:         " + self.config.simulation_end)
-            logger.info("parallelism: " + str(self.config.simulation_parallelism))
 
         set_of_results = SetOfResults()
 
@@ -203,38 +202,11 @@ class Simulation(BaseClass):
         # we might use concurrent multiprocessing for this
         results = []
 
-        # multiprocessing
-        if self.config.simulation_parallelism == Parallelism.PROCESSES:
-            with futures.ProcessPoolExecutor() as e:
-                for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
-                                                  self.config.simulation_end):
-                    results.append(e.submit(run_simulation, State(p), self.config, self.context, pickle=True))
-
-                # wait for return values
-                for result in futures.as_completed(results):
-                    # unpickle result
-                    decoded = pickle.loads(result.result())
-                    print(decoded)
-                    # TODO: add to set of results
-
-        # multithreading
-        elif self.config.simulation_parallelism == Parallelism.THREADS:
-            with futures.ThreadPoolExecutor() as e:
-                for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
-                                                  self.config.simulation_end):
-                    results.append(e.submit(run_simulation, State(p), self.config, self.context))
-
-                # wait for return values
-                for result in futures.as_completed(results):
-                    print(result.result())
-                    # TODO: add to set of results
-
-        # single thread
-        else:
-            for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
-                                              self.config.simulation_end):
-                print(run_simulation(State(p), self.config, self.context))
-                # TODO: add to set of results
+        # main loop
+        for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
+                                          self.config.simulation_end):
+            print(run_simulation(State(p), self.config, self.context))
+            # TODO: add to set of results
 
         logger.info("******** Simulation: finished ********")
 

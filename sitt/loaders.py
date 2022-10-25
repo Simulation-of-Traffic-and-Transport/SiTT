@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from sitt import Configuration, SkipStep, Parallelism, PreparationInterface, SimulationInterface, OutputInterface
+from sitt import Configuration, SkipStep, PreparationInterface, SimulationInterface, OutputInterface
 
 
 def load_configuration_from_yaml(yaml_stream: Any) -> Configuration:
@@ -67,10 +67,6 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
         config.simulation_start = data['simulation_start']
     if 'simulation_end' in data and data['simulation_end']:
         config.simulation_end = data['simulation_end']
-
-    # parallelism
-    if 'simulation_parallelism' in data and data['simulation_parallelism']:
-        config.simulation_parallelism = Parallelism(data['simulation_parallelism'].lower())
 
     # maximum number of steps without advancing before breaking
     if 'break_simulation_after' in data and data['break_simulation_after']:

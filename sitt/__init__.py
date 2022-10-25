@@ -14,7 +14,6 @@ from sitt.__about__ import (
 )
 from sitt.base import (
     SkipStep,
-    Parallelism,
     Configuration,
     Context,
     Status,
@@ -37,7 +36,6 @@ __all__ = [
     "__author__",
     "__copyright__",
     "SkipStep",
-    "Parallelism",
     "Configuration",
     "Context",
     "Status",

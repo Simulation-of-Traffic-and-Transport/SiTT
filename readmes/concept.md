@@ -232,8 +232,7 @@ travelled by an agent. The basic simulation runs like this:
   * After all the steps have been concluded, the simulation checks for double agents at the same target position. If
     there are any, the number of agents will be reduced (the best matching agent will be taken).
   * All remaining agents' state will advance to the new positions and the times will be incremented.
-* For each agent, the iteration will continue in parallel (possibly using something like `concurrent.futures` in
-  Python).
+* For each agent, the iteration will continue, possibly splitting agents along the line.
 * After all the agents have finished their journey, the set of results will be created. This is a list of all the
   agents, including their states and their journals. The set of results also contains the original context.
 

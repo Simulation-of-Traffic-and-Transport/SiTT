@@ -33,11 +33,6 @@ quiet: false
 #skip_simulation: false
 #skip_output: false
 
-# How should the simulation steps be executed? Simulation can be run using multithreading or multiprocessing. Be aware
-# of the limits of multithreading in CPython (namely Global Interpreter Lock) and multiprocessing in general
-# (interprocess communication).
-simulation_parallelism: none
-# allowed values are none, multithreading, multiprocessing, defaults to none
 # break simulation step after this number of iterations, defaults to 100
 # break_simulation_after: 100
 
