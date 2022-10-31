@@ -231,6 +231,16 @@ preparation:
 #      save_graphs_names: possible_routes
 #      save_graphs_type: png
 
+# Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
+# maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)
+# maximum_difference_from_shortest: if greater than 0, this is the maximum difference of a route from the shortest one
+# (in length) to be retained in the list.
+#  - class: CreateRoutes
+#    module: modules.preparation.create_routes
+#    args:
+#      maximum_routes: 0
+#      maximum_difference_from_shortest: 0.0
+
 ########################################################################################################################
 # simulation steps
 
