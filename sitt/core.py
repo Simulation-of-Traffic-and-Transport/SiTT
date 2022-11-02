@@ -261,25 +261,33 @@ class Simulation(BaseClass):
             # prepare context for single day
             for agent in agents:
                 agent.prepare_for_new_day()
-                # TODO: include module list here
+                # run SimulationPrepareDayInterfaces
+                for prep_day in self.config.simulation_prepare_day:
+                    prep_day.prepare_for_new_day(self.config, self.context, agent)
+
+            if logger.level <= logging.INFO:
+                logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
 
             # do single day loop - this is the outer loop for the simulation (per day)
             while len(agents):
                 # do single step
                 for agent in agents:
-                    # calculate context of agent at this node
-                    # TODO: include module list here
+                    # calculate state of agent at this node
+                    # default values...
+                    agent.state.time_taken = 0.
+                    agent.state.signal_stop_here = False
+                    # and module calls
+                    for def_state in self.config.simulation_define_state:
+                        agent.state = def_state.define_state(self.config, self.context, agent)
 
-                    # TODO: call central simulation model here
-                    # precalculate next hub
-                    leg = self.context.graph.get_edge_data(agent.this_hub, agent.next_hub, agent.route_key)
-                    time_taken = leg['length_m'] / 5000
-                    # TODO: this should be the actual call...
+                    # run the actual state update loop
+                    for sim_step in self.config.simulation_step:
+                        agent.state = sim_step.update_state(self.config, self.context, agent)
 
                     # proceed or stop here?
-                    if agent.current_time + time_taken <= agent.max_time:
+                    if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
                         # proceed..., first add time
-                        agent.current_time += time_taken
+                        agent.current_time += agent.state.time_taken
 
                         # add route taken
                         if agent.route_data.number_of_nodes() == 0:
@@ -287,7 +295,7 @@ class Simulation(BaseClass):
 
                         agent.route_data.add_node(agent.next_hub, geom=self.context.graph.nodes[agent.next_hub]['geom'])
                         agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                                  time_taken=time_taken)
+                                                  time_taken=agent.state.time_taken)
 
                         # finished?
                         if agent.next_hub == self.config.simulation_end:
@@ -320,6 +328,9 @@ class Simulation(BaseClass):
                                 edges_to_delete = []
                                 hub = agent.last_possible_resting_place
                                 while hub != agent.this_hub:
+                                    # TODO: fix this!
+                                    print('xxx')
+                                    # TODO: fix this!
                                     hub_id = next(iter(agent.route_data[agent.last_possible_resting_place]))
                                     if hub_id != agent.last_possible_resting_place:
                                         hubs_to_delete.append(hub_id)
@@ -333,7 +344,6 @@ class Simulation(BaseClass):
                                     self.create_agents_on_node(agent.last_possible_resting_place, agent))
                             else:
                                 agents_finished_for_today.append(agent)
-                    # TODO: call central simulation model here - end
 
                 agents = agents_proceed
                 agents_proceed = []
@@ -346,57 +356,6 @@ class Simulation(BaseClass):
 
             # increase day
             self.current_day += 1
-
-        # # loop while agents still exist
-        #
-        # # TODO:
-        # # Überdenken, vielleicht splitten wir die Simulation eher logisch auf...
-        # # Core-Runner-Modul (1)
-        # # Vor und Nach jeweils Module...
-        #
-        # # Grundsätzliche Ideen im Notizbuch
-        # # Pro Agent:
-        # # Routen via virtuelle Agenten durchlaufen, die einen Tagesablauf simulieren...
-        # # Pro Node: Kontext berechnen (Wetter, etc.) vorher
-        #
-        # while len(agents):
-        #     logger.info(f"Simulating day {state.day}")
-        #
-        #     agents_after_day_by_hash = {}
-        #
-        #     for agent in agents:
-        #         # dummy run - advance two steps
-        #         for target in self.context.routes[agent.next_target]:
-        #             for route_key in self.context.routes[agent.next_target][target]:
-        #                 # clone agent
-        #                 if target != self.config.simulation_end:
-        #                     new_agents = self.prepare_agents_at_hub(target, agent.state)
-        #                     for new_agent in new_agents:
-        #                         agents_after_day_by_hash[new_agent.uid()] = new_agent
-        #
-        #                     logger.info(f"Agent traversed {agent.start} --{agent.next_leg}--> {agent.next_leg} --{route_key}-->{target}")
-        #                 else:
-        #                     logger.info("One agent reached end point")
-        #
-        #     # fill agents from hashed list
-        #     agents = []
-        #     for key in agents_after_day_by_hash:
-        #         agents.append(agents_after_day_by_hash[key])
-        #
-        #     # increase day
-        #     if len(agents) > 0:
-        #         state.day += 1
-        #
-        # # This is the first take of how we handle the simulation:
-        # # We will create all simple paths in the graph and let one agent run through each one
-        # # we might use concurrent multiprocessing for this
-        # # results = []
-        #
-        # # main loop
-        # # for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
-        # #                                  self.config.simulation_end):
-        # #    print(run_simulation(State(p), self.config, self.context))
-        # #    # TODO: add to set of results
 
         logger.info("******** Simulation: finished ********")
 

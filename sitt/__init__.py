@@ -20,14 +20,16 @@ from sitt.base import (
     Agent,
     SetOfResults,
     PreparationInterface,
-    SimulationInterface,
+    SimulationPrepareDayInterface,
+    SimulationDefineStateInterface,
+    SimulationStepInterface,
     OutputInterface
 )
 from sitt.core import Core, BaseClass, Preparation, Simulation, Output
 from sitt.utils import is_truthy
 
 import sitt.modules.preparation as preparation
-import sitt.modules.simulation as simulation
+import sitt.modules.simulation_step as simulation
 import sitt.modules.output as output
 
 __all__ = [
@@ -41,7 +43,9 @@ __all__ = [
     "Agent",
     "SetOfResults",
     "PreparationInterface",
-    "SimulationInterface",
+    "SimulationPrepareDayInterface",
+    "SimulationDefineStateInterface",
+    "SimulationStepInterface",
     "OutputInterface",
     "Core",
     "BaseClass",

@@ -12,7 +12,8 @@ from typing import Any
 
 import yaml
 
-from sitt import Configuration, SkipStep, PreparationInterface, SimulationInterface, OutputInterface
+from sitt import Configuration, SkipStep, PreparationInterface, OutputInterface, \
+    SimulationPrepareDayInterface, SimulationDefineStateInterface, SimulationStepInterface
 
 
 def load_configuration_from_yaml(yaml_stream: Any) -> Configuration:
@@ -76,9 +77,15 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
     _step_data = _parse_step_data('preparation', data, config)
     if _step_data:
         config.preparation = _step_data
-    _step_data = _parse_step_data('simulation', data, config)
+    _step_data = _parse_step_data('simulation_prepare_day', data, config)
     if _step_data:
-        config.simulation = _step_data
+        config.simulation_prepare_day = _step_data
+    _step_data = _parse_step_data('simulation_define_state', data, config)
+    if _step_data:
+        config.simulation_define_state = _step_data
+    _step_data = _parse_step_data('simulation_step', data, config)
+    if _step_data:
+        config.simulation_step = _step_data
     _step_data = _parse_step_data('output', data, config)
     if _step_data:
         config.output = _step_data
@@ -87,7 +94,7 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
 
 
 def _parse_step_data(key: str, data: dict, config: Configuration) -> list[
-                                                                         PreparationInterface | SimulationInterface | OutputInterface] | None:
+                                                                         PreparationInterface | SimulationPrepareDayInterface | SimulationDefineStateInterface | SimulationStepInterface | OutputInterface] | None:
     """
     Helper to parse input data from steps. Throws exception if "class" key is not defined or the classes cannot be
     found.
@@ -107,7 +114,7 @@ def _parse_step_data(key: str, data: dict, config: Configuration) -> list[
 
 
 def _load_step_classes(key: str, data: dict, config: Configuration) -> list[
-    PreparationInterface | SimulationInterface | OutputInterface]:
+    PreparationInterface | SimulationPrepareDayInterface | SimulationDefineStateInterface | SimulationStepInterface | OutputInterface]:
     """
     Helper to actually load classes for steps
 
@@ -119,7 +126,7 @@ def _load_step_classes(key: str, data: dict, config: Configuration) -> list[
 
 
 def _load_steps_from_raw_list(key: str, data: dict, raw_class_list: list, config: Configuration) -> list[
-    PreparationInterface | SimulationInterface | OutputInterface]:
+    PreparationInterface | SimulationPrepareDayInterface | SimulationDefineStateInterface | SimulationStepInterface | OutputInterface]:
     class_list = []
 
     for entry in raw_class_list:

@@ -242,19 +242,17 @@ preparation:
 #      maximum_difference_from_shortest: 0.0
 
 ########################################################################################################################
-# simulation steps
+# simulation - is a bit more complicated, because there are several hooks to add modules to
 
-# These steps define the classes to load in the simulation step and which parameters to set
-# The classes are loaded and executed in the order of loading
-simulation:
-  # dummy class which serves as template for simulation modules
-  - class: Dummy
-    module: modules.simulation.dummy
-    args:
-      test: Test argument
-  # dummy runner that advances one leg per iteration - useful for testing
-  - class: DummyRunner
-    module: modules.simulation.dummy_runner
+# steps that are run at the start of each day
+simulation_prepare_day: []
+# steps that are run at each step to define the state
+simulation_define_state: []
+# steps run during simulation phase - these will update the state and calculate time taken, etc.
+# Often, you will only need one simulation module to work out all the time and stop factors.
+simulation_step:
+  - class: Simple
+    module: modules.simulation_step.simple
     args:
       # kph of this agent
       speed: 5.0
@@ -262,8 +260,6 @@ simulation:
       ascend_slowdown_factor: 0.05
       # time taken is modified by slope in degrees multiplied by this number when descending
       descend_slowdown_factor: 0.025
-      # time in subunits (hours) per day spend travelling
-      time_per_day: 8.0
 
 ########################################################################################################################
 # output steps

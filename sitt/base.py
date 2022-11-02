@@ -28,7 +28,9 @@ __all__ = [
     "Agent",
     "SetOfResults",
     "PreparationInterface",
-    "SimulationInterface",
+    "SimulationPrepareDayInterface",
+    "SimulationDefineStateInterface",
+    "SimulationStepInterface",
     "OutputInterface",
 ]
 
@@ -73,7 +75,12 @@ class Configuration:
         """
         Preparation step classes to execute
         """
-        self.simulation: List[SimulationInterface] = []
+        self.simulation_prepare_day: List[SimulationPrepareDayInterface] = []
+        """simulation hook classes that are executed on each agent at the start of the day"""
+        self.simulation_define_state: List[SimulationDefineStateInterface] = []
+        """simulation hook classes that are executed on each agent at the start of the day"""
+
+        self.simulation_step: List[SimulationStepInterface] = []
         """
         Simulation step classes to execute
         """
@@ -174,10 +181,16 @@ class State(object):
     """State class - this will take information on the current state of a simulation agent, it will be reset each day"""
 
     def __init__(self):
-        pass
+        self.time_taken: float = 0.
+        """Time taken in this step"""
+        self.signal_stop_here: bool = False
+        """Signal forced stop here"""
 
     def prepare_for_new_day(self) -> State:
         """Prepare state for new day"""
+        self.time_taken = 0.
+        self.signal_stop_here = False
+
         return self
 
     def uid(self) -> str:
@@ -232,10 +245,10 @@ class Agent(object):
 
     def __repr__(self) -> str:
         if self.day_finished >= 0:
-            return f'VirtualAgent ({self.this_hub}) - [finished day {self.day_finished}, {self.current_time:.2f}]'
+            return f'Agent ({self.this_hub}) - [finished day {self.day_finished}, {self.current_time:.2f}]'
         if self.day_cancelled >= 0:
-            return f'VirtualAgent ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled day {self.day_cancelled}, {self.current_time:.2f}]'
-        return f'VirtualAgent ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
+            return f'Agent ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled day {self.day_cancelled}, {self.current_time:.2f}]'
+        return f'Agent ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
 
     def __eq__(self, other) -> bool:
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
@@ -286,9 +299,9 @@ class PreparationInterface(abc.ABC):
         pass
 
 
-class SimulationInterface(abc.ABC):
+class SimulationPrepareDayInterface(abc.ABC):
     """
-    Simulation module interface
+    Simulation module interface for hooks starting at a new day
     """
 
     def __init__(self):
@@ -297,39 +310,44 @@ class SimulationInterface(abc.ABC):
         self.conditions: list[str] = []
 
     @abc.abstractmethod
-    def run_before(self, config: Configuration, context: Context, state: State) -> State:
+    def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent):
+        pass
+
+
+class SimulationDefineStateInterface(abc.ABC):
+    """
+    Simulation module interface for hooks defining the state of an agent at each node
+    """
+
+    def __init__(self):
+        # runtime settings
+        self.skip: bool = False
+        self.conditions: list[str] = []
+
+    @abc.abstractmethod
+    def define_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+        pass
+
+
+class SimulationStepInterface(abc.ABC):
+    """
+    Simulation step module interface - core of interface defining state
+    """
+
+    def __init__(self):
+        # runtime settings
+        self.skip: bool = False
+        self.conditions: list[str] = []
+
+    @abc.abstractmethod
+    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
         """
         Run the simulation module - run at the start of each simulation step, should be used as preparation for the
         actual simulation.
 
         :param config: configuration (read-only)
         :param context: context (read-only)
-        :param state: state of current agent
-        :return: updated state object
-        """
-        pass
-
-    @abc.abstractmethod
-    def run(self, config: Configuration, context: Context, state: State) -> State:
-        """
-        Run the simulation module - main step of the simulation. Should modify the next step entry, so the state can
-        advance after this step.
-
-        :param config: configuration (read-only)
-        :param context: context (read-only)
-        :param state: state of current agent
-        :return: updated state object
-        """
-        pass
-
-    @abc.abstractmethod
-    def run_after(self, config: Configuration, context: Context, state: State) -> State:
-        """
-        Run the simulation module - run at the end of each simulation step, should be used to clean up stuff.
-
-        :param config: configuration (read-only)
-        :param context: context (read-only)
-        :param state: state of current agent
+        :param agent: current agent (contains state object)
         :return: updated state object
         """
         pass
