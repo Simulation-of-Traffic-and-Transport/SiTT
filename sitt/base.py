@@ -14,7 +14,7 @@ import abc
 import hashlib
 import logging
 from enum import Enum
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import geopandas as gp
 import networkx as nx
@@ -24,14 +24,14 @@ __all__ = [
     "SkipStep",
     "Configuration",
     "Context",
-    "Status",
-    "StepData",
     "State",
+    "Agent",
     "SetOfResults",
     "PreparationInterface",
     "SimulationInterface",
     "OutputInterface",
 ]
+
 
 ########################################################################################################################
 # Configuration
@@ -134,6 +134,11 @@ class Context(object):
 
         self.graph: nx.MultiGraph | None = None
         """Graph data for roads and other ways"""
+        self.routes: nx.MultiDiGraph | None = None
+        """
+        Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to
+        find the correct route.
+        """
 
     def get_path_by_id(self, path_id) -> Dict | None:
         """Get path by id"""
@@ -161,113 +166,82 @@ class Context(object):
 
 
 ########################################################################################################################
-# State
+# Agent and State
 ########################################################################################################################
 
 
-class Status(Enum):
-    """Representation of the status of a state"""
-    RUNNING = 0
-    """still running"""
-    FINISHED = 1
-    """finished"""
-    CANCELLED = 2
-    """cancelled for some reason"""
-
-    def __str__(self):
-        return self.name
-
-
-class StepData(object):
-    """Step data object, this will take the current step data - temporary object"""
-
-    def __init__(self, start_idx: int):
-        self.current_leg: int = start_idx
-        self.next_leg: int = start_idx
-        """Next leg after this whole day, default is 8.0, this can be changed using the before step"""
-        self.time_available: float = 8.0
-        """Time available this step"""
-        self.time_used: float = 0.
-        """Time used during this step"""
-        # this class can contain any custom data
-
-
 class State(object):
-    """State class - this will take information on the current state of a simulation step"""
+    """State class - this will take information on the current state of a simulation agent, it will be reset each day"""
 
-    def __init__(self, path: List[Tuple]):
-        if len(path) == 0:
-            raise ValueError("path must not be empty")
+    def __init__(self):
+        pass
 
-        # base data
-        self.path: List[Tuple] = path
-        """Full path for this state"""
-        self.roads: List[str] = [x[2] for x in path]
-        """Road list to take"""
-        self.hubs: List[str] = [path[0][0]] + [x[1] for x in path]
+    def prepare_for_new_day(self) -> State:
+        """Prepare state for new day"""
+        return self
 
-        # overall data
-        self.status: Status = Status.RUNNING
-        """Current status"""
-        self.step: int = 1
-        """Current step"""
-        self.current_leg: int = 0
-        """Current leg of journey (index of current path entry, if finished, index should be len(self.path) + 1)"""
+    def uid(self) -> str:
+        """Return unique id of this state"""
+        return ''
 
-        # future data - calculated during each simulation step
-        self.step_data: StepData = StepData(0)
-        """Step data for next step"""
 
-        # construct id
-        self.id = ' → '.join(self.roads)
-        """Human readable id"""
-        self.uid = hashlib.md5(self.id.encode()).hexdigest()
-        """md5 digest of id"""
-        # this class can contain any custom data
+class Agent(object):
+    """Agent - simulating single travelling entity at a specific time and date"""
 
-    def initialize_next_step(self):
-        """Initialize next step - run before each simulation step"""
-        self.step_data = StepData(self.current_leg)
+    def __init__(self, this_hub: str, next_hub: str, route_key: str, state: State | None = None,
+                 current_time: float = 0., max_time: float = 0.):
+        """read-only reference to context"""
+        if state is None:
+            state = State()
+        self.state: State = state
+        """state of agent"""
 
-    def has_advanced_today(self) -> bool:
-        """Return true if next leg greater than previous one"""
-        return self.step_data.next_leg > self.current_leg
+        self.this_hub: str = this_hub
+        """Current hub"""
+        self.next_hub: str = next_hub
+        """Destination hub"""
+        self.route_key: str = route_key
+        """Key/vertex id of route between hubs"""
 
-    def get_current_start_hub(self) -> str:
-        """Get current start hub"""
-        return self.hubs[self.current_leg]
+        self.current_time: float = current_time
+        """Current time stamp of agent during this day"""
+        self.max_time: float = max_time
+        """Current maximum timestamp for this day"""
 
-    def get_total_length_m(self, context: Context) -> float:
-        total: float = 0.
+        self.day_finished: int = -1
+        """finished at this day"""
+        self.day_cancelled: int = -1
+        """cancelled at this day"""
+        self.tries: int = 0
+        """internal value for tries at this hub - will break at 100"""
 
-        """Get total length of this state path in m"""
-        for path in self.path:
-            p = context.get_path_by_id(path)
-            if p:
-                total += p['length_m']
+        self.route_data: nx.MultiDiGraph = nx.MultiDiGraph()
+        """keeps route taken"""
+        self.last_possible_resting_place: str = this_hub
+        """keeps last possible resting place"""
+        self.last_possible_resting_time: float = current_time
+        """keeps timestamp of last resting place"""
 
-        return total
+    def prepare_for_new_day(self):
+        """reset to defaults for a day"""
+        self.current_time = 8.
+        self.max_time = 16.
+        self.last_possible_resting_place = self.this_hub
+        self.last_possible_resting_time = self.current_time
+        self.state = self.state.prepare_for_new_day()
 
-    def advance(self):
-        if self.status is Status.CANCELLED:
-            return
+    def __repr__(self) -> str:
+        if self.day_finished >= 0:
+            return f'VirtualAgent ({self.this_hub}) - [finished day {self.day_finished}, {self.current_time:.2f}]'
+        if self.day_cancelled >= 0:
+            return f'VirtualAgent ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled day {self.day_cancelled}, {self.current_time:.2f}]'
+        return f'VirtualAgent ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
 
-        """advance a step"""
-        self.current_leg = self.step_data.next_leg
+    def __eq__(self, other) -> bool:
+        return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
-        # finished?
-        if self.current_leg >= len(self.path):
-            self.status = Status.FINISHED
-        else:
-            self.step += 1
-
-    def __str__(self):
-        return "State " + self.uid + ' (' + self.id + '), ' + str(self.status)
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # delete certain stuff we cannot or do not want to picke
-        del state['step_data']
+    def uid(self) -> str:
+        return hashlib.sha512((self.this_hub + self.next_hub + self.route_key).encode()).hexdigest()
 
 
 ########################################################################################################################
@@ -277,7 +251,12 @@ class State(object):
 
 class SetOfResults:
     """Set of results represents the results of a simulation"""
-    pass
+
+    def __init__(self):
+        self.agents_finished: List[Agent] = []
+        """keeps list of finished agents"""
+        self.agents_cancelled: List[Agent] = []
+        """keeps list of cancelled agents"""
 
 
 ########################################################################################################################

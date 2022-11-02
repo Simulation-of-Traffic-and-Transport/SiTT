@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Simulation runner, can be called as process or thread"""
+"""Simulation runner, can be called as process or thread in the future"""
 
 from __future__ import annotations
 

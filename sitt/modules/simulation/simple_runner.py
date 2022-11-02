@@ -6,7 +6,7 @@ import logging
 
 import yaml
 
-from sitt import Configuration, Context, SimulationInterface, State, Status, is_truthy
+from sitt import Configuration, Context, SimulationInterface, State, Agent, is_truthy
 
 logger = logging.getLogger()
 
@@ -51,7 +51,7 @@ class SimpleRunner(SimulationInterface):
         path = context.get_directed_path_by_id(path_id, start_hub)
         if not path:
             logger.error(state.uid + " SimulationInterface SimpleRunner error, path not found ", str(path_id))
-            state.status = Status.CANCELLED
+            # state.status = Status.CANCELLED
             return state
 
         # create range to traverse

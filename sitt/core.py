@@ -9,15 +9,12 @@
 """
 
 import abc
+import copy
 import logging
 import os.path
-import pickle
-from concurrent import futures
+from typing import Dict, List
 
-import networkx as nx
-
-from sitt import Configuration, Context, SkipStep, State, SetOfResults
-from sitt.sim_runner import run_simulation
+from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
 
 __all__ = ['BaseClass', 'Core', 'Preparation', 'Simulation', 'Output']
 
@@ -158,9 +155,8 @@ class Preparation(BaseClass):
 
 
 ########################################################################################################################
-# Simulation class
+# Simulation classes
 ########################################################################################################################
-
 
 class Simulation(BaseClass):
     """
@@ -177,6 +173,65 @@ class Simulation(BaseClass):
         super().__init__(config)
         self.context = context
 
+        self.current_day = 1
+        """Current day of simulation"""
+
+    def check(self) -> bool:
+        """check settings"""
+        ok = True
+
+        # Checking start and stop hubs
+        if not self.config.simulation_start:
+            logger.error("simulation_start is empty - simulation failed!")
+            ok = False
+        if not self.config.simulation_end:
+            logger.error("simulation_end is empty - simulation failed!")
+            ok = False
+        if not self.context.routes:
+            logger.error("routes is empty - simulation failed!")
+            ok = False
+
+        if logger.level <= logging.INFO:
+            logger.info("start:  " + self.config.simulation_start)
+            logger.info("end:    " + self.config.simulation_end)
+            logger.info("routes: " + str(self.context.routes))
+
+        return ok
+
+    def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None) -> List[Agent]:
+        """Create a number of virtual agents on a given node"""
+        agents: List[Agent] = []
+
+        if agent_to_clone is None:
+            agent_to_clone = Agent(hub, '', '', current_time=8.0, max_time=16.0)
+
+        for target in self.context.routes[hub]:
+            for route_key in self.context.routes[hub][target]:
+                # create new agent for each option
+                my_virtual_agent = copy.deepcopy(agent_to_clone)
+                my_virtual_agent.this_hub = hub
+                my_virtual_agent.next_hub = target
+                my_virtual_agent.route_key = route_key
+
+                agents.append(my_virtual_agent)
+
+        return agents
+
+    def prune_agent_list(self, agent_list) -> List[Agent]:
+        """prune agent list to include """
+        hashed_agents: Dict[str, Agent] = {}
+
+        for ag in agent_list:
+            uid = ag.uid()
+            if uid not in hashed_agents:
+                hashed_agents[uid] = ag
+            else:
+                # merge graphs - we want to have all possible graphs at the end
+                hashed_agents[uid].route_data.add_nodes_from(ag.route_data.nodes(data=True))
+                hashed_agents[uid].route_data.add_edges_from(ag.route_data.edges(data=True))
+
+        return list(hashed_agents.values())
+
     def run(self) -> SetOfResults:
         """
         Run the simulation
@@ -185,32 +240,167 @@ class Simulation(BaseClass):
         """
         logger.info("******** Simulation: started ********")
 
-        # Checking start and stop hubs
-        if not self.config.simulation_start:
-            logger.error("simulation_start is empty - simulation failed!")
-        if not self.config.simulation_end:
-            logger.error("simulation_end is empty - simulation failed!")
+        results = SetOfResults()
 
-        if logger.level <= logging.INFO:
-            logger.info("start:       " + self.config.simulation_start)
-            logger.info("end:         " + self.config.simulation_end)
+        # check settings
+        if not self.check():
+            return results
 
-        set_of_results = SetOfResults()
+        # create initial set of agents to run
+        agents = self.create_agents_on_node(self.config.simulation_start)
+        # reset day counter
+        self.current_day = 1
 
-        # This is the first take of how we handle the simulation:
-        # We will create all simple paths in the graph and let one agent run through each one
-        # we might use concurrent multiprocessing for this
-        results = []
+        # do the loop - this is the outer loop for the whole simulation
+        while len(agents):
+            agents_finished_for_today: List[Agent] = []
+            """keeps finished agents for this day"""
+            agents_proceed: List[Agent] = []
+            """keeps list of agents that proceed today"""
 
-        # main loop
-        for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
-                                          self.config.simulation_end):
-            print(run_simulation(State(p), self.config, self.context))
-            # TODO: add to set of results
+            # prepare context for single day
+            for agent in agents:
+                agent.prepare_for_new_day()
+                # TODO: include module list here
+
+            # do single day loop - this is the outer loop for the simulation (per day)
+            while len(agents):
+                # do single step
+                for agent in agents:
+                    # calculate context of agent at this node
+                    # TODO: include module list here
+
+                    # TODO: call central simulation model here
+                    # precalculate next hub
+                    leg = self.context.graph.get_edge_data(agent.this_hub, agent.next_hub, agent.route_key)
+                    time_taken = leg['length_m'] / 5000
+                    # TODO: this should be the actual call...
+
+                    # proceed or stop here?
+                    if agent.current_time + time_taken <= agent.max_time:
+                        # proceed..., first add time
+                        agent.current_time += time_taken
+
+                        # add route taken
+                        if agent.route_data.number_of_nodes() == 0:
+                            agent.route_data.add_node(agent.this_hub, geom=self.context.graph.nodes[agent.this_hub]['geom'])
+
+                        agent.route_data.add_node(agent.next_hub, geom=self.context.graph.nodes[agent.next_hub]['geom'])
+                        agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
+                                                  time_taken=time_taken)
+
+                        # finished?
+                        if agent.next_hub == self.config.simulation_end:
+                            agent.this_hub = self.config.simulation_end
+                            agent.next_hub = ''
+                            agent.route_key = ''
+                            agent.day_finished = self.current_day
+                            results.agents_finished.append(agent)
+                        else:
+                            # proceed to new hub
+                            if self.context.graph.nodes[agent.next_hub]['overnight'] == 'y':
+                                # overnight stay? if yes, save it
+                                agent.last_possible_resting_place = agent.next_hub
+                                agent.last_possible_resting_time = agent.current_time
+
+                            agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
+                    else:
+                        # time exceeded, end day
+
+                        # break if tries are exceeded
+                        agent.tries += 1
+                        if agent.tries > self.config.break_simulation_after:
+                            agent.day_cancelled = self.current_day - self.config.break_simulation_after
+                            results.agents_cancelled.append(agent)
+                        else:
+                            # traceback to last possible resting place, if needed
+                            if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
+                                # get entries to delete from graph
+                                hubs_to_delete = []
+                                edges_to_delete = []
+                                hub = agent.last_possible_resting_place
+                                while hub != agent.this_hub:
+                                    hub_id = next(iter(agent.route_data[agent.last_possible_resting_place]))
+                                    if hub_id != agent.last_possible_resting_place:
+                                        hubs_to_delete.append(hub_id)
+                                    edges_to_delete.append(
+                                        next(iter(agent.route_data[agent.last_possible_resting_place][hub_id])))
+                                    hub = hub_id
+                                agent.route_data.remove_edges_from(edges_to_delete)
+                                agent.route_data.remove_nodes_from(hubs_to_delete)
+
+                                agents_finished_for_today.extend(
+                                    self.create_agents_on_node(agent.last_possible_resting_place, agent))
+                            else:
+                                agents_finished_for_today.append(agent)
+                    # TODO: call central simulation model here - end
+
+                agents = agents_proceed
+                agents_proceed = []
+
+            # day finished, let's check if we have unfinished agents left
+            if len(agents_finished_for_today):
+                agents = self.prune_agent_list(agents_finished_for_today)
+            else:
+                agents = []
+
+            # increase day
+            self.current_day += 1
+
+        # # loop while agents still exist
+        #
+        # # TODO:
+        # # Überdenken, vielleicht splitten wir die Simulation eher logisch auf...
+        # # Core-Runner-Modul (1)
+        # # Vor und Nach jeweils Module...
+        #
+        # # Grundsätzliche Ideen im Notizbuch
+        # # Pro Agent:
+        # # Routen via virtuelle Agenten durchlaufen, die einen Tagesablauf simulieren...
+        # # Pro Node: Kontext berechnen (Wetter, etc.) vorher
+        #
+        # while len(agents):
+        #     logger.info(f"Simulating day {state.day}")
+        #
+        #     agents_after_day_by_hash = {}
+        #
+        #     for agent in agents:
+        #         # dummy run - advance two steps
+        #         for target in self.context.routes[agent.next_target]:
+        #             for route_key in self.context.routes[agent.next_target][target]:
+        #                 # clone agent
+        #                 if target != self.config.simulation_end:
+        #                     new_agents = self.prepare_agents_at_hub(target, agent.state)
+        #                     for new_agent in new_agents:
+        #                         agents_after_day_by_hash[new_agent.uid()] = new_agent
+        #
+        #                     logger.info(f"Agent traversed {agent.start} --{agent.next_leg}--> {agent.next_leg} --{route_key}-->{target}")
+        #                 else:
+        #                     logger.info("One agent reached end point")
+        #
+        #     # fill agents from hashed list
+        #     agents = []
+        #     for key in agents_after_day_by_hash:
+        #         agents.append(agents_after_day_by_hash[key])
+        #
+        #     # increase day
+        #     if len(agents) > 0:
+        #         state.day += 1
+        #
+        # # This is the first take of how we handle the simulation:
+        # # We will create all simple paths in the graph and let one agent run through each one
+        # # we might use concurrent multiprocessing for this
+        # # results = []
+        #
+        # # main loop
+        # # for p in nx.all_simple_edge_paths(self.context.graph, self.config.simulation_start,
+        # #                                  self.config.simulation_end):
+        # #    print(run_simulation(State(p), self.config, self.context))
+        # #    # TODO: add to set of results
 
         logger.info("******** Simulation: finished ********")
 
-        return set_of_results
+        return results
 
 
 ########################################################################################################################
