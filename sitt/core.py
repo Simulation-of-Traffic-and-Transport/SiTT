@@ -14,6 +14,8 @@ import logging
 import os.path
 from typing import Dict, List
 
+import networkx as nx
+
 from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
 
 __all__ = ['BaseClass', 'Core', 'Preparation', 'Simulation', 'Output']
@@ -323,20 +325,16 @@ class Simulation(BaseClass):
                         else:
                             # traceback to last possible resting place, if needed
                             if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
-                                # get entries to delete from graph
+                                # compile entries to delete from graph
                                 hubs_to_delete = []
                                 edges_to_delete = []
-                                hub = agent.last_possible_resting_place
-                                while hub != agent.this_hub:
-                                    # TODO: fix this!
-                                    print('xxx')
-                                    # TODO: fix this!
-                                    hub_id = next(iter(agent.route_data[agent.last_possible_resting_place]))
-                                    if hub_id != agent.last_possible_resting_place:
-                                        hubs_to_delete.append(hub_id)
-                                    edges_to_delete.append(
-                                        next(iter(agent.route_data[agent.last_possible_resting_place][hub_id])))
-                                    hub = hub_id
+
+                                for path in nx.all_simple_edge_paths(agent.route_data,
+                                                                     agent.last_possible_resting_place, agent.this_hub):
+                                    for leg in path:
+                                        hubs_to_delete.append(leg[1])  # add the second node, because first is either last_possible_resting_place or has been added already
+                                        edges_to_delete.append(leg[2])  # add vertex id
+
                                 agent.route_data.remove_edges_from(edges_to_delete)
                                 agent.route_data.remove_nodes_from(hubs_to_delete)
 
