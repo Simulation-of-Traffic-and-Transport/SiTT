@@ -247,7 +247,7 @@ PROCEED["Proceed agent,\nexpand history"]
 FINISHED{"Reached\nend?"}
 FINISHED_OK[Add to finished list]
 FINISHED_NOK["Add clones\nto agent list"]
-FINISHED_ALL[Finished simulation run]
+FINISHED_ALL["Finished simulation run\nCreate Set of Results"]
 
 OUTER{"outer\nlen(agents)>0"}
 MIDDLE{"day\nlen(agents)>0"}
@@ -306,6 +306,3 @@ OUT ---> TGT_RESULT ---> OUT
 
 style OUT fill:#f9f,stroke:#333,color:#333;
 ```
-
-* Lizenzen: https://choosealicense.com/
-* Struktur: https://docs.python-guide.org/writing/structure/
