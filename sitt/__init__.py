@@ -29,7 +29,7 @@ from sitt.core import Core, BaseClass, Preparation, Simulation, Output
 from sitt.utils import is_truthy
 
 import sitt.modules.preparation as preparation
-import sitt.modules.simulation_step as simulation
+import sitt.modules.simulation_step as simulation_step
 import sitt.modules.output as output
 
 __all__ = [
@@ -54,7 +54,7 @@ __all__ = [
     "Output",
     "is_truthy",
     "preparation",
-    "simulation",
+    "simulation_step",
     "output"
 ]
 
