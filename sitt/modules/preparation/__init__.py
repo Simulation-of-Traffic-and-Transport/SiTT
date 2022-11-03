@@ -5,6 +5,7 @@
 
 from .calculate_roads_and_hubs import CalculateRoadsAndHubs
 from .conditional_module import ConditionalModule
+from .create_routes import CreateRoutes
 from .debug_display_roads_and_hubs import DebugDisplayRoadsAndHubs
 from .dummy import Dummy
 from .geotiff_height_for_roads_and_hubs import GeoTIFFHeightForRoadsAndHubs
@@ -17,6 +18,7 @@ from .psql_save_roads_and_hubs import PsqlSaveRoadsAndHubs
 __all__ = [
     'CalculateRoadsAndHubs',
     'ConditionalModule',
+    'CreateRoutes',
     'DebugDisplayRoadsAndHubs',
     'Dummy',
     'GeoTIFFHeightForRoadsAndHubs',
