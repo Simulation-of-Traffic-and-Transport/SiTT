@@ -176,83 +176,96 @@ The context will aggregate things like:
 * weather data
 * fatigue model
 * presumptions such as starting place, target location, starting time, load, etc.
+* precalculated routes for the simulation to check the simulation against (this is done in the preparation because we
+  can then reduce the number of routes to simulate or change certain parameters)
 * ... other data relevant for simulation models
 
 
 ## Simulation Component
 
-_TODO:_ It might be better to precalculate all possible routes first - this will make agent cloning superfluous and
-therefore reduce complexity a bit...
-
-_TODO:_: Check nodes and merges - at which points along the route can decisions be taken? And what decisions do we need
-to take case of?
-
 This is the core worker. It will run a list of configured modules each iteration and calculate times and distances
-travelled by an agent. The basic simulation runs like this:
+travelled by an agent.
 
-* An agent is created. The agent will receive the context and initialize its state. The state represents the current
-  information on the agents and contains data such as:
-  * current position
-  * current time
-  * length taken for the next leg of the journey (see below)
-  * current fatigue, load, means of transport, and other information relevant for the simulation
-* Each agent will also have a journal of past states. This can be used to reconstruct all the iterations taken by the
-  agent. Because agents can be cloned and merged, the journal will be a graph, containing possible detours and merges.
-* The simulation will run any number of steps until the agent reaches the target position or a special exception will
-  be raised by a module (`AgentRetiredException`). An actual simulation iteration will look like this:
-  * If there are multiple routes available at the current position, the agent will clone into multiple agents equal to
-    the number of routes. Each agent will have its own copy of the state and will receive the global context (which is
-    read only). The means of transport can also change due to different routes (e.g. changing from land transport to
-    water). There will be modules to handle this.
-  * For each agent, the simulation will calculate the next day's journey. It is important to precalculate this,
-    because multiple agents might end up at the same base camp at night due to restrictions where to stay overnight.
-    As a consequence, the number of agents might have to be reduced after the day has passed.
-  * The iteration of a day will be cut into any number of steps (for each agent):
-    * The next possible leg of the route will be taken and the length of time for this path will be calculated.
-    * The calculation will call any number of modules (using events such as `on_before_run`, `on_run`, and
-      `on_after_run`). Each call can modify the state, especially to calculate the time taken for the next section of the
-      journey. Each module can also save arbitrary data into the state that can be read and interpreted by other modules,
-      which makes it possible for modules to react somehow. Moreover, each module has access to all the data in the
-      context, so it can retrieve the weather data, fatigue model, etc. from it. As a consequence, modules can be very
-      flexible and regards things like:
-      * weather
-      * load and means of transport
-      * change the means of transport
-    * Calculations can also signal a "zero advancement" event, meaning that for a certain time, there will be no further
-      advancement along the path. This enables modules to simulate (forced) breaks.
-      * Moreover, some points might be "mandatory stops" (e.g. trade hubs where cargo is always unloaded and checked).
-        These can be simulated by similar means: Reducing travel to just reach this point.
-    * After all the models have run, the time taken for the next leg will be evaluated:
-      * If the remaining time for this day is longer than the time taken, the agent will advance to the new position.
-      * Otherwise, the day will end and the agent will retire for the night at the last possible overnight stay (using
-        the journal).
-    * After each step, it is possible to clone the agent according to possible routes. This can also mean a change in
-      the means of transport. There will be modules to handle this.
-  * Thus, each iteration will calculate the times taken to the next overnight position.
-  * After all the steps have been concluded, the simulation checks for double agents at the same target position. If
-    there are any, the number of agents will be reduced (the best matching agent will be taken).
-  * All remaining agents' state will advance to the new positions and the times will be incremented.
-* For each agent, the iteration will continue, possibly splitting agents along the line.
-* After all the agents have finished their journey, the set of results will be created. This is a list of all the
-  agents, including their states and their journals. The set of results also contains the original context.
+The simulation will expect the two context data entries to be set:
 
-_TODO_ diagrams
+* Full graph of hubs and paths, including distances, slopes, and other relevant data.
+* Directed graph of possible routes to be taken. This is the abstraction of full graph just including all routes to
+  check against (see above).
 
-Parallelism: Possible by day, as far as I can see now.
+The simulation contains two main data structures:
 
-Agents deduplication can be checked after a day has ended. Thus, threads can run in parallel for each day, after which
-all agents are evaluated. Merging of agents on the basis of certain variables that identify a unique agent (like a
-hash). The total number of agents will be reduced, if duplicates are found (like a tree shaking process). The journal
-of merged agents has to be merged, too.
+* Agent: Simulated entry travelling the paths. Agents can be split and merged by the simulation to optimize iterations.
+  The agent will contain the current hub, the next hub and path to test against. It will also save a history of past
+  nodes and roads travelled along with some data.
+* State: Status record mostly valid for a single iteration. It is attached to an agent. The most important data
+  contained is the precalculated time taken to the next hub. The state can also signal a forced stop (useful for certain
+  scenarios).
+
+The basic simulation runs like this:
+
+* The simulation will look at the starting point and create a number of agents. The number is equal to the possible
+  outgoing paths of the initial hub. 
+* The simulation will start the outer loop. This loop will continue as long as there are still unfinished (and
+  uncancelled) agents available.
+  * The simulation will start a new day. This is the intermediate loop.
+    * Each agent receives a reset. PrepareDay modules are run for each agent.
+    * The inner loop will be run. This loop will run as long as there are still agents not finished this day.
+      * Each agent is considered and the next possible step is precalculated. The state of each agent can be set by
+        DefineState modules.
+      * The actual calculation is done by SimulationStep modules.
+      * After each calculation, the simulation checks if the agent can reach the next hub, if there is a forced stop, or
+        if the target hub has been reached.
+      * If none of the above apply, re-enter agent for the next run of the inner loop.
+      * Also consider the possibility, that an agent cannot reach the next hub at all. Then cancel this agent. This is
+        also the case, if an agent cannot proceed for a certain number of steps (set in configuration, default is 100).
+      * If an agent has finished its day loop, then check if it can stay overnight at the current hub. If not, backtrace
+        to the last possible step. This might also mean, the agent backtracks to the hub it started from today.
+    * After the inner loop has finished, we have a list of agents that have finished, cancelled, or are still running.
+    * We will merge running agents if they are at the same hub on the same day (subject to other status entries defined
+      by modules).
+    * Likewise, agents on hubs with more than one exit path will be cloned.
+    * Jump back to the next day, unless there are no remaining running agents.
+
+The following flowchart displays how the simulation core is run.
 
 ```mermaid
-flowchart LR
+flowchart TB
 
-CONTEXT[Context]
-STATE["State"]
-JOURNAL["Journal"]
+INIT[Create agents at start node]
+DAY[Start new day]
+RESET[Reset agents]
+PREPARE_DAY[Prepare day for each agent]
+DEFINE_STATE[Define state]
+SIM[Simulation step]
+STOP_OR_TIME{"Stop or time\nexceeded?"}
+MAX_TRIES{"Maximum tries\nexceeded?"}
+CANCEL_AGENT[Cancel agent]
+OVERNIGHT{"Overnight\nstay possible?"}
+OVERNIGHT_OK["Add clones\nto agent list"]
+OVERNIGHT_NOK["Backtrack and add to agent list"]
+PROCEED["Proceed agent,\nexpand history"]
+FINISHED{"Reached\nend?"}
+FINISHED_OK[Add to finished list]
+FINISHED_NOK["Add clones\nto agent list"]
+FINISHED_ALL[Finished simulation run]
+
+OUTER{"outer\nlen(agents)>0"}
+MIDDLE{"day\nlen(agents)>0"}
+INNER{"step\nlen(agents)>0"}
+
+INIT --> DAY --> RESET --> PREPARE_DAY --> DEFINE_STATE --> SIM --> STOP_OR_TIME
+STOP_OR_TIME -- yes --> MAX_TRIES -- yes --> CANCEL_AGENT
+MAX_TRIES -- no --> OVERNIGHT
+OVERNIGHT -- yes --> OVERNIGHT_OK --> MIDDLE
+OVERNIGHT -- no --> OVERNIGHT_NOK  --> MIDDLE
+STOP_OR_TIME -- no --> PROCEED --> FINISHED -- yes --> FINISHED_OK
+FINISHED -- no --> FINISHED_NOK --> INNER -- yes --> DEFINE_STATE
+MIDDLE -- yes --> DAY
+MIDDLE -- no --> OUTER
+INNER -- no --> MIDDLE
+OUTER -- yes --> DAY
+OUTER -- no --> FINISHED_ALL
 ```
-
 
 ## Output Component
 
