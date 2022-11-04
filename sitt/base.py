@@ -16,10 +16,9 @@ from enum import Enum
 from typing import Dict, List
 
 import geopandas as gp
+import nanoid
 import networkx as nx
 import yaml
-
-from utils import generate_uid
 
 __all__ = [
     "SkipStep",
@@ -37,9 +36,16 @@ __all__ = [
 
 
 ########################################################################################################################
-# Configuration
+# Utilities
 ########################################################################################################################
 
+def generate_uid() -> str:
+    return nanoid.generate('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12)
+
+
+########################################################################################################################
+# Configuration
+########################################################################################################################
 
 class SkipStep(Enum):
     """
@@ -177,7 +183,6 @@ class Context(object):
 # Agent and State
 ########################################################################################################################
 
-
 class State(object):
     """State class - this will take information on the current state of a simulation agent, it will be reset each day"""
 
@@ -273,7 +278,6 @@ class Agent(object):
 # Set of Results
 ########################################################################################################################
 
-
 class SetOfResults:
     """Set of results represents the results of a simulation"""
 
@@ -289,10 +293,10 @@ class SetOfResults:
     def __str__(self):
         return "SetOfResults"
 
+
 ########################################################################################################################
 # Preparation, Simulation, and Output Interfaces
 ########################################################################################################################
-
 
 class PreparationInterface(abc.ABC):
     """
@@ -391,16 +395,3 @@ class OutputInterface(abc.ABC):
         :return: any output data
         """
         pass
-
-########################################################################################################################
-# Abstract base classes
-########################################################################################################################
-
-# TODO: move to own file?
-# TODO
-
-########################################################################################################################
-# Core + Simulation stuff
-########################################################################################################################
-
-# TODO

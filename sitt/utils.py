@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-import nanoid
-
-__all__ = ['is_truthy', 'generate_uid']
+__all__ = ['is_truthy']
 
 
 def is_truthy(val) -> bool:
@@ -17,7 +15,3 @@ def is_truthy(val) -> bool:
     #     return False
     #
     # return True
-
-
-def generate_uid() -> str:
-    return nanoid.generate('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12)

@@ -14,10 +14,11 @@ logger = logging.getLogger()
 class JSONOutput(OutputInterface):
     """Create basic json output"""
 
-    def __init__(self):
+    def __init__(self, to_string: bool = True, show_output: bool = False):
         super().__init__()
-        self.to_string: bool = True
-        self.show_output: bool = False
+        self.to_string: bool = to_string
+        """Convert data to string"""
+        self.show_output: bool = show_output
         """Display output in logging"""
 
     def run(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> str:
@@ -30,7 +31,8 @@ class JSONOutput(OutputInterface):
         if self.to_string:
             result = json.dumps(result)
         if self.show_output:
-            logger.info(result)
+            # alway log at log level to show output
+            logger.log(logger.level, result)
 
         return result
 

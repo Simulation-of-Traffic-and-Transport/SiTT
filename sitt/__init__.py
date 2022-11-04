@@ -26,7 +26,7 @@ from sitt.base import (
     OutputInterface
 )
 from sitt.core import Core, BaseClass, Preparation, Simulation, Output
-from sitt.utils import is_truthy, generate_uid
+from sitt.utils import is_truthy
 
 import sitt.modules.preparation as preparation
 import sitt.modules.simulation_step as simulation_step
@@ -53,7 +53,6 @@ __all__ = [
     "Simulation",
     "Output",
     "is_truthy",
-    "generate_uid",
     "preparation",
     "simulation_step",
     "output"
