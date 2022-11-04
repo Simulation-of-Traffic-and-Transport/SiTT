@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import abc
-import hashlib
 import logging
 from enum import Enum
 from typing import Dict, List
@@ -19,6 +18,8 @@ from typing import Dict, List
 import geopandas as gp
 import networkx as nx
 import yaml
+
+from utils import generate_uid
 
 __all__ = [
     "SkipStep",
@@ -181,6 +182,9 @@ class State(object):
     """State class - this will take information on the current state of a simulation agent, it will be reset each day"""
 
     def __init__(self):
+        self.uid: str = generate_uid()
+        """unique id"""
+
         self.time_taken: float = 0.
         """Time taken in this step"""
         self.signal_stop_here: bool = False
@@ -192,10 +196,10 @@ class State(object):
         self.signal_stop_here = False
 
         return self
-
-    def uid(self) -> str:
-        """Return unique id of this state"""
-        return ''
+    #
+    # def hash(self) -> str:
+    #     """Return unique id of this state"""
+    #     return ''
 
 
 class Agent(object):
@@ -203,6 +207,9 @@ class Agent(object):
 
     def __init__(self, this_hub: str, next_hub: str, route_key: str, state: State | None = None,
                  current_time: float = 0., max_time: float = 0.):
+        self.uid: str = generate_uid()
+        """unique id"""
+
         """read-only reference to context"""
         if state is None:
             state = State()
@@ -245,16 +252,21 @@ class Agent(object):
 
     def __repr__(self) -> str:
         if self.day_finished >= 0:
-            return f'Agent ({self.this_hub}) - [finished day {self.day_finished}, {self.current_time:.2f}]'
+            return f'Agent {self.uid} ({self.this_hub}) - [finished day {self.day_finished}, {self.current_time:.2f}]'
         if self.day_cancelled >= 0:
-            return f'Agent ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled day {self.day_cancelled}, {self.current_time:.2f}]'
-        return f'Agent ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
+            return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled day {self.day_cancelled}, {self.current_time:.2f}]'
+        return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
 
     def __eq__(self, other) -> bool:
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
-    def uid(self) -> str:
-        return hashlib.sha512((self.this_hub + self.next_hub + self.route_key).encode()).hexdigest()
+    def hash(self) -> str:
+        return self.this_hub + self.next_hub + self.route_key
+
+    def generate_uid(self) -> str:
+        """(re)generate unique id (nanoid) of agent"""
+        self.uid = generate_uid()
+        return self.uid
 
 
 ########################################################################################################################
@@ -271,6 +283,11 @@ class SetOfResults:
         self.agents_cancelled: List[Agent] = []
         """keeps list of cancelled agents"""
 
+    def __repr__(self) -> str:
+        return yaml.dump(self)
+
+    def __str__(self):
+        return "SetOfResults"
 
 ########################################################################################################################
 # Preparation, Simulation, and Output Interfaces
@@ -364,13 +381,14 @@ class OutputInterface(abc.ABC):
         self.conditions: list[str] = []
 
     @abc.abstractmethod
-    def run(self, config: Configuration, context: Context, set_of_results: SetOfResults):
+    def run(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> any:
         """
         Run the output module
 
         :param config: configuration (read-only)
         :param context: context (read-only)
         :param set_of_results: set of results (read-only)
+        :return: any output data
         """
         pass
 

@@ -41,9 +41,11 @@ class Core:
         """
         self.config: Configuration = config
 
-    def run(self):
+    def run(self) -> List[any] | None:
         """
         Run simulation.
+
+        :return: list of outputs or none if output is skipped
         """
         # preparation step - this step must be run always
         preparation = Preparation(self.config)
@@ -57,7 +59,9 @@ class Core:
             # final step: output
             if self.config.skip_step != SkipStep.OUTPUT:
                 output = Output(self.config, context, set_of_results)
-                output.run()
+                return output.run()
+
+        return None
 
 
 ########################################################################################################################
@@ -210,27 +214,42 @@ class Simulation(BaseClass):
         for target in self.context.routes[hub]:
             for route_key in self.context.routes[hub][target]:
                 # create new agent for each option
-                my_virtual_agent = copy.deepcopy(agent_to_clone)
-                my_virtual_agent.this_hub = hub
-                my_virtual_agent.next_hub = target
-                my_virtual_agent.route_key = route_key
+                new_agent = copy.deepcopy(agent_to_clone)
+                new_agent.this_hub = hub
+                new_agent.next_hub = target
+                new_agent.route_key = route_key
 
-                agents.append(my_virtual_agent)
+                agents.append(new_agent)
+
+        # create new uids, if agents have split
+        if len(agents) > 1:
+            for agent in agents:
+                agent.generate_uid()
 
         return agents
 
-    def prune_agent_list(self, agent_list) -> List[Agent]:
+    def prune_agent_list(self, agent_list: List[Agent]) -> List[Agent]:
         """prune agent list to include """
         hashed_agents: Dict[str, Agent] = {}
 
         for ag in agent_list:
-            uid = ag.uid()
-            if uid not in hashed_agents:
-                hashed_agents[uid] = ag
+            hash_id = ag.hash()
+            if hash_id not in hashed_agents:
+                hashed_agents[hash_id] = ag
             else:
                 # merge graphs - we want to have all possible graphs at the end
-                hashed_agents[uid].route_data.add_nodes_from(ag.route_data.nodes(data=True))
-                hashed_agents[uid].route_data.add_edges_from(ag.route_data.edges(data=True))
+                for leg in ag.route_data.edges(data=True, keys=True):
+                    if hashed_agents[hash_id].route_data.has_edge(leg[0], leg[1], leg[2]):
+                        data = hashed_agents[hash_id].route_data.get_edge_data(leg[0], leg[1], leg[2])
+                        changed = False
+                        for uid in leg[3]['agents']:
+                            if uid not in data['agents']:
+                                data['agents'][uid] = leg[3]['agents'][uid]
+                                changed = True
+                        if changed:
+                            hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]['agents'] = data['agents']
+                    else:
+                        hashed_agents[hash_id].route_data.add_edge(leg[0], leg[1], leg[2], agents=leg[3]['agents'])
 
         return list(hashed_agents.values())
 
@@ -289,15 +308,12 @@ class Simulation(BaseClass):
                     # proceed or stop here?
                     if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
                         # proceed..., first add time
+                        start_time = agent.current_time
                         agent.current_time += agent.state.time_taken
 
-                        # add route taken
-                        if agent.route_data.number_of_nodes() == 0:
-                            agent.route_data.add_node(agent.this_hub, geom=self.context.graph.nodes[agent.this_hub]['geom'])
-
-                        agent.route_data.add_node(agent.next_hub, geom=self.context.graph.nodes[agent.next_hub]['geom'])
+                        # add route data
                         agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                                  time_taken=agent.state.time_taken)
+                                                  agents={agent.uid: {'day': self.current_day, 'start': start_time, 'end': agent.current_time}})
 
                         # finished?
                         if agent.next_hub == self.config.simulation_end:
@@ -382,7 +398,7 @@ class Output(BaseClass):
         self.context = context
         self.set_of_results = set_of_results
 
-    def run(self):
+    def run(self) -> List[any]:
         """
         Run the output
 
@@ -390,8 +406,12 @@ class Output(BaseClass):
         """
         logger.info("******** Output: started ********")
 
+        outputs: List[any] = []
+
         # run modules
         for module in self.config.output:
-            module.run(self.config, self.context, self.set_of_results)
+            outputs.append(module.run(self.config, self.context, self.set_of_results))
 
         logger.info("******** Output: finished ********")
+
+        return outputs
