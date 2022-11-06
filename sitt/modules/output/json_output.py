@@ -130,7 +130,7 @@ class JSONOutput(OutputInterface):
                 if key == 'geom':
                     data['geom'] = mapping(node[1]['geom'])
                 elif key == 'overnight':
-                    data['overnight'] = is_truthy(node[1]['geom'])
+                    data['overnight'] = is_truthy(node[1]['overnight'])
                 else:
                     data[key] = node[1][key]
 
