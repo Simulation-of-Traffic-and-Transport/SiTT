@@ -16,3 +16,4 @@ config.yaml
 !examples/example_graph.pkl
 network.png
 possible_routes_*.png
+simulation_output.*

@@ -266,8 +266,17 @@ simulation_step:
 
 # These steps define the classes to load in the output step and which parameters to set
 # The classes are loaded and executed in the order of loading
-#output:
-#  - class: Test1
-#    param1: Parameter 1
-#  - class: Test2
-#    param2: Parameter 2
+output:
+  - class: JSONOutput
+    module: modules.output
+    args:
+      # convert to string
+      to_string: true
+      # show output in log
+      show_output: false
+      # save output to file?
+      save_output: false
+      # output filename
+      filename: simulation_output.json
+      # indent output to display json in a nice way (if > 0, indent by this number of spaces)?
+      indent: 0

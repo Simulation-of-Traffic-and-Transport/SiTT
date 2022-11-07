@@ -14,12 +14,19 @@ logger = logging.getLogger()
 class JSONOutput(OutputInterface):
     """Create basic json output"""
 
-    def __init__(self, to_string: bool = True, show_output: bool = False):
+    def __init__(self, to_string: bool = True, show_output: bool = False, save_output: bool = False,
+                 filename: str = 'simulation_output.json', indent: int = 0):
         super().__init__()
         self.to_string: bool = to_string
         """Convert data to string"""
         self.show_output: bool = show_output
         """Display output in logging"""
+        self.save_output: bool = save_output
+        """Save output to file?"""
+        self.filename: str = filename
+        """Filename for output file?"""
+        self.indent: int | None = indent
+        """Display JSON nicely (if > 0, indent by this number of spaces)?"""
 
     def run(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> str:
         if self.skip:
@@ -27,12 +34,28 @@ class JSONOutput(OutputInterface):
 
         logger.info("OutputInterface JSONOutput run")
 
+        # indent 0 is treated as no indent
+        if self.indent == 0:
+            self.indent = None
+
+        # create dictionary from data using methods below
         result = self.create_dict_from_data(config, context, set_of_results)
         if self.to_string:
-            result = json.dumps(result)
+            result = json.dumps(result, indent=self.indent)
         if self.show_output:
-            # alway log at log level to show output
+            # always log at log level to show output
             logger.log(logger.level, result)
+
+        if self.save_output:
+            file = open(self.filename, 'w')
+
+            # already converted to string?
+            if self.to_string:
+                file.write(result)
+            else:
+                file.write(json.dumps(result, indent=self.indent))
+
+            file.close()
 
         return result
 
