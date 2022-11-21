@@ -17,3 +17,6 @@ config.yaml
 network.png
 possible_routes_*.png
 simulation_output.*
+data/*
+!data/README.md
+!data/*.py
