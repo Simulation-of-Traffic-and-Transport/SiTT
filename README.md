@@ -1,5 +1,9 @@
 # Si.T.T. (Simulation of Traffic and Transport)
 
+Si.T.T. is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
+approach to model the simulation. An agent can be thought of as a batch of cargo transported through the network
+(rather than an individual person travelling it).
+
 [![PyPI - Version](https://img.shields.io/pypi/v/sitt.svg)](https://pypi.org/project/sitt)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/sitt.svg)](https://pypi.org/project/sitt)
 

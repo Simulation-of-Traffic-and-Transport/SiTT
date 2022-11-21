@@ -1,13 +1,10 @@
 # Si.T.T. Application Concept
 
-The following sections explain the basic concepts of the Si.T.T. application. The content is subject to change.
+Si.T.T. is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
+approach to model the simulation. An agent can be thought of as a batch of cargo transported through the network
+(rather than an individual person travelling it).
 
-TODOs:
-* License of application? See https://choosealicense.com/
-* Server component to store data in? Should we use a Postgres server, for example? Makes sense, but will make the
-  application dependent on a server component. Alternatively, we might have the user choose (e.g. SQLite or Postgres).
-  Im Fall von SQLite könnte man SpatiaLite nehmen? Ist aber nicht ganz ohne zu verwenden...
-  (https://gis.stackexchange.com/questions/184850/how-to-use-spatialite-functions-in-a-python-script)
+The following sections explain the basic concepts of the Si.T.T. application. The content is subject to change.
 
 ## Modularity
 
