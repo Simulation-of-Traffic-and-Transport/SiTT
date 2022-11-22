@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
 """Prepare raw roads and hubs anc precalculate then into a graph"""
 import logging
 

@@ -183,7 +183,7 @@ preparation:
 #      - class: GeoTIFFHeightForRoadsAndHubs
 #        module: modules.preparation
 #        args:
-#          file: /home/mkalus/devel/privat/strada_playground/DTM Austria 10m v2 by Sonny.tif
+#          file: ./data/DTM Austria 10m v2 by Sonny.tif
 #          crs_from: "EPSG:4326"
 #          always_xy: true
 #          overwrite: false

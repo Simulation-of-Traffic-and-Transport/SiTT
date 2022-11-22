@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
 """Dummy stepper that runs at a fixed speed. Useful for testing."""
 import logging
 

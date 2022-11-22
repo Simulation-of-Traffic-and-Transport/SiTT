@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
 """Create routes to be traversed by the simulation."""
 import logging
 from bisect import insort

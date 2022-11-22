@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
 """
 Simple stepper will have a constant speed and will have a certain slowdown factor for ascending and descending slopes.
 Other than that, it does not take into account weather or other factors.

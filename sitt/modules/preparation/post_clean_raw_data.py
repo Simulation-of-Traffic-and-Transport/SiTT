@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
 """
 Cleaner for raw data, so context is a bit smaller
 

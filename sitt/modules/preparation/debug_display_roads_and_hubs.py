@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
+"""Debug loaded roads and hubs"""
 import logging
 from zlib import crc32
 
