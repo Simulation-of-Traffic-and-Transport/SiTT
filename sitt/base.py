@@ -11,13 +11,16 @@
 from __future__ import annotations
 
 import abc
+import datetime as dt
 import logging
 from enum import Enum
 from typing import Dict, List
 
 import geopandas as gp
 import nanoid
+import netCDF4 as nc
 import networkx as nx
+import numpy as np
 import yaml
 
 __all__ = [
@@ -137,6 +140,96 @@ class Configuration:
 # Context
 ########################################################################################################################
 
+class SpaceTimeData(object):
+    """Keeps spacial and temporal data - NetCDF format."""
+
+    def __init__(self, data: nc.Dataset, latitude: str = 'latitude', longitude: str = 'longitude',
+                 time: str = 'time', variables: dict[str, dict[str, any]] = {}):
+        # self.data: Dataset = data
+        #
+        # self.latitude: str = latitude
+        # """Name of latitude in dataset"""
+        # self.longitude: str = longitude
+        # """Name of longitude in dataset"""
+        # self.time: str = time
+        # """Name of time in dataset"""
+        # self.variables: dict[str, dict[str, any]] = variables
+        # """Variables to map values on"""
+
+        # create aggregated data
+        self.lat: np.ma.core.MaskedArray = data.variables[latitude][:]
+        """latitude array"""
+        self.lon: np.ma.core.MaskedArray = data.variables[longitude][:]
+        """longitude array"""
+        self.times: nc.Variable = data.variables[time]
+        """time dataset"""
+
+        # add variables
+        self.variables: Dict[str, nc.Variable] = {}
+        self.offsets: Dict[str, float] = {}
+        for key in variables:
+            var_name = key
+            if 'variable' in variables[key]:
+                var_name = variables[key]['variable']
+            if var_name in data.variables:
+                self.variables[key] = data.variables[var_name]
+                if 'offset' in variables[key]:
+                    self.offsets[key] = variables[key]['offset']
+            else:
+                print(data.variables)
+                raise Exception('Variable does not exist in dataset: ' + var_name)
+
+        # set min/max values for quicker tests below
+        self.min_lat = self.lat.min()
+        self.max_lat = self.lat.max()
+        self.min_lon = self.lon.min()
+        self.max_lon = self.lon.max()
+        times = self.times[:]
+        self.min_times = times.min()
+        self.max_times = times.max()
+
+    def in_bounds(self, lat: float, lon: float, time: dt.datetime) -> bool:
+        """
+        Tests if lat, lon and time are within the bounds of the dataset
+        :param lat: latitude
+        :param lon: longitude
+        :param time: time as datetime entry
+        :return: true if in bounds, false otherwise
+        """
+        time_as_num = nc.date2num(time, self.times.getncattr('units'), calendar=self.times.getncattr('calendar'))
+
+        if self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon and self.min_times <= time_as_num <= self.max_times:
+            return True
+
+        return False
+
+    def get(self, key: str, lat: float, lon: float, time: dt.datetime) -> any:
+        """
+        Returns the value contained at lat, lon and time or None
+
+        :param key: key of variable
+        :param lat: latitude
+        :param lon: longitude
+        :param time: time as datetime entry
+        :return: value or None
+        """
+        if key in self.variables and self.in_bounds(lat, lon, time):
+            # get indexes
+            lat_idx = (np.abs(self.lat - lat)).argmin()
+            lon_idx = (np.abs(self.lon - lon)).argmin()
+            time_idx = nc.date2index(time, self.times, select='nearest')
+
+            value = self.variables[key][time_idx][lat_idx][lon_idx]
+
+            # apply offset, if it exists
+            if key in self.offsets:
+                return value + self.offsets[key]
+
+            # raw value
+            return value
+
+        return None
+
 
 class Context(object):
     """The context object is a read-only container for simulation threads."""
@@ -153,6 +246,7 @@ class Context(object):
         Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to
         find the correct route.
         """
+        self.space_time_data: Dict[str, SpaceTimeData] = {}
 
     def get_path_by_id(self, path_id) -> Dict | None:
         """Get path by id"""

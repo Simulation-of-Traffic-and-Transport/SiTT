@@ -241,6 +241,26 @@ preparation:
 #      maximum_routes: 0
 #      maximum_difference_from_shortest: 0.0
 
+
+# Load space/time data from a NETCDF (.nc) file. Typically, such a file contains temperature and other weather data.
+# You have to specify the filename and what name latitude, longitude, and time parameters have been given. Moreover,
+# all relevant variables have to be mapped to a name (e.g. below "t2m" in the nc file gets mapped to "temp").
+# Optionally, an offset can be defined. This is handy, if temperature data has been supplied in °K instead of °C, for
+# example.
+# The parsed values are available in the context variable "space_time_data".
+#  - class: LoadDataFromNETCDF
+#    module: modules.preparation
+#    args:
+#      name: temperature
+#      filename: ./data/era5_data_2m_temperature.nc
+#      latitude: latitude
+#      longitude: longitude
+#      time: time
+#      variables:
+#        temp:
+#          variable: t2m
+#          offset: -273.15
+
 ########################################################################################################################
 # simulation - is a bit more complicated, because there are several hooks to add modules to
 

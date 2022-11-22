@@ -15,6 +15,7 @@ from sitt.__about__ import (
 from sitt.base import (
     SkipStep,
     Configuration,
+    SpaceTimeData,
     Context,
     State,
     Agent,
@@ -38,6 +39,7 @@ __all__ = [
     "__copyright__",
     "SkipStep",
     "Configuration",
+    "SpaceTimeData",
     "Context",
     "State",
     "Agent",
