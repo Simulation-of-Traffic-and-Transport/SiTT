@@ -20,7 +20,8 @@ class Simple(SimulationStepInterface):
     Other than that, it does not take into account weather or other factors.
     """
 
-    def __init__(self, speed: float = 5.0, ascend_slowdown_factor: float = 0.05, descend_slowdown_factor: float = 0.025):
+    def __init__(self, speed: float = 5.0, ascend_slowdown_factor: float = 0.05,
+                 descend_slowdown_factor: float = 0.025):
         super().__init__()
         self.speed: float = speed
         """kph of this agent"""
@@ -34,7 +35,7 @@ class Simple(SimulationStepInterface):
         path_id = (agent.this_hub, agent.next_hub, agent.route_key)
         leg = context.get_directed_path_by_id(path_id, agent.route_key)
         if not leg:
-            logger.error( "SimulationInterface SimpleRunner error, path not found ", str(path_id))
+            logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return agent.state
 
@@ -65,7 +66,8 @@ class Simple(SimulationStepInterface):
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
-                f"SimulationInterface Simple run, from {agent.this_hub} to {agent.next_hub} via {agent.route_key}, time taken = {agent.state.time_taken:.2f}")
+                f"SimulationInterface Simple run, from {agent.this_hub} to {agent.next_hub} "
+                "via {agent.route_key}, time taken = {agent.state.time_taken:.2f}")
 
         return agent.state
 
