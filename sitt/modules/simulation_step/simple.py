@@ -9,7 +9,7 @@ import logging
 
 import yaml
 
-from sitt import Configuration, Context, SimulationStepInterface, State, Agent, is_truthy
+from sitt import Configuration, Context, SimulationStepInterface, State, Agent
 
 logger = logging.getLogger()
 
@@ -33,7 +33,7 @@ class Simple(SimulationStepInterface):
     def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
         # precalculate next hub
         path_id = (agent.this_hub, agent.next_hub, agent.route_key)
-        leg = context.get_directed_path_by_id(path_id, agent.route_key)
+        leg = context.get_directed_path_by_id(path_id, agent.this_hub)
         if not leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
