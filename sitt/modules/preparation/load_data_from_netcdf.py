@@ -39,6 +39,6 @@ class LoadDataFromNETCDF(PreparationInterface):
             logger.info("Loading NETCDF file: " + self.filename)
 
         context.space_time_data[self.name] = SpaceTimeData(Dataset(self.filename, 'r', format=self.file_format),
-                                                           self.latitude, self.longitude, self.time, self.variables)
+                                                           self.variables, self.latitude, self.longitude, self.time)
 
         return context

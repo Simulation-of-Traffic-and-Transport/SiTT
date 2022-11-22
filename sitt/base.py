@@ -143,8 +143,8 @@ class Configuration:
 class SpaceTimeData(object):
     """Keeps spacial and temporal data - NetCDF format."""
 
-    def __init__(self, data: nc.Dataset, latitude: str = 'latitude', longitude: str = 'longitude',
-                 time: str = 'time', variables: dict[str, dict[str, any]] = {}):
+    def __init__(self, data: nc.Dataset, variables: dict[str, dict[str, any]], latitude: str = 'latitude',
+                 longitude: str = 'longitude', time: str = 'time'):
         # self.data: Dataset = data
         #
         # self.latitude: str = latitude
