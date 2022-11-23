@@ -271,7 +271,7 @@ preparation:
 #        rainfall:
 #          variable: crr
 #        snowfall:
-#          variable: csfwe
+#          variable: csfr
 #        snow_depth:
 #          variable: sd
 

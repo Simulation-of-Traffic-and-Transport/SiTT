@@ -79,7 +79,19 @@ class Simple(SimulationStepInterface):
             calculated_time = length / self.speed / 1000 * (1 + slope_factor)
 
             # consider environment
-            # print(space_time_data)
+            if 'temperature' in space_time_data:
+                # TODO: implement it!
+                pass
+            if 'rainfall' in space_time_data:
+                # TODO: implement it!
+                pass
+            if 'snowfall' in space_time_data:
+                # TODO: implement it!
+                pass
+            if 'snow_depth' in space_time_data and space_time_data['snow_depth'] > 0:
+                # print(space_time_data['snow_depth'])
+                # TODO: implement it!
+                pass
 
             time_for_legs.append(calculated_time)
             time_taken += calculated_time
