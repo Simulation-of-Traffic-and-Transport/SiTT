@@ -260,15 +260,20 @@ preparation:
 #    module: modules.preparation
 #    args:
 #      name: temperature
-#      filename: ./data/era5_data_2m_temperature.nc
+#      filename: ./data/era5_data.nc
 #      latitude: latitude
 #      longitude: longitude
 #      time: time
-#      start_date: *start_date
 #      variables:
-#        temp:
+#        temperature:
 #          variable: t2m
 #          offset: -273.15
+#        rainfall:
+#          variable: crr
+#        snowfall:
+#          variable: csfwe
+#        snow_depth:
+#          variable: sd
 
 ########################################################################################################################
 # simulation - is a bit more complicated, because there are several hooks to add modules to

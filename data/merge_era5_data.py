@@ -5,7 +5,7 @@
 
 import netCDF4 as nc
 
-variables = ['2m_temperature', 'convective_rain_rate', 'convective_snowfall', 'snow_depth']
+variables = ['2m_temperature', 'convective_rain_rate', 'convective_snowfall_rate_water_equivalent', 'snow_depth']
 
 rootgrp = nc.Dataset("era5_data.nc", "w", format="NETCDF4")
 first = True

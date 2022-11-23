@@ -13,7 +13,7 @@ import cdsapi
 
 c = cdsapi.Client()
 
-variables = ['2m_temperature', 'convective_rain_rate', 'convective_snowfall', 'snow_depth']
+variables = ['2m_temperature', 'convective_rain_rate', 'convective_snowfall_rate_water_equivalent', 'snow_depth']
 
 for variable in variables:
     print(variable)
