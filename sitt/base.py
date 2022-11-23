@@ -286,12 +286,15 @@ class State(object):
 
         self.time_taken: float = 0.
         """Time taken in this step"""
+        self.time_for_legs: List[float] = []
+        """Time taken for all legs of this step"""
         self.signal_stop_here: bool = False
         """Signal forced stop here"""
 
-    def prepare_for_new_day(self) -> State:
+    def reset(self) -> State:
         """Prepare state for new day"""
         self.time_taken = 0.
+        self.time_for_legs = []
         self.signal_stop_here = False
 
         return self
@@ -347,7 +350,7 @@ class Agent(object):
         self.max_time = 16.
         self.last_possible_resting_place = self.this_hub
         self.last_possible_resting_time = self.current_time
-        self.state = self.state.prepare_for_new_day()
+        self.state = self.state.reset()
 
     def __repr__(self) -> str:
         if self.day_finished >= 0:

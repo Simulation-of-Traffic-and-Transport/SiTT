@@ -47,6 +47,7 @@ class Simple(SimulationStepInterface):
 
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
+        time_for_legs: list[float] = []
 
         for i in r:
             length = leg['legs'][i]
@@ -60,9 +61,12 @@ class Simple(SimulationStepInterface):
                 slope_factor = slope * self.ascend_slowdown_factor
 
             # calculate time taken in units (hours) for this part
-            time_taken += length / self.speed / 1000 * (1 + slope_factor)
+            calculated_time = length / self.speed / 1000 * (1 + slope_factor)
+            time_for_legs.append(calculated_time)
+            time_taken += calculated_time
 
         agent.state.time_taken = time_taken
+        agent.state.time_for_legs = time_for_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(

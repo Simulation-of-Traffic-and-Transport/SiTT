@@ -294,9 +294,7 @@ class Simulation(BaseClass):
                 # do single step
                 for agent in agents:
                     # calculate state of agent at this node
-                    # default values...
-                    agent.state.time_taken = 0.
-                    agent.state.signal_stop_here = False
+                    agent.state.reset()  # reset first
                     # and module calls
                     for def_state in self.config.simulation_define_state:
                         agent.state = def_state.define_state(self.config, self.context, agent)
@@ -313,7 +311,9 @@ class Simulation(BaseClass):
 
                         # add route data
                         agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                                  agents={agent.uid: {'day': self.current_day, 'start': start_time, 'end': agent.current_time}})
+                                                  agents={agent.uid: {'day': self.current_day, 'start': start_time,
+                                                                      'end': agent.current_time,
+                                                                      'leg_times': agent.state.time_for_legs}})
 
                         # finished?
                         if agent.next_hub == self.config.simulation_end:
