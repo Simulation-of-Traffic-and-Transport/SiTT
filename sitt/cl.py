@@ -20,7 +20,7 @@ def parse_params() -> Namespace:
     # see: https://docs.python.org/3/library/argparse.html
     parser = ArgumentParser(description='Si.T.T. (Simulation of Traffic and Transport)')
 
-    parser.add_argument("-c", "--config", help="Configuration filename", required=True, type=str)
+    parser.add_argument("-c", "--config", help="Configuration filename", type=str, default="config.yaml")
 
     # verbosity is mutually exclusive
     quiet_or_verbose = parser.add_mutually_exclusive_group()
