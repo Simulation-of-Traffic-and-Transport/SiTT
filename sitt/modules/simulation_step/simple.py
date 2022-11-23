@@ -75,10 +75,12 @@ class Simple(SimulationStepInterface):
                     for value in values:
                         space_time_data[value] = values[value]
 
-            # TODO: do something with these numbers
-
             # calculate time taken in units (hours) for this part
             calculated_time = length / self.speed / 1000 * (1 + slope_factor)
+
+            # consider environment
+            print(space_time_data)
+
             time_for_legs.append(calculated_time)
             time_taken += calculated_time
 
