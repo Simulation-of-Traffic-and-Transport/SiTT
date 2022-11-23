@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 import os
 import re
@@ -72,6 +73,13 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
     # maximum number of steps without advancing before breaking
     if 'break_simulation_after' in data and data['break_simulation_after']:
         config.break_simulation_after = int(data['break_simulation_after'])
+
+    # start_date
+    if 'start_date' in data and data['start_date']:
+        if type(data['start_date']) == dt.date:
+            config.start_date = data['start_date']
+        else:
+            config.start_date = dt.datetime.fromisoformat(data['start_date'])
 
     # step configuration
     _step_data = _parse_step_data('preparation', data, config)

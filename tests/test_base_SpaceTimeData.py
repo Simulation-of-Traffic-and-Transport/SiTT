@@ -1,8 +1,12 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-from sitt.base import SpaceTimeData
+import datetime as dt
+
 import netCDF4 as nc
+import numpy as np
+
+from sitt.base import SpaceTimeData, Configuration
 
 test_data = nc.Dataset('test.nc', 'r', format='NETCDF4')
 
@@ -29,6 +33,43 @@ def test_space_time_data_init_error():
         assert True
 
 
+def test_space_time_data_get_date_number():
+    # test none
+    st_data = SpaceTimeData(test_data, {'temperature': {}})
+    config = Configuration()
+
+    assert st_data._get_date_number(1, 5, config) is None
+
+    # test global
+    config.start_date = dt.date(1995, 7, 1)
+    assert st_data._get_date_number(1, 5, config) == 837101
+
+    # test local
+    st_data.start_date = dt.date(1990, 2, 15)
+    assert st_data._get_date_number(1, 3, config) == 790011
+
+
+def test_space_time_data_get():
+    st_data = SpaceTimeData(test_data, {'temperature': {}})
+    config = Configuration()
+    config.start_date = dt.date(1995, 7, 1)
+
+    idx_lat = 5
+    idx_lon = 9
+
+    lat = test_data.variables['latitude'][idx_lat]
+    lon = test_data.variables['longitude'][idx_lon]
+    day = 2
+    hours = 14.4345
+    date_num = st_data._get_date_number(day, hours, config)
+    time_idx = (np.abs(st_data.times[:] - date_num)).argmin()
+
+    result = st_data.get(lat, lon, day, hours, config)
+    assert result is not None
+    assert len(result) == 1
+    assert 'temperature' in result and result['temperature'] == st_data.variables['temperature'][time_idx][idx_lat][idx_lon]
+
+
 def test_space_time_data_in_bounds():
     st_data = SpaceTimeData(test_data, {'temperature': {}})
 
@@ -38,7 +79,7 @@ def test_space_time_data_in_bounds():
     for time in times:
         for lat in latitudes:
             for lon in longitudes:
-                assert st_data.in_bounds(lat, lon, nc.num2date(time, times.units, times.calendar))
+                assert st_data._in_bounds(lat, lon, time)
 
     lat_min = latitudes.min()
     lon_min = longitudes.min()
@@ -46,28 +87,9 @@ def test_space_time_data_in_bounds():
     lat_max = latitudes.max()
     lon_max = longitudes.max()
     time_max = times[:].max()
-    assert not st_data.in_bounds(lat_min - 1, lon_min, nc.num2date(time_min, times.units, times.calendar))
-    assert not st_data.in_bounds(lat_min, lon_min - 1, nc.num2date(time_min, times.units, times.calendar))
-    assert not st_data.in_bounds(lat_min, lon_min, nc.num2date(time_min - 1, times.units, times.calendar))
-    assert not st_data.in_bounds(lat_max + 1, lon_max, nc.num2date(time_max, times.units, times.calendar))
-    assert not st_data.in_bounds(lat_max, lon_max + 1, nc.num2date(time_max, times.units, times.calendar))
-    assert not st_data.in_bounds(lat_max, lon_max, nc.num2date(time_max + 1, times.units, times.calendar))
-
-
-def test_space_time_data_get():
-    st_data = SpaceTimeData(test_data, {'temperature': {}})
-
-    latitudes, longitudes = test_data.variables['latitude'][:], test_data.variables['longitude'][:]
-    times = test_data.variables['time']
-
-    i = 0
-    for time in times:
-        j = 0
-        for lat in latitudes:
-            k = 0
-            for lon in longitudes:
-                assert test_data.variables['temperature'][i][j][k] ==\
-                       st_data.get('temperature', lat, lon, nc.num2date(time, times.units, times.calendar))
-                k += 1
-            j += 1
-        i += 1
+    assert not st_data._in_bounds(lat_min - 1, lon_min, time_min)
+    assert not st_data._in_bounds(lat_min, lon_min - 1, time_min)
+    assert not st_data._in_bounds(lat_min, lon_min, time_min - 1)
+    assert not st_data._in_bounds(lat_max + 1, lon_max, time_max)
+    assert not st_data._in_bounds(lat_max, lon_max + 1, time_max)
+    assert not st_data._in_bounds(lat_max, lon_max, time_max + 1)

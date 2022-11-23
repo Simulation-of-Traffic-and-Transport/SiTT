@@ -17,7 +17,7 @@ class LoadDataFromNETCDF(PreparationInterface):
 
     def __init__(self, name: str = 'temperature', filename: str = 'weather.nc', file_format: str = 'NETCDF4',
                  latitude: str = 'latitude', longitude: str = 'longitude', time: str = 'time',
-                 variables: dict[str, dict[str, any]] = {}):
+                 start_date: dt.date | None = None, variables: dict[str, dict[str, any]] = {}):
         super().__init__()
         self.name: str = name
         """Key in context to find space time data again."""
@@ -31,6 +31,8 @@ class LoadDataFromNETCDF(PreparationInterface):
         """Name of longitude in dataset"""
         self.time: str = time
         """Name of time in dataset"""
+        self.start_date: dt.date | None = start_date
+        """Start date different from global one."""
         self.variables: dict[str, dict[str, any]] = variables
         """Variables to map values on"""
 
@@ -39,6 +41,7 @@ class LoadDataFromNETCDF(PreparationInterface):
             logger.info("Loading NETCDF file: " + self.filename)
 
         context.space_time_data[self.name] = SpaceTimeData(Dataset(self.filename, 'r', format=self.file_format),
-                                                           self.variables, self.latitude, self.longitude, self.time)
+                                                           self.variables, self.latitude, self.longitude, self.time,
+                                                           self.start_date)
 
         return context

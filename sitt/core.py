@@ -281,7 +281,7 @@ class Simulation(BaseClass):
 
             # prepare context for single day
             for agent in agents:
-                agent.prepare_for_new_day()
+                agent.prepare_for_new_day(self.current_day)
                 # run SimulationPrepareDayInterfaces
                 for prep_day in self.config.simulation_prepare_day:
                     prep_day.prepare_for_new_day(self.config, self.context, agent)

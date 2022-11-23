@@ -10,7 +10,7 @@ import logging
 import yaml
 
 from sitt import Configuration, Context, SimulationStepInterface, State, Agent
-
+import time
 logger = logging.getLogger()
 
 
@@ -31,19 +31,23 @@ class Simple(SimulationStepInterface):
         """time taken is modified by slope in degrees multiplied by this number when descending"""
 
     def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+        state = agent.state
+
         # precalculate next hub
         path_id = (agent.this_hub, agent.next_hub, agent.route_key)
         leg = context.get_directed_path_by_id(path_id, agent.this_hub)
         if not leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
-            return agent.state
+            return state
 
         # create range to traverse
         if leg['is_reversed']:
             r = range(len(leg['legs']) - 1, -1, -1)
+            p_offset_start = 1  # offset in legs for start point
         else:
             r = range(len(leg['legs']))
+            p_offset_start = 0
 
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
@@ -60,20 +64,33 @@ class Simple(SimulationStepInterface):
             else:
                 slope_factor = slope * self.ascend_slowdown_factor
 
+            # apply environment
+            coords = leg['geom'].coords[i + p_offset_start]
+            space_time_data: dict[str, any] = {}
+
+            if len(context.space_time_data):
+                for key in context.space_time_data:
+                    values = context.space_time_data[key].get(coords[1], coords[0], agent.current_day,
+                                                              agent.current_time + time_taken, config)
+                    for value in values:
+                        space_time_data[value] = values[value]
+
+            # TODO: do something with these numbers
+
             # calculate time taken in units (hours) for this part
             calculated_time = length / self.speed / 1000 * (1 + slope_factor)
             time_for_legs.append(calculated_time)
             time_taken += calculated_time
 
-        agent.state.time_taken = time_taken
-        agent.state.time_for_legs = time_for_legs
+        state.time_taken = time_taken
+        state.time_for_legs = time_for_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
                 f"SimulationInterface Simple run, from {agent.this_hub} to {agent.next_hub} "
-                "via {agent.route_key}, time taken = {agent.state.time_taken:.2f}")
+                "via {agent.route_key}, time taken = {state.time_taken:.2f}")
 
-        return agent.state
+        return state
 
     def __repr__(self):
         return yaml.dump(self)

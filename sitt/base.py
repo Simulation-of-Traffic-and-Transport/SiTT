@@ -28,6 +28,7 @@ __all__ = [
     "Configuration",
     "Context",
     "State",
+    "SpaceTimeData",
     "Agent",
     "SetOfResults",
     "PreparationInterface",
@@ -102,6 +103,8 @@ class Configuration:
         """"Start hub for simulation"""
         self.simulation_end: str | None = None
         """"End hub for simulation"""
+        self.start_date: dt.date | None = None
+        """used as global start date (e.g. in nc files)"""
 
         self.break_simulation_after: int = 100
         """Break single simulation entity after not advancing for this many steps"""
@@ -144,7 +147,7 @@ class SpaceTimeData(object):
     """Keeps spacial and temporal data - NetCDF format."""
 
     def __init__(self, data: nc.Dataset, variables: dict[str, dict[str, any]], latitude: str = 'latitude',
-                 longitude: str = 'longitude', time: str = 'time'):
+                 longitude: str = 'longitude', time: str = 'time', start_date: dt.date | None = None):
         # self.data: Dataset = data
         #
         # self.latitude: str = latitude
@@ -155,6 +158,8 @@ class SpaceTimeData(object):
         # """Name of time in dataset"""
         # self.variables: dict[str, dict[str, any]] = variables
         # """Variables to map values on"""
+        self.start_date: dt.date | None = start_date
+        """Start date different from global one."""
 
         # create aggregated data
         self.lat: np.ma.core.MaskedArray = data.variables[latitude][:]
@@ -188,47 +193,70 @@ class SpaceTimeData(object):
         self.min_times = times.min()
         self.max_times = times.max()
 
-    def in_bounds(self, lat: float, lon: float, time: dt.datetime) -> bool:
+    def _get_date_number(self, day: int, hours: float, config: Configuration) -> float | None:
+        """
+        Returns date number for given day and configuration - returns none if datetimes have not been set
+
+        :param day: day offset (starts with 1)
+        :param hours: time offset in day (hours)
+        :param config: configuration
+
+        :return: date number or None
+        """
+        # own or global date?
+        if self.start_date is not None:
+            start_date = self.start_date
+        else:
+            start_date = config.start_date
+
+        if start_date is None:
+            return None
+
+        my_datetime = dt.datetime(start_date.year, start_date.month, start_date.day) + dt.timedelta(days=day-1, hours=hours)
+
+        return nc.date2num(my_datetime, self.times.units, calendar=self.times.calendar, has_year_zero=False)
+
+    def _in_bounds(self, lat: float, lon: float, date_number: float) -> bool:
         """
         Tests if lat, lon and time are within the bounds of the dataset
         :param lat: latitude
         :param lon: longitude
-        :param time: time as datetime entry
+        :param date_number: date number
         :return: true if in bounds, false otherwise
         """
-        time_as_num = nc.date2num(time, self.times.getncattr('units'), calendar=self.times.getncattr('calendar'))
-
-        if self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon and self.min_times <= time_as_num <= self.max_times:
+        if self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon and self.min_times <= date_number <= self.max_times:
             return True
 
         return False
 
-    def get(self, key: str, lat: float, lon: float, time: dt.datetime) -> any:
-        """
-        Returns the value contained at lat, lon and time or None
+    def get(self, lat: float, lon: float, day: int, hours: float, config: Configuration,
+            fields: list[str] | None = None) -> dict[str, any] | None:
+        # convert to date number
+        date_num = self._get_date_number(day, hours, config)
+        if date_num is None:
+            return None
 
-        :param key: key of variable
-        :param lat: latitude
-        :param lon: longitude
-        :param time: time as datetime entry
-        :return: value or None
-        """
-        if key in self.variables and self.in_bounds(lat, lon, time):
-            # get indexes
-            lat_idx = (np.abs(self.lat - lat)).argmin()
-            lon_idx = (np.abs(self.lon - lon)).argmin()
-            time_idx = nc.date2index(time, self.times, select='nearest')
+        # check bounds
+        if not self._in_bounds(lat, lon, date_num):
+            return None
 
-            value = self.variables[key][time_idx][lat_idx][lon_idx]
+        # add all fields, if none have been set
+        if fields is None or len(fields) == 0:
+            fields = list(self.variables.keys())
 
-            # apply offset, if it exists
-            if key in self.offsets:
-                return value + self.offsets[key]
+        # find the closest indexes
+        lat_idx = (np.abs(self.lat - lat)).argmin()
+        lon_idx = (np.abs(self.lon - lon)).argmin()
+        time_idx = (np.abs(self.times[:] - date_num)).argmin()
 
-            # raw value
-            return value
+        # aggregate variables
+        variables: dict[str, any] = {}
 
-        return None
+        for field in fields:
+            if field in self.variables:
+                variables[field] = self.variables[field][time_idx][lat_idx][lon_idx]
+
+        return variables
 
 
 class Context(object):
@@ -325,6 +353,8 @@ class Agent(object):
         self.route_key: str = route_key
         """Key/vertex id of route between hubs"""
 
+        self.current_day: int = 1
+        """Current day of agent - copied from simulation"""
         self.current_time: float = current_time
         """Current time stamp of agent during this day"""
         self.max_time: float = max_time
@@ -344,8 +374,9 @@ class Agent(object):
         self.last_possible_resting_time: float = current_time
         """keeps timestamp of last resting place"""
 
-    def prepare_for_new_day(self):
+    def prepare_for_new_day(self, current_day: int = 1):
         """reset to defaults for a day"""
+        self.current_day = current_day
         self.current_time = 8.
         self.max_time = 16.
         self.last_possible_resting_place = self.this_hub
