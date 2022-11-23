@@ -322,6 +322,8 @@ class State(object):
         """Time taken in this step"""
         self.time_for_legs: List[float] = []
         """Time taken for all legs of this step"""
+        self.data_for_legs: List[Dict[str, any]] = []
+        """Environmental data for each leg"""
         self.signal_stop_here: bool = False
         """Signal forced stop here"""
 
@@ -329,6 +331,7 @@ class State(object):
         """Prepare state for new day"""
         self.time_taken = 0.
         self.time_for_legs = []
+        self.data_for_legs = []
         self.signal_stop_here = False
 
         return self

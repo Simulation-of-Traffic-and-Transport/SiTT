@@ -52,6 +52,7 @@ class Simple(SimulationStepInterface):
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
         time_for_legs: list[float] = []
+        space_time_data_legs = list[dict[str, any]] = []
 
         for i in r:
             length = leg['legs'][i]
@@ -94,10 +95,13 @@ class Simple(SimulationStepInterface):
                 pass
 
             time_for_legs.append(calculated_time)
+            space_time_data_legs.append(space_time_data)
             time_taken += calculated_time
 
+        # save things in state
         state.time_taken = time_taken
         state.time_for_legs = time_for_legs
+        state.data_for_legs = space_time_data_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
