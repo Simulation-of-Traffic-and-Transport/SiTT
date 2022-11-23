@@ -79,7 +79,7 @@ class Simple(SimulationStepInterface):
             calculated_time = length / self.speed / 1000 * (1 + slope_factor)
 
             # consider environment
-            print(space_time_data)
+            # print(space_time_data)
 
             time_for_legs.append(calculated_time)
             time_taken += calculated_time
