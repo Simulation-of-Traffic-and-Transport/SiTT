@@ -9,6 +9,7 @@ dist
 # IDEs
 .idea
 .vscode
+.run
 
 # Project files that should not go into git
 config.yaml
