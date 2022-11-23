@@ -181,7 +181,7 @@ class SpaceTimeData(object):
                 if 'offset' in variables[key]:
                     self.offsets[key] = variables[key]['offset']
             else:
-                print(data.variables)
+                logging.getLogger().error(data.variables)
                 raise Exception('Variable does not exist in dataset: ' + var_name)
 
         # set min/max values for quicker tests below
