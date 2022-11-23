@@ -254,7 +254,13 @@ class SpaceTimeData(object):
 
         for field in fields:
             if field in self.variables:
-                variables[field] = self.variables[field][time_idx][lat_idx][lon_idx]
+                value = self.variables[field][time_idx][lat_idx][lon_idx]
+
+                # apply offset, if it exists
+                if field in self.offsets:
+                    value += self.offsets[field]
+
+                variables[field] = value
 
         return variables
 
