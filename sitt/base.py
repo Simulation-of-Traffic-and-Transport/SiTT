@@ -231,6 +231,9 @@ class SpaceTimeData(object):
 
     def get(self, lat: float, lon: float, day: int, hours: float, config: Configuration,
             fields: list[str] | None = None) -> dict[str, any] | None:
+        # TODO: cache this somehow - especially because our grid (both geographically and temporally) will be relatively
+        # large
+
         # convert to date number
         date_num = self._get_date_number(day, hours, config)
         if date_num is None:
