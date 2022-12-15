@@ -52,7 +52,7 @@ class Simple(SimulationStepInterface):
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
         time_for_legs: list[float] = []
-        space_time_data_legs = list[dict[str, any]] = []
+        space_time_data_legs: list[dict[str, any]] = []
 
         for i in r:
             length = leg['legs'][i]
