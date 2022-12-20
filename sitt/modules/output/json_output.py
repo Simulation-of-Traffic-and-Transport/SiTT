@@ -65,12 +65,11 @@ class JSONOutput(OutputInterface):
     def create_dict_from_data(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> Dict[str, any]:
         """create a dict from passed data"""
 
-        legs: Dict[str, Dict[str, any]] = {}
+        agents_finished, agent_list = self._agent_list_to_data(config, context, set_of_results.agents_finished)
+        agents_cancelled, merge_list = self._agent_list_to_data(config, context, set_of_results.agents_cancelled)
 
-        merge_legs, agents_finished = self._agent_list_to_data(config, context, set_of_results.agents_finished)
-        legs = self._append_to_legs(legs, merge_legs)
-        merge_legs, agents_cancelled = self._agent_list_to_data(config, context, set_of_results.agents_cancelled)
-        legs = self._append_to_legs(legs, merge_legs)
+        # merge full list
+        agent_list = self._merge_agent_lists(agent_list, merge_list)
 
         nodes, paths = self._graph_to_data(context.graph)
 
@@ -80,29 +79,29 @@ class JSONOutput(OutputInterface):
             "simulation_end": config.simulation_end,
             "agents_finished": agents_finished,
             "agents_cancelled": agents_cancelled,
-            "legs": legs,
+            "agents": agent_list,
             "nodes": nodes,
             "paths": paths,
         }
 
-    def _agent_list_to_data(self, config: Configuration, context: Context, agents: List[Agent]) -> Tuple[Dict[str, Dict[str, any]], List[dict]]:
+    def _agent_list_to_data(self, config: Configuration, context: Context, agents: List[Agent]) -> Tuple[List[dict], Dict[str, List[Dict[str, any]]]]:
         """converts a list of agents to raw data"""
-        agent_list: List[dict] = []
-        legs: Dict[str, Dict[str, any]] = {}
+        main_agent_list: List[dict] = []
+        agent_list: Dict[str, List[Dict[str, any]]] = {}
 
         for agent in agents:
-            # get data, is a dict of legs and agent data
-            merge_legs, agent = self._agent_to_data(config, context, agent)
+            # get data, is a dict of agent data and list of agents
+            agent, added_list = self._agent_to_data(config, context, agent)
 
-            # aggregate leg data
-            legs = self._append_to_legs(legs, merge_legs)
+            # aggregate agent data
+            agent_list = self._merge_agent_lists(agent_list, added_list)
 
-            agent_list.append(agent)
+            main_agent_list.append(agent)
 
-        return legs, agent_list
+        return main_agent_list, agent_list
 
-    def _agent_to_data(self, config: Configuration, context: Context, agent: Agent) -> Tuple[Dict[str, Dict[str, any]], dict]:
-        """converts a single agent to raw data, it is a dict of legs and agent data"""
+    def _agent_to_data(self, config: Configuration, context: Context, agent: Agent) -> Tuple[dict, Dict[str, List[Dict[str, any]]]]:
+        """converts a single agent to raw data, it is a dict of agent data and the agent list with leg data"""
 
         status: str = 'undefined'
         day: int = 0
@@ -113,12 +112,24 @@ class JSONOutput(OutputInterface):
             status = 'finished'
             day = agent.day_finished
 
-        legs: Dict[str, Dict[str, any]] = {}
+        agent_list: Dict[str, List[Dict[str, any]]] = {}
         uids: Dict[str, bool] = {agent.uid: True}
         for leg in agent.route_data.edges(data=True, keys=True):
-            legs[leg[2]] = {'from': leg[0], 'to': leg[1], 'agents': leg[3]['agents']}
-
             for uid in leg[3]['agents']:
+                if uid not in agent_list:
+                    agent_list[uid] = []
+
+                ag = leg[3]['agents'][uid]
+                agent_list[uid].append({
+                    "day": ag['day'],
+                    "start": ag['start'],
+                    "end": ag['end'],
+                    "from": leg[0],
+                    "to": leg[1],
+                    "path": leg[2],
+                    "leg_times": ag['leg_times'],
+                })
+
                 uids[uid] = True
 
         agent = {
@@ -129,20 +140,16 @@ class JSONOutput(OutputInterface):
             "hour": agent.current_time,
         }
 
-        return legs, agent
+        return agent, agent_list
 
-    def _append_to_legs(self, legs: Dict[str, Dict[str, any]], merge: Dict[str, Dict[str, any]]) -> Dict[str, Dict[str, any]]:
-        """Helper to merge legs"""
+    def _merge_agent_lists(self, list1: Dict[str, List[Dict[str, any]]], list2: Dict[str, List[Dict[str, any]]]) -> Dict[str, List[Dict[str, any]]]:
+        """Helper to merge agent lists"""
 
-        for key in merge:
-            if key in legs:
-                for agent in merge[key]['agents']:
-                    if agent not in legs[key]['agents']:
-                        legs[key]['agents'][agent] = merge[key]['agents'][agent]
-            else:
-                legs[key] = merge[key]
+        for key in list2:
+            if key not in list1 or len(list2[key]) > len(list1[key]):
+                list1[key] = list2[key]
 
-        return legs
+        return list1
 
     def _graph_to_data(self, graph: nx.MultiGraph) -> Tuple[List[dict], List[dict]]:
         nodes: List[dict] = []
