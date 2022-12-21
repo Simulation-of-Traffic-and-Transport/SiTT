@@ -412,11 +412,11 @@ class Agent(object):
                     self.stay_overs.append({
                         "agent": uid,
                         "hub": self.this_hub,
-                        "arrive": {
+                        "begin": {
                             "day": ag['day'],
                             "hour": ag['end'],
                         },
-                        "depart": {
+                        "end": {
                             "day": self.current_day,
                             "hour": self.current_time,
                         }

@@ -122,17 +122,17 @@ class JSONOutput(OutputInterface):
 
                 ag = leg[3]['agents'][uid]
                 # create unique digest
-                digest = blake2b(f"edge{uid}d{ag['day']}.{ag['start']}a{ag['day']}.{ag['end']}-{leg[0]}-{leg[1]}-{leg[2]}".encode('utf8')).hexdigest()
+                digest = blake2b(f"edge{uid}b{ag['day']}.{ag['start']}e{ag['day']}.{ag['end']}-{leg[0]}-{leg[1]}-{leg[2]}".encode('utf8')).hexdigest()
 
                 if digest not in history:
                     history[digest] = {
                         "type": "edge",
                         "agent": uid,
-                        "depart": {
+                        "begin": {
                             "day": ag['day'],
                             "hour": ag['start'],
                         },
-                        "arrive": {
+                        "end": {
                             "day": ag['day'],
                             "hour": ag['end'],
                         },
@@ -147,7 +147,7 @@ class JSONOutput(OutputInterface):
         # add stay-overs
         for stay_over in agent.stay_overs:
             # create unique digest
-            digest = blake2b(f"hub{stay_over['agent']}d{stay_over['depart']['day']}.{stay_over['depart']['hour']}a{stay_over['arrive']['day']}.{stay_over['arrive']['hour']}-{stay_over['hub']}".encode('utf8')).hexdigest()
+            digest = blake2b(f"hub{stay_over['agent']}b{stay_over['begin']['day']}.{stay_over['begin']['hour']}e{stay_over['end']['day']}.{stay_over['end']['hour']}-{stay_over['hub']}".encode('utf8')).hexdigest()
             if digest not in history:
                 so = stay_over.copy()
                 so['type'] = 'hub'
