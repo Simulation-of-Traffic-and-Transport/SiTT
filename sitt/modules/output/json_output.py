@@ -80,7 +80,7 @@ class JSONOutput(OutputInterface):
             "simulation_end": config.simulation_end,
             "agents_finished": agents_finished,
             "agents_cancelled": agents_cancelled,
-            "agents": list(history.values()),
+            "history": list(history.values()),
             "nodes": nodes,
             "paths": paths,
         }
