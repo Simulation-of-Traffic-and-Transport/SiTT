@@ -122,7 +122,8 @@ class CalculateRoadsAndHubs(PreparationInterface):
             for idx, row in context.raw_hubs.iterrows():
                 g.add_node(idx, **row)
 
-        context.graph = g
+        # set frozen graph to prevent changes
+        context.graph = nx.freeze(g)
 
         return context
 
