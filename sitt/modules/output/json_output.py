@@ -4,6 +4,7 @@
 """Create basic json output"""
 import json
 import logging
+from hashlib import blake2b
 from typing import Dict, List, Tuple
 
 import networkx as nx
@@ -65,11 +66,11 @@ class JSONOutput(OutputInterface):
     def create_dict_from_data(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> Dict[str, any]:
         """create a dict from passed data"""
 
-        agents_finished, agent_list = self._agent_list_to_data(config, context, set_of_results.agents_finished)
-        agents_cancelled, merge_list = self._agent_list_to_data(config, context, set_of_results.agents_cancelled)
+        agents_finished, history = self._agent_list_to_data(config, context, set_of_results.agents_finished)
+        agents_cancelled, merge_history = self._agent_list_to_data(config, context, set_of_results.agents_cancelled)
 
         # merge full list
-        agent_list = self._merge_agent_lists(agent_list, merge_list)
+        history = self._merge_history_lists(history, merge_history)
 
         nodes, paths = self._graph_to_data(context.graph)
 
@@ -79,28 +80,28 @@ class JSONOutput(OutputInterface):
             "simulation_end": config.simulation_end,
             "agents_finished": agents_finished,
             "agents_cancelled": agents_cancelled,
-            "agents": agent_list,
+            "agents": list(history.values()),
             "nodes": nodes,
             "paths": paths,
         }
 
-    def _agent_list_to_data(self, config: Configuration, context: Context, agents: List[Agent]) -> Tuple[List[dict], Dict[str, List[Dict[str, any]]]]:
+    def _agent_list_to_data(self, config: Configuration, context: Context, agents: List[Agent]) -> Tuple[List[dict], Dict[str, Dict[str, any]]]:
         """converts a list of agents to raw data"""
         main_agent_list: List[dict] = []
-        agent_list: Dict[str, List[Dict[str, any]]] = {}
+        agent_list: Dict[str, Dict[str, any]] = {}
 
         for agent in agents:
             # get data, is a dict of agent data and list of agents
-            agent, added_list = self._agent_to_data(config, context, agent)
+            agent_data, added_list = self._agent_to_data(config, context, agent)
 
             # aggregate agent data
-            agent_list = self._merge_agent_lists(agent_list, added_list)
+            agent_list = self._merge_history_lists(agent_list, added_list)
 
-            main_agent_list.append(agent)
+            main_agent_list.append(agent_data)
 
         return main_agent_list, agent_list
 
-    def _agent_to_data(self, config: Configuration, context: Context, agent: Agent) -> Tuple[dict, Dict[str, List[Dict[str, any]]]]:
+    def _agent_to_data(self, config: Configuration, context: Context, agent: Agent) -> Tuple[dict, Dict[str, Dict[str, any]]]:
         """converts a single agent to raw data, it is a dict of agent data and the agent list with leg data"""
 
         status: str = 'undefined'
@@ -112,25 +113,45 @@ class JSONOutput(OutputInterface):
             status = 'finished'
             day = agent.day_finished
 
-        agent_list: Dict[str, List[Dict[str, any]]] = {}
+        history: Dict[str, Dict[str, any]] = {}
         uids: Dict[str, bool] = {agent.uid: True}
+
+        # add leg to history
         for leg in agent.route_data.edges(data=True, keys=True):
             for uid in leg[3]['agents']:
-                if uid not in agent_list:
-                    agent_list[uid] = []
 
                 ag = leg[3]['agents'][uid]
-                agent_list[uid].append({
-                    "day": ag['day'],
-                    "start": ag['start'],
-                    "end": ag['end'],
-                    "from": leg[0],
-                    "to": leg[1],
-                    "path": leg[2],
-                    "leg_times": ag['leg_times'],
-                })
+                # create unique digest
+                digest = blake2b(f"edge{uid}d{ag['day']}.{ag['start']}a{ag['day']}.{ag['end']}-{leg[0]}-{leg[1]}-{leg[2]}".encode('utf8')).hexdigest()
+
+                if digest not in history:
+                    history[digest] = {
+                        "type": "edge",
+                        "agent": uid,
+                        "depart": {
+                            "day": ag['day'],
+                            "hour": ag['start'],
+                        },
+                        "arrive": {
+                            "day": ag['day'],
+                            "hour": ag['end'],
+                        },
+                        "from": leg[0],
+                        "to": leg[1],
+                        "path": leg[2],
+                        "leg_times": ag['leg_times'],
+                    }
 
                 uids[uid] = True
+
+        # add stay-overs
+        for stay_over in agent.stay_overs:
+            # create unique digest
+            digest = blake2b(f"hub{stay_over['agent']}d{stay_over['depart']['day']}.{stay_over['depart']['hour']}a{stay_over['arrive']['day']}.{stay_over['arrive']['hour']}-{stay_over['hub']}".encode('utf8')).hexdigest()
+            if digest not in history:
+                so = stay_over.copy()
+                so['type'] = 'hub'
+                history[digest] = so
 
         agent = {
             "uid": agent.uid,
@@ -140,9 +161,9 @@ class JSONOutput(OutputInterface):
             "hour": agent.current_time,
         }
 
-        return agent, agent_list
+        return agent, history
 
-    def _merge_agent_lists(self, list1: Dict[str, List[Dict[str, any]]], list2: Dict[str, List[Dict[str, any]]]) -> Dict[str, List[Dict[str, any]]]:
+    def _merge_history_lists(self, list1: Dict[str, Dict[str, any]], list2: Dict[str, Dict[str, any]]) -> Dict[str, Dict[str, any]]:
         """Helper to merge agent lists"""
 
         for key in list2:

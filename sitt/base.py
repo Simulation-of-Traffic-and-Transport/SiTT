@@ -50,7 +50,7 @@ def generate_uid() -> str:
     global uid_counter
 
     uid_counter += 1
-    return str(uid_counter).zfill(5)
+    return str(uid_counter).zfill(6)
 
 
 ########################################################################################################################
@@ -387,6 +387,8 @@ class Agent(object):
 
         self.route_data: nx.MultiDiGraph = nx.MultiDiGraph()
         """keeps route taken"""
+        self.stay_overs: List[Dict[str, any]] = []
+        """keeps stay-overs on nodes (e.g. overnight stays)"""
         self.last_possible_resting_place: str = this_hub
         """keeps last possible resting place"""
         self.last_possible_resting_time: float = current_time
@@ -400,6 +402,25 @@ class Agent(object):
         self.last_possible_resting_place = self.this_hub
         self.last_possible_resting_time = self.current_time
         self.state = self.state.reset()
+
+        # add overnight stays
+        if self.route_data.number_of_nodes():
+            for edge in self.route_data.in_edges(self.this_hub, data=True):
+                for uid in edge[2]['agents']:
+                    ag = edge[2]['agents'][uid]
+
+                    self.stay_overs.append({
+                        "agent": uid,
+                        "hub": self.this_hub,
+                        "arrive": {
+                            "day": ag['day'],
+                            "hour": ag['end'],
+                        },
+                        "depart": {
+                            "day": self.current_day,
+                            "hour": self.current_time,
+                        }
+                    })
 
     def __repr__(self) -> str:
         if self.day_finished >= 0:
