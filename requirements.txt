@@ -1,7 +1,6 @@
 cdsapi>=0.5.1
 geopandas>=0.12.1
 matplotlib>=3.6.2
-nanoid~=2.0.0
 netCDF4>=1.6.0
 networkx~=2.8.8
 numpy>=1.23.5

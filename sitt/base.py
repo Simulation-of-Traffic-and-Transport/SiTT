@@ -17,7 +17,6 @@ from enum import Enum
 from typing import Dict, List
 
 import geopandas as gp
-import nanoid
 import netCDF4 as nc
 import networkx as nx
 import numpy as np
@@ -43,8 +42,15 @@ __all__ = [
 # Utilities
 ########################################################################################################################
 
+uid_counter = 0
+
+
 def generate_uid() -> str:
-    return nanoid.generate('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12)
+    """This utility function will generate uids for agents in increasing numerical order, padded with leading zeros."""
+    global uid_counter
+
+    uid_counter += 1
+    return str(uid_counter).zfill(5)
 
 
 ########################################################################################################################
@@ -409,7 +415,7 @@ class Agent(object):
         return self.this_hub + self.next_hub + self.route_key
 
     def generate_uid(self) -> str:
-        """(re)generate unique id (nanoid) of agent"""
+        """generate an unique id of agent"""
         self.uid = generate_uid()
         return self.uid
 
