@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
+#
+# SPDX-License-Identifier: MIT
+"""Dummy stepper that runs at a fixed speed. Useful for testing."""
+import logging
+
+import yaml
+
+from sitt import Configuration, Context, Agent, State, SimulationStepInterface
+
+logger = logging.getLogger()
+
+
+class DummyForTests(SimulationStepInterface):
+    def __init__(self, time_taken_per_node: float = 8.):
+        super().__init__()
+        self.time_taken_per_node: float = time_taken_per_node
+
+    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+        # fixed speed in kph
+        agent.state.time_taken = self.time_taken_per_node
+
+        if not self.skip and logger.level <= logging.DEBUG:
+            logger.debug(
+                f"SimulationInterface DummyForTests run, from {agent.this_hub} to {agent.next_hub} via {agent.route_key}, time taken = {agent.state.time_taken:.2f}")
+
+        return agent.state
+
+    def __repr__(self):
+        return yaml.dump(self)
+
+    def __str__(self):
+        return "DummyForTests"
