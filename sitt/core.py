@@ -228,7 +228,7 @@ class Simulation(BaseClass):
 
         return agents
 
-    def prune_agent_list(self, agent_list: List[Agent]) -> List[Agent]:
+    def _prune_agent_list(self, agent_list: List[Agent]) -> List[Agent]:
         """prune agent list to include """
         hashed_agents: Dict[str, Agent] = {}
 
@@ -273,107 +273,133 @@ class Simulation(BaseClass):
         self.current_day = 1
 
         # do the loop - this is the outer loop for the whole simulation
+        # it will run until there are no agents left
         while len(agents):
-            agents_finished_for_today: List[Agent] = []
-            """keeps finished agents for this day"""
-            agents_proceed: List[Agent] = []
-            """keeps list of agents that proceed today"""
-
-            # prepare context for single day
-            for agent in agents:
-                agent.prepare_for_new_day(self.current_day)
-                # run SimulationPrepareDayInterfaces
-                for prep_day in self.config.simulation_prepare_day:
-                    prep_day.prepare_for_new_day(self.config, self.context, agent)
-
-            if logger.level <= logging.INFO:
-                logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
-
-            # do single day loop - this is the outer loop for the simulation (per day)
-            while len(agents):
-                # do single step
-                for agent in agents:
-                    # calculate state of agent at this node
-                    agent.state.reset()  # reset first
-                    # and module calls
-                    for def_state in self.config.simulation_define_state:
-                        agent.state = def_state.define_state(self.config, self.context, agent)
-
-                    # run the actual state update loop
-                    for sim_step in self.config.simulation_step:
-                        agent.state = sim_step.update_state(self.config, self.context, agent)
-
-                    # proceed or stop here?
-                    if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
-                        # proceed..., first add time
-                        start_time = agent.current_time
-                        agent.current_time += agent.state.time_taken
-
-                        # add route data
-                        agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                                  agents={agent.uid: {'day': self.current_day, 'start': start_time,
-                                                                      'end': agent.current_time,
-                                                                      'leg_times': agent.state.time_for_legs}})
-
-                        # finished?
-                        if agent.next_hub == self.config.simulation_end:
-                            agent.this_hub = self.config.simulation_end
-                            agent.next_hub = ''
-                            agent.route_key = ''
-                            agent.day_finished = self.current_day
-                            results.agents_finished.append(agent)
-                        else:
-                            # proceed to new hub
-                            if self.context.graph.nodes[agent.next_hub]['overnight'] == 'y':
-                                # overnight stay? if yes, save it
-                                agent.last_possible_resting_place = agent.next_hub
-                                agent.last_possible_resting_time = agent.current_time
-
-                            agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
-                    else:
-                        # time exceeded, end day
-
-                        # break if tries are exceeded
-                        agent.tries += 1
-                        if agent.tries > self.config.break_simulation_after:
-                            agent.day_cancelled = self.current_day - self.config.break_simulation_after
-                            results.agents_cancelled.append(agent)
-                        else:
-                            # traceback to last possible resting place, if needed
-                            if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
-                                # compile entries to delete from graph
-                                hubs_to_delete = []
-                                edges_to_delete = []
-
-                                for path in nx.all_simple_edge_paths(agent.route_data,
-                                                                     agent.last_possible_resting_place, agent.this_hub):
-                                    for leg in path:
-                                        hubs_to_delete.append(leg[1])  # add the second node, because first is either last_possible_resting_place or has been added already
-                                        edges_to_delete.append(leg[2])  # add vertex id
-
-                                agent.route_data.remove_edges_from(edges_to_delete)
-                                agent.route_data.remove_nodes_from(hubs_to_delete)
-
-                                agents_finished_for_today.extend(
-                                    self.create_agents_on_node(agent.last_possible_resting_place, agent))
-                            else:
-                                agents_finished_for_today.append(agent)
-
-                agents = agents_proceed
-                agents_proceed = []
-
-            # day finished, let's check if we have unfinished agents left
-            if len(agents_finished_for_today):
-                agents = self.prune_agent_list(agents_finished_for_today)
-            else:
-                agents = []
-
-            # increase day
-            self.current_day += 1
+            agents = self._run_single_day(agents, results)
 
         logger.info("******** Simulation: finished ********")
 
         return results
+
+    def _run_single_day(self, agents: list[Agent], results: SetOfResults) -> list[Agent]:
+        """
+        Run single day - called in the outer loop of run
+
+        :param agents: list of agents
+        :param results: set of results to fill into (mutated)
+        :return: new list of agents (can be empty list at the end)
+        """
+        agents_finished_for_today: List[Agent] = []
+        """keeps finished agents for this day"""
+
+        # prepare context for single day
+        for agent in agents:
+            agent.prepare_for_new_day(self.current_day)
+            # run SimulationPrepareDayInterfaces
+            for prep_day in self.config.simulation_prepare_day:
+                prep_day.prepare_for_new_day(self.config, self.context, agent)
+
+        if logger.level <= logging.INFO:
+            logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
+
+        # do single day loop - this is the inner loop for the simulation (per day)
+        while len(agents):
+            agents_proceed: List[Agent] = []
+            """keeps list of agents that proceed today"""
+
+            # do single step for each agent
+            for agent in agents:
+                self._run_single_day_for_agent(agent, results, agents_proceed, agents_finished_for_today)
+
+            agents = agents_proceed
+
+        # day finished, let's check if we have unfinished agents left
+        if len(agents_finished_for_today):
+            agents = self._prune_agent_list(agents_finished_for_today)
+        else:
+            agents = []
+
+        # increase day
+        self.current_day += 1
+
+        return agents
+
+    def _run_single_day_for_agent(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
+                                 agents_finished_for_today: List[Agent]):
+        """
+        Run single day for a specific agent - all parameters will be mutated in this method!
+
+        :param agent: agent to run results for (mutated)
+        :param results: set of results to fill into (mutated)
+        :param agents_proceed: list of agents that proceed today (mutated)
+        :param agents_finished_for_today:  list of agents that have finished for today (mutated)
+        """
+
+        # calculate state of agent at this node
+        agent.state.reset()  # reset first
+        # and module calls
+        for def_state in self.config.simulation_define_state:
+            agent.state = def_state.define_state(self.config, self.context, agent)
+
+        # run the actual state update loop
+        for sim_step in self.config.simulation_step:
+            agent.state = sim_step.update_state(self.config, self.context, agent)
+
+        # proceed or stop here?
+        if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
+            # proceed..., first add time
+            start_time = agent.current_time
+            agent.current_time += agent.state.time_taken
+
+            # add route data
+            agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
+                                      agents={agent.uid: {'day': self.current_day, 'start': start_time,
+                                                          'end': agent.current_time,
+                                                          'leg_times': agent.state.time_for_legs}})
+
+            # finished?
+            if agent.next_hub == self.config.simulation_end:
+                agent.this_hub = self.config.simulation_end
+                agent.next_hub = ''
+                agent.route_key = ''
+                agent.day_finished = self.current_day
+                results.agents_finished.append(agent)
+            else:
+                # proceed to new hub
+                if self.context.graph.nodes[agent.next_hub]['overnight'] == 'y':
+                    # overnight stay? if yes, save it
+                    agent.last_possible_resting_place = agent.next_hub
+                    agent.last_possible_resting_time = agent.current_time
+
+                agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
+        else:
+            # time exceeded, end day
+
+            # break if tries are exceeded
+            agent.tries += 1
+            if agent.tries > self.config.break_simulation_after:
+                agent.day_cancelled = self.current_day - self.config.break_simulation_after
+                results.agents_cancelled.append(agent)
+            else:
+                # traceback to last possible resting place, if needed
+                if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
+                    # compile entries to delete from graph
+                    hubs_to_delete = []
+                    edges_to_delete = []
+
+                    for path in nx.all_simple_edge_paths(agent.route_data,
+                                                         agent.last_possible_resting_place, agent.this_hub):
+                        for leg in path:
+                            hubs_to_delete.append(leg[1])  # add the second node, because first is either last_possible_resting_place or has been added already
+                            edges_to_delete.append(leg[2])  # add vertex id
+
+                    agent.route_data.remove_edges_from(edges_to_delete)
+                    agent.route_data.remove_nodes_from(hubs_to_delete)
+
+                    agents_finished_for_today.extend(
+                        self.create_agents_on_node(agent.last_possible_resting_place, agent))
+                else:
+                    agents_finished_for_today.append(agent)
 
 
 ########################################################################################################################
