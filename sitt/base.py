@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Dict, List
 
 import geopandas as gp
+import nanoid
 import netCDF4 as nc
 import networkx as nx
 import numpy as np
@@ -37,20 +38,23 @@ __all__ = [
     "OutputInterface",
 ]
 
-
 ########################################################################################################################
 # Utilities
 ########################################################################################################################
 
-uid_counter = 0
+id_counter = 0
 
 
-def generate_uid() -> str:
+def generate_nanoid() -> str:
+    return nanoid.generate('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12)
+
+
+def generate_id() -> str:
     """This utility function will generate uids for agents in increasing numerical order, padded with leading zeros."""
-    global uid_counter
+    global id_counter
 
-    uid_counter += 1
-    return str(uid_counter).zfill(6)
+    id_counter += 1
+    return str(id_counter).zfill(6)
 
 
 ########################################################################################################################
@@ -218,7 +222,8 @@ class SpaceTimeData(object):
         if start_date is None:
             return None
 
-        my_datetime = dt.datetime(start_date.year, start_date.month, start_date.day) + dt.timedelta(days=day-1, hours=hours)
+        my_datetime = dt.datetime(start_date.year, start_date.month, start_date.day) + dt.timedelta(days=day - 1,
+                                                                                                    hours=hours)
 
         return nc.date2num(my_datetime, self.times.units, calendar=self.times.calendar, has_year_zero=False)
 
@@ -324,7 +329,7 @@ class State(object):
     """State class - this will take information on the current state of a simulation agent, it will be reset each day"""
 
     def __init__(self):
-        self.uid: str = generate_uid()
+        self.uid: str = generate_nanoid()
         """unique id"""
 
         self.time_taken: float = 0.
@@ -344,6 +349,10 @@ class State(object):
         self.signal_stop_here = False
 
         return self
+
+    def __repr__(self) -> str:
+        return f'State {self.uid} TT={self.time_taken:.2f}'
+
     #
     # def hash(self) -> str:
     #     """Return unique id of this state"""
@@ -355,7 +364,7 @@ class Agent(object):
 
     def __init__(self, this_hub: str, next_hub: str, route_key: str, state: State | None = None,
                  current_time: float = 0., max_time: float = 0.):
-        self.uid: str = generate_uid()
+        self.uid: str = generate_id()
         """unique id"""
 
         """read-only reference to context"""
@@ -437,7 +446,7 @@ class Agent(object):
 
     def generate_uid(self) -> str:
         """generate an unique id of agent"""
-        self.uid = generate_uid()
+        self.uid = generate_id()
         return self.uid
 
 
