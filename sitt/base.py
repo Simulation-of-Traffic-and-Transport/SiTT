@@ -351,7 +351,7 @@ class State(object):
         return self
 
     def __repr__(self) -> str:
-        return f'State {self.uid} TT={self.time_taken:.2f}'
+        return f'State {self.uid} TT={self.time_taken:.2f} STOP_HERE={self.signal_stop_here}'
 
     #
     # def hash(self) -> str:

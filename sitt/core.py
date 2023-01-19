@@ -325,7 +325,7 @@ class Simulation(BaseClass):
         return agents
 
     def _run_single_day_for_agent(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
-                                 agents_finished_for_today: List[Agent]):
+                                  agents_finished_for_today: List[Agent]):
         """
         Run single day for a specific agent - all parameters will be mutated in this method!
 
@@ -364,42 +364,64 @@ class Simulation(BaseClass):
                 agent.route_key = ''
                 agent.day_finished = self.current_day
                 results.agents_finished.append(agent)
-            else:
-                # proceed to new hub
-                if self.context.graph.nodes[agent.next_hub]['overnight'] == 'y':
-                    # overnight stay? if yes, save it
-                    agent.last_possible_resting_place = agent.next_hub
-                    agent.last_possible_resting_time = agent.current_time
+            elif self.context.graph.nodes[agent.next_hub]['overnight'] == 'y':
+                # proceed to new hub -> it is an overnight stay
+                agent.last_possible_resting_place = agent.next_hub
+                agent.last_possible_resting_time = agent.current_time
 
-                agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
+                next_hub_agents = self.create_agents_on_node(agent.next_hub, agent)
+
+                if agent.current_time == agent.max_time:
+                    agents_finished_for_today.extend(next_hub_agents)
+                else:
+                    agents_proceed.extend(next_hub_agents)
+            else:
+                # proceed, but this is not an overnight stay
+                if agent.current_time == agent.max_time:
+                    # very special case that should not occur often: we arrive at the node exactly on maximum
+                    # time, end day - this will increase test timer
+                    self._end_day(agent, results, agents_finished_for_today)
+                else:
+                    # normal case just proceed
+                    agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
         else:
             # time exceeded, end day
+            self._end_day(agent, results, agents_finished_for_today)
 
-            # break if tries are exceeded
-            agent.tries += 1
-            if agent.tries > self.config.break_simulation_after:
-                agent.day_cancelled = self.current_day - self.config.break_simulation_after
-                results.agents_cancelled.append(agent)
+    def _end_day(self, agent: Agent, results: SetOfResults, agents_finished_for_today: List[Agent]):
+        """
+        End this day for agent.
+
+        :param agent: agent to run results for (mutated)
+        :param results: set of results to fill into (mutated)
+        :param agents_finished_for_today:  list of agents that have finished for today (mutated)
+        """
+        # break if tries are exceeded
+        agent.tries += 1
+        if agent.tries > self.config.break_simulation_after:
+            agent.day_cancelled = self.current_day - self.config.break_simulation_after
+            results.agents_cancelled.append(agent)
+        else:
+            # traceback to last possible resting place, if needed
+            if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
+                # compile entries to delete from graph
+                hubs_to_delete = []
+                edges_to_delete = []
+
+                for path in nx.all_simple_edge_paths(agent.route_data,
+                                                     agent.last_possible_resting_place, agent.this_hub):
+                    for leg in path:
+                        hubs_to_delete.append(leg[
+                                                  1])  # add the second node, because first is either last_possible_resting_place or has been added already
+                        edges_to_delete.append(leg[2])  # add vertex id
+
+                agent.route_data.remove_edges_from(edges_to_delete)
+                agent.route_data.remove_nodes_from(hubs_to_delete)
+
+                agents_finished_for_today.extend(
+                    self.create_agents_on_node(agent.last_possible_resting_place, agent))
             else:
-                # traceback to last possible resting place, if needed
-                if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
-                    # compile entries to delete from graph
-                    hubs_to_delete = []
-                    edges_to_delete = []
-
-                    for path in nx.all_simple_edge_paths(agent.route_data,
-                                                         agent.last_possible_resting_place, agent.this_hub):
-                        for leg in path:
-                            hubs_to_delete.append(leg[1])  # add the second node, because first is either last_possible_resting_place or has been added already
-                            edges_to_delete.append(leg[2])  # add vertex id
-
-                    agent.route_data.remove_edges_from(edges_to_delete)
-                    agent.route_data.remove_nodes_from(hubs_to_delete)
-
-                    agents_finished_for_today.extend(
-                        self.create_agents_on_node(agent.last_possible_resting_place, agent))
-                else:
-                    agents_finished_for_today.append(agent)
+                agents_finished_for_today.append(agent)
 
 
 ########################################################################################################################
