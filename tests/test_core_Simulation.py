@@ -58,8 +58,11 @@ def test_prune_agent_list():
     pass
 
 
-def _create_simulation_for_test_runs(time_taken_per_node: float = 8.) -> tuple[Simulation, SetOfResults, list[Agent], list[Agent]]:
+def _create_simulation_for_test_runs(time_taken_per_node: float = 8.) -> tuple[
+    Simulation, SetOfResults, list[Agent], list[Agent]]:
     config: Configuration = Configuration()
+    config.simulation_start = 'START'
+    config.simulation_end = 'STOP'
     config.simulation_step.append(DummyForTests(time_taken_per_node))
     context: Context = Context()
     context.graph = nx.MultiGraph()
@@ -94,6 +97,8 @@ def test_run_single_day_for_agent_start_pass1():
     assert agents_proceed[0].this_hub == 'PASS'
     assert agents_proceed[0].next_hub == 'STOP'
     assert agent.tries == 0
+    assert agent.day_finished == -1
+    assert agent.day_cancelled == -1
     assert agent.current_time == 12.0
     assert agent.state.time_taken == 4.0
 
@@ -111,6 +116,8 @@ def test_run_single_day_for_agent_start_pass2():
     assert len(agents_finished_for_today) == 1
     assert agents_finished_for_today[0] == agent
     assert agent.tries == 1
+    assert agent.day_finished == -1
+    assert agent.day_cancelled == -1
 
 
 def test_run_single_day_for_agent_start_pass3():
@@ -126,6 +133,8 @@ def test_run_single_day_for_agent_start_pass3():
     assert len(agents_finished_for_today) == 1
     assert agents_finished_for_today[0] == agent
     assert agent.tries == 1
+    assert agent.day_finished == -1
+    assert agent.day_cancelled == -1
 
 
 def test_run_single_day_for_agent_start_stay1():
@@ -142,6 +151,8 @@ def test_run_single_day_for_agent_start_stay1():
     assert agents_proceed[0].this_hub == 'STAY'
     assert agents_proceed[0].next_hub == 'STOP'
     assert agent.tries == 0
+    assert agent.day_finished == -1
+    assert agent.day_cancelled == -1
     assert agent.current_time == 12.0
     assert agent.state.time_taken == 4.0
 
@@ -159,6 +170,8 @@ def test_run_single_day_for_agent_start_stay2():
     assert len(agents_finished_for_today) == 1
     assert agents_finished_for_today[0] == agent
     assert agent.tries == 1
+    assert agent.day_finished == -1
+    assert agent.day_cancelled == -1
 
 
 def test_run_single_day_for_agent_start_stay3():
@@ -175,10 +188,31 @@ def test_run_single_day_for_agent_start_stay3():
     assert agents_finished_for_today[0].this_hub == 'STAY'
     assert agents_finished_for_today[0].next_hub == 'STOP'
     assert agent.tries == 0
+    assert agent.day_finished == -1
+    assert agent.day_cancelled == -1
     assert agent.current_time == 16.0
     assert agent.state.time_taken == 8.0
 
-# TODO: test arrival
+
+def test_run_single_day_for_agent_arrival():
+    # text arrival at end point - agent should not try to continue
+    sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
+    agent = Agent('STAY', 'STOP', '', current_time=8.0, max_time=16.0)
+
+    # simply test running the simulation without other definitions
+    assert sim._run_single_day_for_agent(agent, results, agents_proceed, agents_finished_for_today) is None
+
+    # expectations: agent should be set to be finished
+    assert not len(agents_proceed)
+    assert not len(agents_finished_for_today)
+    assert agent.tries == 0
+    assert agent.current_time == 12.0
+    assert agent.state.time_taken == 4.0
+    assert agent.day_finished == 1
+    assert len(results.agents_finished) == 1
+    assert results.agents_finished[0] == agent
+
+
 # TODO: test forced stops
 # TODO: test splitting agents at arriving on nodes with more than one route
 
