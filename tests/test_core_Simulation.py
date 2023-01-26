@@ -271,8 +271,6 @@ def test_run_single_step_forced_stop2():
     assert agent.current_time == 8.0
     assert agent.state.time_taken == 0.0
 
-# TODO: test splitting agents at arriving on nodes with more than one route
-
 
 def test_end_day():
     # TODO: implement!
