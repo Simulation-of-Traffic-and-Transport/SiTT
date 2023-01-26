@@ -309,7 +309,7 @@ class Simulation(BaseClass):
 
             # do single step for each agent
             for agent in agents:
-                self._run_single_day_for_agent(agent, results, agents_proceed, agents_finished_for_today)
+                self._run_single_step(agent, results, agents_proceed, agents_finished_for_today)
 
             agents = agents_proceed
 
@@ -324,10 +324,10 @@ class Simulation(BaseClass):
 
         return agents
 
-    def _run_single_day_for_agent(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
-                                  agents_finished_for_today: List[Agent]):
+    def _run_single_step(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
+                         agents_finished_for_today: List[Agent]):
         """
-        Run single day for a specific agent - all parameters will be mutated in this method!
+        Run single stop for a specific agent - all parameters will be mutated in this method!
 
         :param agent: agent to run results for (mutated)
         :param results: set of results to fill into (mutated)
@@ -377,7 +377,7 @@ class Simulation(BaseClass):
                     agents_proceed.extend(next_hub_agents)
             else:
                 # proceed, but this is not an overnight stay
-                if agent.current_time == agent.max_time:
+                if agent.state.signal_stop_here or agent.current_time == agent.max_time:
                     # very special case that should not occur often: we arrive at the node exactly on maximum
                     # time, end day - this will increase test timer
                     self._end_day(agent, results, agents_finished_for_today)

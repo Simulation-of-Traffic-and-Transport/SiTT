@@ -12,13 +12,18 @@ logger = logging.getLogger()
 
 
 class DummyForTests(SimulationStepInterface):
-    def __init__(self, time_taken_per_node: float = 8.):
+    def __init__(self, time_taken_per_node: float = 8., force_stop_at_node: None | str = None):
         super().__init__()
         self.time_taken_per_node: float = time_taken_per_node
+        self.force_stop_at_node: float = force_stop_at_node
 
     def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
-        # fixed speed in kph
-        agent.state.time_taken = self.time_taken_per_node
+        # Signal to stop at this stop
+        if self.force_stop_at_node and agent.this_hub == self.force_stop_at_node:
+            agent.state.signal_stop_here = True
+        else:
+            # fixed speed in kph
+            agent.state.time_taken = self.time_taken_per_node
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
