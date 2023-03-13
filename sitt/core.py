@@ -304,6 +304,9 @@ class Simulation(BaseClass):
             for prep_day in self.config.simulation_prepare_day:
                 prep_day.prepare_for_new_day(self.config, self.context, agent)
 
+        # Prune list, because we might have agents that start on the same position now
+        agents = self._prune_agent_list(agents)
+
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
 
