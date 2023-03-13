@@ -209,7 +209,7 @@ class Simulation(BaseClass):
         agents: List[Agent] = []
 
         if agent_to_clone is None:
-            agent_to_clone = Agent(hub, '', '', current_time=8.0, max_time=16.0)
+            agent_to_clone = Agent(hub, '', '', current_time=8., max_time=16.)
 
         for target in self.context.routes[hub]:
             for route_key in self.context.routes[hub][target]:
@@ -229,7 +229,12 @@ class Simulation(BaseClass):
         return agents
 
     def _prune_agent_list(self, agent_list: List[Agent]) -> List[Agent]:
-        """prune agent list to include """
+        """
+        Prune the agent list to reduce the number of agents in a list to include only unique ones.
+
+        :param agent_list: old agent list
+        :return: new agent list
+        """
         hashed_agents: Dict[str, Agent] = {}
 
         for ag in agent_list:
@@ -294,7 +299,7 @@ class Simulation(BaseClass):
 
         # prepare context for single day
         for agent in agents:
-            agent.prepare_for_new_day(self.current_day)
+            agent.prepare_for_new_day(current_day=self.current_day)
             # run SimulationPrepareDayInterfaces
             for prep_day in self.config.simulation_prepare_day:
                 prep_day.prepare_for_new_day(self.config, self.context, agent)
@@ -313,16 +318,14 @@ class Simulation(BaseClass):
 
             agents = agents_proceed
 
-        # day finished, let's check if we have unfinished agents left
-        if len(agents_finished_for_today):
-            agents = self._prune_agent_list(agents_finished_for_today)
-        else:
-            agents = []
-
         # increase day
         self.current_day += 1
 
-        return agents
+        # day finished, let's check if we have unfinished agents left
+        if len(agents_finished_for_today):
+            return self._prune_agent_list(agents_finished_for_today)
+
+        return []
 
     def _run_single_step(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
                          agents_finished_for_today: List[Agent]):
@@ -353,9 +356,18 @@ class Simulation(BaseClass):
 
             # add route data
             agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                      agents={agent.uid: {'day': self.current_day, 'start': start_time,
-                                                          'end': agent.current_time,
-                                                          'leg_times': agent.state.time_for_legs}})
+                                      type='edge',
+                                      agents={agent.uid: {
+                                          'start': {
+                                              'day': self.current_day,
+                                              'time': start_time,
+                                          },
+                                          'end': {
+                                              'day': self.current_day,
+                                              'time': agent.current_time,
+                                          },
+                                          'leg_times': agent.state.time_for_legs
+                                      }})
 
             # finished?
             if agent.next_hub == self.config.simulation_end:

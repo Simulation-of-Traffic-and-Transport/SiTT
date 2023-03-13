@@ -43,7 +43,7 @@ def test_create_agents_on_node():
     assert len(sim.create_agents_on_node('STOP')) == 0
 
     # test cloning of existing agents
-    agent = Agent('START', '', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', '', '', current_time=8., max_time=16.)
     agents = sim.create_agents_on_node('START')
     for a in agents:
         assert a.current_day == agent.current_day
@@ -86,7 +86,7 @@ def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop
 def test_run_single_step_start_pass1():
     # this is the simplest test case for the single day loop
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
-    agent = Agent('START', 'PASS', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', 'PASS', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -106,7 +106,7 @@ def test_run_single_step_start_pass1():
 def test_run_single_step_start_pass2():
     # test exceeds max time so agent should end and be reset to current state
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8.1)
-    agent = Agent('START', 'PASS', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', 'PASS', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -123,7 +123,7 @@ def test_run_single_step_start_pass2():
 def test_run_single_step_start_pass3():
     # test is exactly max time - agent should end day as special case
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs()
-    agent = Agent('START', 'PASS', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', 'PASS', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -140,7 +140,7 @@ def test_run_single_step_start_pass3():
 def test_run_single_step_start_stay1():
     # copy of simple run, only we take the other route and proceed to stay
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
-    agent = Agent('START', 'STAY', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', 'STAY', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -160,7 +160,7 @@ def test_run_single_step_start_stay1():
 def test_run_single_step_start_stay2():
     # test exceeds max time so agent should end and be reset to current state
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8.1)
-    agent = Agent('START', 'STAY', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', 'STAY', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -177,7 +177,7 @@ def test_run_single_step_start_stay2():
 def test_run_single_step_start_stay3():
     # test is exactly max time - agent should end day as special case, stay overnight, ok
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs()
-    agent = Agent('START', 'STAY', '', current_time=8.0, max_time=16.0)
+    agent = Agent('START', 'STAY', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -190,14 +190,14 @@ def test_run_single_step_start_stay3():
     assert agent.tries == 0
     assert agent.day_finished == -1
     assert agent.day_cancelled == -1
-    assert agent.current_time == 16.0
-    assert agent.state.time_taken == 8.0
+    assert agent.current_time == 16.
+    assert agent.state.time_taken == 8.
 
 
 def test_run_single_step_arrival1():
     # text arrival at end point - agent should not try to continue
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
-    agent = Agent('STAY', 'STOP', '', current_time=8.0, max_time=16.0)
+    agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -216,7 +216,7 @@ def test_run_single_step_arrival1():
 def test_run_single_step_arrival2():
     # text arrival at end point - agent should not try to continue - exact match should also work!
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs()
-    agent = Agent('STAY', 'STOP', '', current_time=8.0, max_time=16.0)
+    agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -225,8 +225,8 @@ def test_run_single_step_arrival2():
     assert not len(agents_proceed)
     assert not len(agents_finished_for_today)
     assert agent.tries == 0
-    assert agent.current_time == 16.0
-    assert agent.state.time_taken == 8.0
+    assert agent.current_time == 16.
+    assert agent.state.time_taken == 8.
     assert agent.day_finished == 1
     assert len(results.agents_finished) == 1
     assert results.agents_finished[0] == agent
@@ -235,7 +235,7 @@ def test_run_single_step_arrival2():
 def test_run_single_step_forced_stop1():
     # test forced stop
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0, 'STAY')
-    agent = Agent('STAY', 'STOP', '', current_time=8.0, max_time=16.0)
+    agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -248,14 +248,14 @@ def test_run_single_step_forced_stop1():
     assert agent.tries == 1
     assert agent.day_finished == -1
     assert agent.day_cancelled == -1
-    assert agent.current_time == 8.0
+    assert agent.current_time == 8.
     assert agent.state.time_taken == 0.0
 
 
 def test_run_single_step_forced_stop2():
     # test forced stop - exact time
-    sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8.0, 'STAY')
-    agent = Agent('STAY', 'STOP', '', current_time=8.0, max_time=16.0)
+    sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8., 'STAY')
+    agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -268,10 +268,15 @@ def test_run_single_step_forced_stop2():
     assert agent.tries == 1
     assert agent.day_finished == -1
     assert agent.day_cancelled == -1
-    assert agent.current_time == 8.0
+    assert agent.current_time == 8.
     assert agent.state.time_taken == 0.0
 
 
 def test_end_day():
+    # TODO: implement!
+    pass
+
+
+def test_output():
     # TODO: implement!
     pass

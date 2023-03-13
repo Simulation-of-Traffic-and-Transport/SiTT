@@ -403,11 +403,19 @@ class Agent(object):
         self.last_possible_resting_time: float = current_time
         """keeps timestamp of last resting place"""
 
-    def prepare_for_new_day(self, current_day: int = 1):
-        """reset to defaults for a day"""
+    def prepare_for_new_day(self, current_day: int = 1, current_time: float = 8., max_time: float = 16.):
+        """
+        reset to defaults for a day
+
+        :param current_day: current day to set
+        :param current_time:
+        :param max_time:
+        :return:
+        """
+        # set values for new day
         self.current_day = current_day
-        self.current_time = 8.
-        self.max_time = 16.
+        self.current_time = current_time
+        self.max_time = max_time
         self.last_possible_resting_place = self.this_hub
         self.last_possible_resting_time = self.current_time
         self.state = self.state.reset()
@@ -422,12 +430,12 @@ class Agent(object):
                         "agent": uid,
                         "hub": self.this_hub,
                         "begin": {
-                            "day": ag['day'],
-                            "hour": ag['end'],
+                            "day": ag['end']['day'],
+                            "time": ag['end']['time'],
                         },
                         "end": {
                             "day": self.current_day,
-                            "hour": self.current_time,
+                            "time": self.current_time,
                         }
                     })
 
@@ -442,7 +450,8 @@ class Agent(object):
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
     def hash(self) -> str:
-        return self.this_hub + self.next_hub + self.route_key
+        return self.this_hub + self.next_hub + self.route_key + "_" + str(self.current_day) + "_" + str(
+            self.current_time)
 
     def generate_uid(self) -> str:
         """generate an unique id of agent"""
