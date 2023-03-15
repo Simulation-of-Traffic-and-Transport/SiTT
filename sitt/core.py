@@ -327,11 +327,7 @@ class Simulation(BaseClass):
         # increase day
         self.current_day += 1
 
-        # day finished, let's check if we have unfinished agents left
-        if len(agents_finished_for_today):
-            return self._prune_agent_list(agents_finished_for_today)
-
-        return []
+        return agents_finished_for_today
 
     def _run_single_step(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
                          agents_finished_for_today: List[Agent]):
