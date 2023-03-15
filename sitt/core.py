@@ -240,30 +240,17 @@ class Simulation(BaseClass):
         # first day?
         if first_day:
             for agent in agents:
+                # Add node information
                 agent.route_data.add_node(agent.this_hub, agents={agent.uid: {
-                                          'start': {
-                                              'day': agent.current_day,
-                                              'time': agent.current_day,
-                                          },
-                                          'end': {
-                                              'day': agent.current_day,
-                                              'time': agent.current_day,
-                                          }
-                                      }})
-
-                # add starting hub to history
-                agent.stay_overs.append({
-                    "agent": agent.uid,
-                    "hub": agent.this_hub,
-                    "start": {
-                        "day": agent.current_day,
-                        "time": agent.current_time,
+                    'start': {
+                        'day': agent.current_day,
+                        'time': agent.current_day,
                     },
-                    "end": {
-                        "day": agent.current_day,
-                        "time": agent.current_time,
+                    'end': {
+                        'day': agent.current_day,
+                        'time': agent.current_day,
                     }
-                })
+                }})
 
         return agents
 
@@ -282,6 +269,21 @@ class Simulation(BaseClass):
                 hashed_agents[hash_id] = agent
             else:
                 # merge graphs - we want to have all possible graphs at the end
+
+                # we start with copying/merging hub data
+                for hub in agent.route_data.nodes(data=True):
+                    if 'agents' in hub[1]:
+                        if hashed_agents[hash_id].route_data.has_node(hub[0]):
+                            data = hashed_agents[hash_id].route_data.nodes[hub[0]]
+                            if 'agents' not in data:
+                                data['agents'] = {}
+                            for uid in hub[1]['agents']:
+                                if uid not in data['agents']:
+                                    data['agents'][uid] = hub[1]['agents'][uid]
+                        else:
+                            hashed_agents[hash_id].route_data.add_node(hub[0], agents=hub[1]['agents'])
+
+                # now connect edges
                 for leg in agent.route_data.edges(data=True, keys=True):
                     if hashed_agents[hash_id].route_data.has_edge(leg[0], leg[1], leg[2]):
                         data = hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]
@@ -290,9 +292,6 @@ class Simulation(BaseClass):
                                 data['agents'][uid] = leg[3]['agents'][uid]
                     else:
                         hashed_agents[hash_id].route_data.add_edge(leg[0], leg[1], leg[2], agents=leg[3]['agents'])
-
-                # merge stay overs
-                hashed_agents[hash_id].stay_overs += agent.stay_overs
 
         return list(hashed_agents.values())
 

@@ -4,7 +4,6 @@
 """Create basic json output"""
 import json
 import logging
-from hashlib import blake2b
 from typing import Dict, List, Tuple
 
 import networkx as nx
@@ -116,36 +115,25 @@ class JSONOutput(OutputInterface):
         history: Dict[str, Dict[str, any]] = {}
         uids: Dict[str, bool] = {agent.uid: True}
 
-        # add leg to history
+        # add legs to history
         for leg in agent.route_data.edges(data=True, keys=True):
-            for uid in leg[3]['agents']:
+            if 'agents' in leg[3]:
+                history[leg[2]] = {
+                    "type": "edge",
+                    "id": leg[2],
+                    "from": leg[0],
+                    "to": leg[1],
+                    "agents": leg[3]['agents'],
+                }
 
-                ag = leg[3]['agents'][uid]
-                # create unique digest
-                digest = blake2b(f"edge{uid}b{ag['start']['day']}.{ag['start']['time']}e{ag['end']['day']}.{ag['end']['time']}-{leg[0]}-{leg[1]}-{leg[2]}".encode('utf8')).hexdigest()
-
-                if digest not in history:
-                    history[digest] = {
-                        "type": "edge",
-                        "agent": uid,
-                        "start": ag['start'],
-                        "end": ag['end'],
-                        "from": leg[0],
-                        "to": leg[1],
-                        "path": leg[2],
-                        "leg_times": ag['leg_times'],
-                    }
-
-                uids[uid] = True
-
-        # add stay-overs
-        for stay_over in agent.stay_overs:
-            # create unique digest
-            digest = blake2b(f"hub{stay_over['agent']}b{stay_over['start']['day']}.{stay_over['start']['time']}e{stay_over['end']['day']}.{stay_over['end']['time']}-{stay_over['hub']}".encode('utf8')).hexdigest()
-            if digest not in history:
-                so = stay_over.copy()
-                so['type'] = 'hub'
-                history[digest] = so
+        # add hubs to history
+        for hub in agent.route_data.nodes(data=True):
+            if 'agents' in hub[1]:
+                history[hub[0]] = {
+                    "type": "node",
+                    "id": hub[0],
+                    "agents": hub[1]['agents'],
+                }
 
         agent = {
             "uid": agent.uid,
@@ -161,8 +149,11 @@ class JSONOutput(OutputInterface):
         """Helper to merge agent lists"""
 
         for key in list2:
-            if key not in list1 or len(list2[key]) > len(list1[key]):
+            if key not in list1:
                 list1[key] = list2[key]
+            elif len(list1[key]['agents']) != len(list2[key]['agents']):
+                logger.warning('############# Different lengths of lists:', list1[key]['agents'], list2[key]['agents'])
+                # TODO: fix this if we have cases
 
         return list1
 

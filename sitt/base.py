@@ -422,13 +422,16 @@ class Agent(object):
 
         # add overnight stays
         if self.route_data.number_of_nodes():
+            data = self.route_data.nodes[self.this_hub]
+
+            if 'agents' not in data:
+                data['agents'] = {}
+
             for edge in self.route_data.in_edges(self.this_hub, data=True):
                 for uid in edge[2]['agents']:
                     ag = edge[2]['agents'][uid]
 
-                    self.stay_overs.append({
-                        "agent": uid,
-                        "hub": self.this_hub,
+                    data['agents'][uid] = {
                         "start": {
                             "day": ag['end']['day'],
                             "time": ag['end']['time'],
@@ -437,7 +440,7 @@ class Agent(object):
                             "day": self.current_day,
                             "time": self.current_time,
                         }
-                    })
+                    }
 
     def __repr__(self) -> str:
         if self.day_finished >= 0:
