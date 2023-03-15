@@ -11,6 +11,7 @@
 import abc
 import copy
 import logging
+import math
 import os.path
 from typing import Dict, List
 
@@ -312,6 +313,9 @@ class Simulation(BaseClass):
         while len(agents):
             agents = self._run_single_day(agents, results)
 
+        # end simulation - do some history and statistics
+        self._end_simulation(results)
+
         logger.info("******** Simulation: finished ********")
 
         return results
@@ -463,6 +467,43 @@ class Simulation(BaseClass):
                     self.create_agents_on_node(agent.last_possible_resting_place, agent))
             else:
                 agents_finished_for_today.append(agent)
+
+    def _end_simulation(self, results: SetOfResults):
+        """
+        Run end simluation tasks
+
+        :param results: set of results
+        """
+        max_day: float = 0.
+        max_time: float = 0.
+
+        # first, determine max_time and max_day
+        for agent in results.agents_finished:
+            if agent.current_day > max_day:
+                max_day = agent.current_day
+                max_time = agent.current_time
+            elif agent.current_day == max_day and agent.current_time > max_time:
+                max_time = agent.current_time
+
+        # round up max_time
+        max_time = math.ceil(max_time)
+
+        # add stay over at end
+        for agent in results.agents_finished:
+            agent.stay_overs.append({
+                "agent": agent.uid,
+                "hub": agent.this_hub,
+                "start": {
+                    "day": agent.current_day,
+                    "time": agent.current_time,
+                },
+                "end": {
+                    "day": max_day,
+                    "time": max_time,
+                }
+            })
+
+        # TODO: handle unfinished agents, too?
 
 
 ########################################################################################################################
