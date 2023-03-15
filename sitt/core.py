@@ -237,13 +237,13 @@ class Simulation(BaseClass):
         """
         hashed_agents: Dict[str, Agent] = {}
 
-        for ag in agent_list:
-            hash_id = ag.hash()
+        for agent in agent_list:
+            hash_id = agent.hash()
             if hash_id not in hashed_agents:
-                hashed_agents[hash_id] = ag
+                hashed_agents[hash_id] = agent
             else:
                 # merge graphs - we want to have all possible graphs at the end
-                for leg in ag.route_data.edges(data=True, keys=True):
+                for leg in agent.route_data.edges(data=True, keys=True):
                     if hashed_agents[hash_id].route_data.has_edge(leg[0], leg[1], leg[2]):
                         data = hashed_agents[hash_id].route_data.get_edge_data(leg[0], leg[1], leg[2])
                         changed = False
@@ -255,6 +255,9 @@ class Simulation(BaseClass):
                             hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]['agents'] = data['agents']
                     else:
                         hashed_agents[hash_id].route_data.add_edge(leg[0], leg[1], leg[2], agents=leg[3]['agents'])
+
+                # merge stay overs
+                hashed_agents[hash_id].stay_overs += agent.stay_overs
 
         return list(hashed_agents.values())
 
