@@ -204,12 +204,22 @@ class Simulation(BaseClass):
 
         return ok
 
-    def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None) -> List[Agent]:
-        """Create a number of virtual agents on a given node"""
+    def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None, first_day: bool = False,
+                              current_time: float = 8., max_time: float = 16.) -> List[Agent]:
+        """
+        Create a number of virtual agents on a given node.
+
+        :param hub: Hub to create agents on.
+        :param agent_to_clone: Clone this agent.
+        :param first_day: First day of simulation?
+        :param current_time: Current time
+        :param max_time: Maximum time this day
+        :return:
+        """
         agents: List[Agent] = []
 
         if agent_to_clone is None:
-            agent_to_clone = Agent(hub, '', '', current_time=8., max_time=16.)
+            agent_to_clone = Agent(hub, '', '', current_time=current_time, max_time=max_time)
 
         for target in self.context.routes[hub]:
             for route_key in self.context.routes[hub][target]:
@@ -225,6 +235,23 @@ class Simulation(BaseClass):
         if len(agents) > 1:
             for agent in agents:
                 agent.generate_uid()
+
+        # first day?
+        if first_day:
+            for agent in agents:
+                # add starting hub to history
+                agent.stay_overs.append({
+                    "agent": agent.uid,
+                    "hub": agent.this_hub,
+                    "start": {
+                        "day": agent.current_day,
+                        "time": agent.current_time,
+                    },
+                    "end": {
+                        "day": agent.current_day,
+                        "time": agent.current_time,
+                    }
+                })
 
         return agents
 
@@ -276,7 +303,7 @@ class Simulation(BaseClass):
             return results
 
         # create initial set of agents to run
-        agents = self.create_agents_on_node(self.config.simulation_start)
+        agents = self.create_agents_on_node(self.config.simulation_start, first_day=True)
         # reset day counter
         self.current_day = 1
 
