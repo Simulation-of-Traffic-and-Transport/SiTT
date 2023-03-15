@@ -141,7 +141,7 @@ class JSONOutput(OutputInterface):
         # add stay-overs
         for stay_over in agent.stay_overs:
             # create unique digest
-            digest = blake2b(f"hub{stay_over['agent']}b{stay_over['begin']['day']}.{stay_over['begin']['time']}e{stay_over['end']['day']}.{stay_over['end']['time']}-{stay_over['hub']}".encode('utf8')).hexdigest()
+            digest = blake2b(f"hub{stay_over['agent']}b{stay_over['start']['day']}.{stay_over['start']['time']}e{stay_over['end']['day']}.{stay_over['end']['time']}-{stay_over['hub']}".encode('utf8')).hexdigest()
             if digest not in history:
                 so = stay_over.copy()
                 so['type'] = 'hub'
