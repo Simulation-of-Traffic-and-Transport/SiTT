@@ -113,7 +113,8 @@ class JSONOutput(OutputInterface):
             day = agent.day_finished
 
         history: Dict[str, Dict[str, any]] = {}
-        uids: Dict[str, bool] = {agent.uid: True}
+        # keeps unique list of agent ids
+        uids: set = {agent.uid}
 
         # add legs to history
         for leg in agent.route_data.edges(data=True, keys=True):
@@ -126,6 +127,10 @@ class JSONOutput(OutputInterface):
                     "agents": leg[3]['agents'],
                 }
 
+                # add to list of agent ids
+                for ag in leg[3]['agents']:
+                    uids.add(ag)
+
         # add hubs to history
         for hub in agent.route_data.nodes(data=True):
             if 'agents' in hub[1]:
@@ -137,7 +142,7 @@ class JSONOutput(OutputInterface):
 
         agent = {
             "uid": agent.uid,
-            "uids": list(uids.keys()),
+            "uids": list(uids),
             "status": status,
             "day": day,
             "hour": agent.current_time,
