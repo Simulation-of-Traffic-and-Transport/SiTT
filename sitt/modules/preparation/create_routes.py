@@ -55,7 +55,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
             # get total length
             for leg in p:
-                r.length += context.graph.get_edge_data(leg[0], leg[1], leg[2])['length_m']
+                r.length += context.graph[leg[0]][leg[1]][leg[2]]['length_m']
 
             insort(sorted_routes, r)
 

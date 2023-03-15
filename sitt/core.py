@@ -240,6 +240,17 @@ class Simulation(BaseClass):
         # first day?
         if first_day:
             for agent in agents:
+                agent.route_data.add_node(agent.this_hub, agents={agent.uid: {
+                                          'start': {
+                                              'day': agent.current_day,
+                                              'time': agent.current_day,
+                                          },
+                                          'end': {
+                                              'day': agent.current_day,
+                                              'time': agent.current_day,
+                                          }
+                                      }})
+
                 # add starting hub to history
                 agent.stay_overs.append({
                     "agent": agent.uid,
@@ -273,14 +284,10 @@ class Simulation(BaseClass):
                 # merge graphs - we want to have all possible graphs at the end
                 for leg in agent.route_data.edges(data=True, keys=True):
                     if hashed_agents[hash_id].route_data.has_edge(leg[0], leg[1], leg[2]):
-                        data = hashed_agents[hash_id].route_data.get_edge_data(leg[0], leg[1], leg[2])
-                        changed = False
+                        data = hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]
                         for uid in leg[3]['agents']:
                             if uid not in data['agents']:
                                 data['agents'][uid] = leg[3]['agents'][uid]
-                                changed = True
-                        if changed:
-                            hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]['agents'] = data['agents']
                     else:
                         hashed_agents[hash_id].route_data.add_edge(leg[0], leg[1], leg[2], agents=leg[3]['agents'])
 
@@ -389,7 +396,6 @@ class Simulation(BaseClass):
 
             # add route data
             agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                      type='edge',
                                       agents={agent.uid: {
                                           'start': {
                                               'day': self.current_day,

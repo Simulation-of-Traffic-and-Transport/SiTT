@@ -299,7 +299,7 @@ class Context(object):
     def get_path_by_id(self, path_id) -> Dict | None:
         """Get path by id"""
         if self.graph:
-            return self.graph.get_edge_data(path_id[0], path_id[1], path_id[2])
+            return self.graph[path_id[0]][path_id[1]][path_id[2]]
         return None
 
     def get_hub_by_id(self, hub_id) -> Dict | None:

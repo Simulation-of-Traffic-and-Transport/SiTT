@@ -102,7 +102,7 @@ class DebugDisplayRoadsAndHubs(PreparationInterface):
                     # get single legs
                     for leg in path:
                         # third entry in tuple is the id of the vertex
-                        edge = context.graph.get_edge_data(leg[0], leg[1], leg[2])
+                        edge = context.graph[leg[0]][leg[1]][leg[2]]
                         total_length += edge['length_m']
                         is_reversed = edge['hubaid'] != leg[0]
 
