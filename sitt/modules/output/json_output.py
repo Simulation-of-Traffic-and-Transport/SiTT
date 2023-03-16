@@ -31,18 +31,24 @@ class JSONOutput(OutputInterface):
         self.indent: int | None = indent
         """Display JSON nicely (if > 0, indent by this number of spaces)?"""
 
+        self.config: Configuration | None = None
+        self.context: Context | None = None
+
     def run(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> str:
         if self.skip:
             return ''
 
         logger.info("OutputInterface JSONOutput run")
 
+        self.config = config
+        self.context = context
+
         # indent 0 is treated as no indent
         if self.indent == 0:
             self.indent = None
 
         # create dictionary from data using methods below
-        result = self.create_dict_from_data(config, context, set_of_results)
+        result = self.create_dict_from_data(set_of_results)
         if self.to_string:
             result = json.dumps(result, indent=self.indent)
         if self.show_output:
@@ -62,21 +68,21 @@ class JSONOutput(OutputInterface):
 
         return result
 
-    def create_dict_from_data(self, config: Configuration, context: Context, set_of_results: SetOfResults) -> Dict[str, any]:
+    def create_dict_from_data(self, set_of_results: SetOfResults) -> Dict[str, any]:
         """create a dict from passed data"""
 
-        agents_finished, history = self._agent_list_to_data(config, context, set_of_results.agents_finished)
-        agents_cancelled, merge_history = self._agent_list_to_data(config, context, set_of_results.agents_cancelled)
+        agents_finished, history = self._agent_list_to_data(set_of_results.agents_finished)
+        agents_cancelled, merge_history = self._agent_list_to_data(set_of_results.agents_cancelled)
 
         # merge full list
         history = self._merge_history_lists(history, merge_history)
 
-        nodes, paths = self._graph_to_data(context.graph)
+        nodes, paths = self._graph_to_data()
 
         # TODO add more data from configuration and context
         return {
-            "simulation_start": config.simulation_start,
-            "simulation_end": config.simulation_end,
+            "simulation_start": self.config.simulation_start,
+            "simulation_end": self.config.simulation_end,
             "agents_finished": agents_finished,
             "agents_cancelled": agents_cancelled,
             "history": list(history.values()),
@@ -84,14 +90,14 @@ class JSONOutput(OutputInterface):
             "paths": paths,
         }
 
-    def _agent_list_to_data(self, config: Configuration, context: Context, agents: List[Agent]) -> Tuple[List[dict], Dict[str, Dict[str, any]]]:
+    def _agent_list_to_data(self, agents: List[Agent]) -> Tuple[List[dict], Dict[str, Dict[str, any]]]:
         """converts a list of agents to raw data"""
         main_agent_list: List[dict] = []
         agent_list: Dict[str, Dict[str, any]] = {}
 
         for agent in agents:
             # get data, is a dict of agent data and list of agents
-            agent_data, added_list = self._agent_to_data(config, context, agent)
+            agent_data, added_list = self._agent_to_data(agent)
 
             # aggregate agent data
             agent_list = self._merge_history_lists(agent_list, added_list)
@@ -100,7 +106,7 @@ class JSONOutput(OutputInterface):
 
         return main_agent_list, agent_list
 
-    def _agent_to_data(self, config: Configuration, context: Context, agent: Agent) -> Tuple[dict, Dict[str, Dict[str, any]]]:
+    def _agent_to_data(self, agent: Agent) -> Tuple[dict, Dict[str, Dict[str, any]]]:
         """converts a single agent to raw data, it is a dict of agent data and the agent list with leg data"""
 
         status: str = 'undefined'
@@ -162,12 +168,12 @@ class JSONOutput(OutputInterface):
 
         return list1
 
-    def _graph_to_data(self, graph: nx.MultiGraph) -> Tuple[List[dict], List[dict]]:
+    def _graph_to_data(self) -> Tuple[List[dict], List[dict]]:
         nodes: List[dict] = []
         paths: List[dict] = []
 
         # aggregate node data
-        for node in graph.nodes(data=True):
+        for node in self.context.graph.nodes(data=True):
             data = {'id': node[0]}
 
             for key in node[1]:
@@ -180,14 +186,17 @@ class JSONOutput(OutputInterface):
 
             nodes.append(data)
 
-        # aggregate path data
-        for path in graph.edges(data=True, keys=True):
+        # aggregate path data - from routes, because these are directed
+        for path in self.context.routes.edges(data=True, keys=True):
+            # get base data from context
+            edge = self.context.graph[path[0]][path[1]][path[2]]
+
             paths.append({
                 'id': path[2],
                 'from': path[0],
                 'to': path[1],
-                'length_m': path[3]['length_m'],
-                'geom': mapping(path[3]['geom']),
+                'length_m': edge['length_m'],
+                'geom': mapping(edge['geom']),
             })
 
         return nodes, paths
