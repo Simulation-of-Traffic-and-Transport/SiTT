@@ -11,4 +11,4 @@ pyyaml>=6.0
 rasterio==1.3a3
 rioxarray>=0.13.4
 Shapely>=2.0.1
-sqlalchemy>=2.0.5.post1
+sqlalchemy<2.0
