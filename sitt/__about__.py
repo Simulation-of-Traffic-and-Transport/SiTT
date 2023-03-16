@@ -10,6 +10,6 @@ __all__ = [
     "__copyright__",
 ]
 
-__version__ = '0.0.2'
+__version__ = '0.0.3.dev0'
 __author__ = "Maximilian Kalus"
 __copyright__ = "Copyright 2022-present {}".format(__author__)
