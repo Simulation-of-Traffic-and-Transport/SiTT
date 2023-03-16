@@ -495,18 +495,16 @@ class Simulation(BaseClass):
 
         # add stay over at end
         for agent in results.agents_finished:
-            agent.stay_overs.append({
-                "agent": agent.uid,
-                "hub": agent.this_hub,
-                "start": {
-                    "day": agent.current_day,
-                    "time": agent.current_time,
+            agent.route_data.add_node(agent.this_hub, agents={agent.uid: {
+                'start': {
+                    'day': agent.current_day,
+                    'time': agent.current_time,
                 },
-                "end": {
-                    "day": max_day,
-                    "time": max_time,
+                'end': {
+                    'day': max_day,
+                    'time': max_time,
                 }
-            })
+            }})
 
         # TODO: handle unfinished agents, too?
 

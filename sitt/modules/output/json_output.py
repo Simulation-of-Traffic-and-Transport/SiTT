@@ -162,9 +162,13 @@ class JSONOutput(OutputInterface):
         for key in list2:
             if key not in list1:
                 list1[key] = list2[key]
-            elif len(list1[key]['agents']) != len(list2[key]['agents']):
-                logger.warning('############# Different lengths of lists:', list1[key]['agents'], list2[key]['agents'])
-                # TODO: fix this if we have cases
+            else:
+                if 'agents' not in list1[key]:
+                    list1[key]['agents'] = {}
+                merged = dict()
+                merged.update(list1[key]['agents'])
+                merged.update(list2[key]['agents'])
+                list1[key]['agents'] = merged
 
         return list1
 
