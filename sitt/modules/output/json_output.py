@@ -187,16 +187,13 @@ class JSONOutput(OutputInterface):
             nodes.append(data)
 
         # aggregate path data - from routes, because these are directed
-        for path in self.context.routes.edges(data=True, keys=True):
-            # get base data from context
-            edge = self.context.graph[path[0]][path[1]][path[2]]
-
+        for path in self.context.graph.edges(data=True, keys=True):
             paths.append({
                 'id': path[2],
-                'from': path[0],
-                'to': path[1],
-                'length_m': edge['length_m'],
-                'geom': mapping(edge['geom']),
+                'from': path[3]["hubaid"],
+                'to': path[3]["hubbid"],
+                'length_m': path[3]['length_m'],
+                'geom': mapping(path[3]['geom']),
             })
 
         return nodes, paths
