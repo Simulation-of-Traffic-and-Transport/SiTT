@@ -98,7 +98,6 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
         s = select(column(self.roads_index_col).label('id'), geom_col,
                    column(self.roads_hub_a_id).label('hubaid'),
                    column(self.roads_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
-        print(s.compile())
         raw_roads = gp.GeoDataFrame.from_postgis(str(s.compile()),
                                                  conn, geom_col='geom',
                                                  index_col='id',
