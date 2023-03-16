@@ -396,8 +396,6 @@ class Agent(object):
 
         self.route_data: nx.MultiDiGraph = nx.MultiDiGraph()
         """keeps route taken"""
-        self.stay_overs: List[Dict[str, any]] = []
-        """keeps stay-overs on nodes (e.g. overnight stays)"""
         self.last_possible_resting_place: str = this_hub
         """keeps last possible resting place"""
         self.last_possible_resting_time: float = current_time
