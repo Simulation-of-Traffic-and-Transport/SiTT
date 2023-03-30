@@ -119,7 +119,7 @@ class PsqlSaveRoadsAndHubs(PreparationInterface):
                 values = [(t.c[self.hubs_geom_col],
                            text(String('').literal_processor(dialect=conn.dialect)(value=str(row.geom)))), (
                               t.c[self.hubs_overnight],
-                              text(String('').literal_processor(dialect=conn.dialect)(value=row.overnight)))]
+                              text(String('').literal_processor(dialect=conn.dialect)(value=row.overnight or '')))]
                 for field in self.hubs_extra_fields:
                     values.append(
                         (t.c[field], text(String('').literal_processor(dialect=conn.dialect)(value=row[field]))))
