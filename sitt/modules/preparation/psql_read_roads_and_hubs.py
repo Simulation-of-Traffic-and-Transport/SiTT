@@ -125,8 +125,6 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
 
         return self._merge_or_overwrite(context, raw_roads, raw_hubs)
 
-        return context
-
     def _merge_or_overwrite(self, context: Context, raw_roads: gp.geodataframe.GeoDataFrame,
                             raw_hubs: gp.geodataframe.GeoDataFrame) -> Context:
         if self.strategy == 'overwrite':
