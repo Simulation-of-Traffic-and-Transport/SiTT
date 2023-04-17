@@ -5,7 +5,7 @@
 import logging
 
 import geopandas as gp
-import rioxarray
+import rasterio
 import yaml
 from pyproj import Transformer
 from shapely.geometry import shape
@@ -19,20 +19,21 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
     """Set the height for roads and hubs using a GeoTIFF height map"""
 
     def __init__(self, file: str | None = None, crs_from: str = "EPSG:4326", always_xy: bool = True,
-                 overwrite: bool = False):
+                 band: int = 1, overwrite: bool = False):
         super().__init__()
         self.file: str | None = file
         self.crs_from: str = crs_from
         self.always_xy: bool = always_xy
         self.overwrite: bool = overwrite
+        self.band: bool = band
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
             logger.info("Setting heights for roads and hubs using GeoTIFF height map " + self.file)
 
         # load geo
-        rds = rioxarray.open_rasterio(self.file)
-        transformer = Transformer.from_crs(self.crs_from, rds.rio.crs, always_xy=self.always_xy)
+        rds: rasterio.io.DatasetReader = rasterio.open(self.file)
+        transformer = Transformer.from_crs(self.crs_from, rds.crs, always_xy=self.always_xy)
 
         # calculate hub heights
         context.raw_roads = self.calculate_heights(rds, transformer, context.raw_roads, 'roads')
@@ -42,6 +43,9 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
 
     def calculate_heights(self, rds, transformer: Transformer, raw: gp.geodataframe.GeoDataFrame,
                           label: str) -> gp.geodataframe.GeoDataFrame:
+        # get relevant band
+        band = rds.read(self.band)
+
         if raw is not None and len(raw):
             counter = 0
 
@@ -60,7 +64,8 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
                             lat = coord[1]
 
                             xx, yy = transformer.transform(lng, lat)
-                            height = rds.sel(x=xx, y=yy, method="nearest").values[0]
+                            x, y = rds.index(xx, yy)
+                            height = band[x, y]
                             # TODO: for roads, do we want to have a different type of height calculation?
 
                             geom.append((lng, lat, height))

@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
-import psycopg2
-
-from sitt.modules.preparation import PsqlReadRoadsAndHubs
 from sitt import Configuration, Context
+from sitt.modules.preparation import PsqlReadRoadsAndHubs
 from tests.helpers.prepare_test_database import prepare_test_database
 
 
@@ -57,3 +55,5 @@ def test_psql_read_roads_and_hubs_run():
     assert context.raw_roads.columns[0] == 'geom'
     assert context.raw_roads.columns[1] == 'hubaid'
     assert context.raw_roads.columns[2] == 'hubbid'
+
+    print(context.raw_roads)
