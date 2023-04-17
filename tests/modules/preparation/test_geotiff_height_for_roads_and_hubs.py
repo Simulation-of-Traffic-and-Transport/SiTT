@@ -26,6 +26,16 @@ def prepare_test_data():
     return filename
 
 
+def test_geotiff_height_for_roads_and_hubs_calculate_init():
+    entity = GeoTIFFHeightForRoadsAndHubs()
+
+    assert entity.file is None
+    assert entity.crs_from ==  "EPSG:4326"
+    assert entity.always_xy == True
+    assert entity.overwrite == False
+    assert entity.band == 1
+
+
 def test_geotiff_height_for_roads_and_hubs_calculate_heights():
     # load raster io
     filename = prepare_test_data()

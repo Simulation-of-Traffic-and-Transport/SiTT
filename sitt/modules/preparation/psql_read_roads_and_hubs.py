@@ -37,7 +37,7 @@ import logging
 import urllib.parse
 from typing import List
 
-import geopandas as gp
+import geopandas as gpd
 import pandas as pd
 import yaml
 from sqlalchemy import create_engine
@@ -98,7 +98,7 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
         s = select(column(self.roads_index_col).label('id'), geom_col,
                    column(self.roads_hub_a_id).label('hubaid'),
                    column(self.roads_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
-        raw_roads = gp.GeoDataFrame.from_postgis(str(s.compile()),
+        raw_roads = gpd.GeoDataFrame.from_postgis(str(s.compile()),
                                                  conn, geom_col='geom',
                                                  index_col='id',
                                                  coerce_float=self.roads_coerce_float)
@@ -116,7 +116,7 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
         for field in self.hubs_extra_fields:
             fields.append(column(field))
         s = select(fields).select_from(t)
-        raw_hubs = gp.GeoDataFrame.from_postgis(str(s.compile()), conn,
+        raw_hubs = gpd.GeoDataFrame.from_postgis(str(s.compile()), conn,
                                                 geom_col='geom',
                                                 index_col='id',
                                                 coerce_float=self.hubs_coerce_float)
@@ -125,8 +125,8 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
 
         return self._merge_or_overwrite(context, raw_roads, raw_hubs)
 
-    def _merge_or_overwrite(self, context: Context, raw_roads: gp.geodataframe.GeoDataFrame,
-                            raw_hubs: gp.geodataframe.GeoDataFrame) -> Context:
+    def _merge_or_overwrite(self, context: Context, raw_roads: gpd.geodataframe.GeoDataFrame,
+                            raw_hubs: gpd.geodataframe.GeoDataFrame) -> Context:
         if self.strategy == 'overwrite':
             return self._overwrite(context, raw_roads, raw_hubs)
         if self.strategy == 'merge':
@@ -134,14 +134,14 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
         logger.warning("unknown strategy %s, defaulting to \"merge\"", self.strategy)
         return self._merge(context, raw_roads, raw_hubs)
 
-    def _overwrite(self, context: Context, raw_roads: gp.geodataframe.GeoDataFrame,
-                   raw_hubs: gp.geodataframe.GeoDataFrame) -> Context:
+    def _overwrite(self, context: Context, raw_roads: gpd.geodataframe.GeoDataFrame,
+                   raw_hubs: gpd.geodataframe.GeoDataFrame) -> Context:
         context.raw_roads = raw_roads
         context.raw_hubs = raw_hubs
         return context
 
-    def _merge(self, context: Context, raw_roads: gp.geodataframe.GeoDataFrame,
-               raw_hubs: gp.geodataframe.GeoDataFrame) -> Context:
+    def _merge(self, context: Context, raw_roads: gpd.geodataframe.GeoDataFrame,
+               raw_hubs: gpd.geodataframe.GeoDataFrame) -> Context:
         # new entry?
         if context.raw_roads is None:
             return self._overwrite(context, raw_roads, raw_hubs)

@@ -16,7 +16,7 @@ import logging
 from enum import Enum
 from typing import Dict, List
 
-import geopandas as gp
+import geopandas as gpd
 import nanoid
 import netCDF4 as nc
 import networkx as nx
@@ -284,8 +284,8 @@ class Context(object):
 
     def __init__(self):
         # raw data
-        self.raw_roads: gp.geodataframe.GeoDataFrame | None = None
-        self.raw_hubs: gp.geodataframe.GeoDataFrame | None = None
+        self.raw_roads: gpd.geodataframe.GeoDataFrame | None = None
+        self.raw_hubs: gpd.geodataframe.GeoDataFrame | None = None
 
         self.graph: nx.MultiGraph | None = None
         """Graph data for roads and other ways"""

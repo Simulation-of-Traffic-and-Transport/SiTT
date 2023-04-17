@@ -4,7 +4,7 @@
 """Set the height for roads and hubs using a GeoTIFF height map"""
 import logging
 
-import geopandas as gp
+import geopandas as gpd
 import rasterio
 import yaml
 from pyproj import Transformer
@@ -25,7 +25,7 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
         self.crs_from: str = crs_from
         self.always_xy: bool = always_xy
         self.overwrite: bool = overwrite
-        self.band: bool = band
+        self.band: int = band
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -41,8 +41,8 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
 
         return context
 
-    def calculate_heights(self, rds, transformer: Transformer, raw: gp.geodataframe.GeoDataFrame,
-                          label: str) -> gp.geodataframe.GeoDataFrame:
+    def calculate_heights(self, rds, transformer: Transformer, raw: gpd.geodataframe.GeoDataFrame,
+                          label: str) -> gpd.geodataframe.GeoDataFrame:
         # get relevant band
         band = rds.read(self.band)
 
