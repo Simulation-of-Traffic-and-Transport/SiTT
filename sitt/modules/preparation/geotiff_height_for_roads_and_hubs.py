@@ -41,8 +41,8 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
 
         return context
 
-    def calculate_heights(self, rds, transformer: Transformer, raw: gpd.geodataframe.GeoDataFrame,
-                          label: str) -> gpd.geodataframe.GeoDataFrame:
+    def calculate_heights(self, rds: rasterio.io.DatasetReader, transformer: Transformer,
+                          raw: gpd.geodataframe.GeoDataFrame, label: str) -> gpd.geodataframe.GeoDataFrame:
         # get relevant band
         band = rds.read(self.band)
 

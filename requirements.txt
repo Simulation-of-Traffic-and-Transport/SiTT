@@ -9,5 +9,6 @@ pandas>=1.5.3
 pyproj>=3.4.1
 pyyaml>=6.0
 rasterio>=1.3a3
+requests~=2.25.1
 Shapely>=2.0.1
 sqlalchemy<2.0
