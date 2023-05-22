@@ -24,13 +24,18 @@ def test_psql_save_paths_and_hubs_init():
     assert entity.roads_coerce_float is True
     assert entity.roads_hub_a_id == 'hubaid'
     assert entity.roads_hub_b_id == 'hubbid'
+    assert entity.rivers_table_name == 'topology.recrivers'
+    assert entity.rivers_geom_col == 'geom'
+    assert entity.rivers_index_col == 'id'
+    assert entity.rivers_coerce_float is True
+    assert entity.rivers_hub_a_id == 'hubaid'
+    assert entity.rivers_hub_b_id == 'hubbid'
     assert entity.hubs_table_name == 'topology.rechubs'
     assert entity.hubs_geom_col == 'geom'
     assert entity.hubs_index_col == 'id'
     assert entity.hubs_coerce_float is True
     assert entity.hubs_overnight == 'overnight'
     assert entity.hubs_extra_fields == []
-    assert entity.strategy == 'merge'
     assert entity.connection is None
 
 
@@ -52,9 +57,12 @@ def test_psql_save_paths_and_hubs_run():
     cur = conn.cursor()
 
     cur.execute("SELECT COUNT(*) FROM topology.rechubs")
-    assert cur.fetchone()[0] == 2
+    assert cur.fetchone()[0] == 3
 
     cur.execute("SELECT COUNT(*) FROM topology.recroads")
+    assert cur.fetchone()[0] == 1
+
+    cur.execute("SELECT COUNT(*) FROM topology.recrivers")
     assert cur.fetchone()[0] == 1
 
     # Now run again with test data
@@ -67,12 +75,20 @@ def test_psql_save_paths_and_hubs_run():
                                                       index_col='id',
                                                       coerce_float=True)
 
+    context.raw_rivers = gpd.GeoDataFrame.from_postgis("SELECT * FROM topology.recrivers",
+                                                      conn, geom_col='geom',
+                                                      index_col='id',
+                                                      coerce_float=True)
+
     # TODO: change some data to make this a bit more interesting and meaningful
 
     entity.run(Configuration(), Context())
 
     cur.execute("SELECT COUNT(*) FROM topology.rechubs")
-    assert cur.fetchone()[0] == 2
+    assert cur.fetchone()[0] == 3
 
     cur.execute("SELECT COUNT(*) FROM topology.recroads")
+    assert cur.fetchone()[0] == 1
+
+    cur.execute("SELECT COUNT(*) FROM topology.recrivers")
     assert cur.fetchone()[0] == 1

@@ -20,6 +20,12 @@ preparation:
       roads_coerce_float: true
       roads_hub_a_id: hubaid
       roads_hub_b_id: hubbid
+      rivers_table_name: topology.recrivers
+      rivers_geom_col: geom
+      rivers_index_col: recriverid
+      rivers_coerce_float: true
+      rivers_hub_a_id: hubaid
+      rivers_hub_b_id: hubbid
       hubs_table_name: topology.rechubs
       hubs_geom_col: geom
       hubs_index_col: rechubid
@@ -51,9 +57,12 @@ class PsqlSavePathsAndHubs(PreparationInterface):
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', roads_table_name: str = 'topology.recroads', roads_geom_col: str = 'geom',
                  roads_index_col: str = 'id', roads_coerce_float: bool = True, roads_hub_a_id: str = 'hubaid',
-                 roads_hub_b_id: str = 'hubbid', hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
+                 roads_hub_b_id: str = 'hubbid',  rivers_table_name: str = 'topology.recrivers',
+                 rivers_geom_col: str = 'geom', rivers_index_col: str = 'id', river_coerce_float: bool = True,
+                 rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid',
+                 hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
                  hubs_index_col: str = 'id', hubs_coerce_float: bool = True, hubs_overnight: str = 'overnight',
-                 hubs_extra_fields: List[str] = [], strategy: str = 'merge', connection: str | None = None):
+                 hubs_extra_fields: List[str] = [], connection: str | None = None):
         # connection data - should be set/overwritten by config
         super().__init__()
         self.server: str = server
@@ -68,14 +77,18 @@ class PsqlSavePathsAndHubs(PreparationInterface):
         self.roads_coerce_float: bool = roads_coerce_float
         self.roads_hub_a_id: str = roads_hub_a_id
         self.roads_hub_b_id: str = roads_hub_b_id
-
+        self.rivers_table_name: str = rivers_table_name
+        self.rivers_geom_col: str = rivers_geom_col
+        self.rivers_index_col: str = rivers_index_col
+        self.rivers_coerce_float: bool = river_coerce_float
+        self.rivers_hub_a_id: str = rivers_hub_a_id
+        self.rivers_hub_b_id: str = rivers_hub_b_id
         self.hubs_table_name: str = hubs_table_name
         self.hubs_geom_col: str = hubs_geom_col
         self.hubs_index_col: str = hubs_index_col
         self.hubs_coerce_float: bool = hubs_coerce_float
         self.hubs_overnight: str = hubs_overnight
         self.hubs_extra_fields: List[str] = hubs_extra_fields
-        self.strategy: str = strategy
         """merge or overwrite"""
         # runtime settings
         self.connection: str | None = connection
