@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-Save existing/updated roads and hubs to PostgreSQL database
+Save existing/updated paths and hubs to PostgreSQL database
 
 Example configuration:
 preparation:
@@ -52,7 +52,7 @@ logger = logging.getLogger()
 
 
 class PsqlSavePathsAndHubs(PreparationInterface):
-    """Save existing/updated roads and hubs to PostgreSQL database"""
+    """Save existing/updated paths and hubs to PostgreSQL database"""
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', roads_table_name: str = 'topology.recroads', roads_geom_col: str = 'geom',
@@ -96,7 +96,7 @@ class PsqlSavePathsAndHubs(PreparationInterface):
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
             logger.info(
-                "Saving roads and hubs to PostgreSQL: " + self._create_connection_string(for_printing=True))
+                "Saving paths and hubs to PostgreSQL: " + self._create_connection_string(for_printing=True))
 
         # create connection string and connect to db
         db_string: str = self._create_connection_string()
@@ -119,6 +119,25 @@ class PsqlSavePathsAndHubs(PreparationInterface):
                      text(String('').literal_processor(dialect=conn.dialect)(value=row.hubbid))),
                 ) \
                     .where(t.c[self.roads_index_col] == idx)
+                conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+        # update rivers
+        if context.raw_rivers is not None and len(context.raw_rivers) > 0:
+            table_parts = self.rivers_table_name.rpartition('.')
+            t = table(table_parts[2], column(self.rivers_index_col), column(self.rivers_geom_col),
+                      column(self.rivers_hub_a_id), column(self.rivers_hub_b_id), schema=table_parts[0])
+
+            for idx, row in context.raw_rivers.iterrows():
+                stmt = t.update() \
+                    .ordered_values(
+                    (t.c[self.rivers_geom_col],
+                     text(String('').literal_processor(dialect=conn.dialect)(value=str(row.geom)))),
+                    (t.c[self.rivers_hub_a_id],
+                     text(String('').literal_processor(dialect=conn.dialect)(value=row.hubaid))),
+                    (t.c[self.rivers_hub_b_id],
+                     text(String('').literal_processor(dialect=conn.dialect)(value=row.hubbid))),
+                ) \
+                    .where(t.c[self.rivers_index_col] == idx)
                 conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
 
         # update hubs

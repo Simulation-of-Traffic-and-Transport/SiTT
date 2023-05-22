@@ -48,6 +48,7 @@ class GeoTIFFCreateSegmentedPaths(PreparationInterface):
 
         # calculate new segments
         context.raw_roads = self.create_segments(rds, transformer, context.raw_roads)
+        context.raw_rivers = self.create_segments(rds, transformer, context.raw_rivers)
 
         return context
 

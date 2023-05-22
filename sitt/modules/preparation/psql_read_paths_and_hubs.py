@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-Read roads and hubs from PostgreSQL database
+Read paths and hubs from PostgreSQL database
 
 Example configuration:
 preparation:

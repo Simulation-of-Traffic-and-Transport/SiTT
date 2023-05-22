@@ -9,7 +9,7 @@ preparation:
   - class: PostCleanRawData
     module: preparation_modules.post_clean_raw_data
     args:
-      hubs_and_roads: true
+      hubs_and_paths: true
       force_gc: false
 """
 
@@ -25,9 +25,9 @@ logger = logging.getLogger()
 
 class PostCleanRawData(PreparationInterface):
     """Cleaner for raw data, so context is a bit smaller"""
-    def __init__(self, hubs_and_roads: bool = True, force_gc: bool = False):
+    def __init__(self, hubs_and_paths: bool = True, force_gc: bool = False):
         super().__init__()
-        self.hubs_and_roads: bool = hubs_and_roads
+        self.hubs_and_paths: bool = hubs_and_paths
         """Clean raw hubs and road data"""
         self.force_gc: bool = force_gc
         """Force garbage collection run"""
@@ -39,9 +39,10 @@ class PostCleanRawData(PreparationInterface):
 
         logger.info("Cleaning raw data")
 
-        if self.hubs_and_roads:
+        if self.hubs_and_paths:
             context.raw_roads = None
             context.raw_hubs = None
+            context.raw_rivers = None
 
         # run gc
         if self.force_gc:

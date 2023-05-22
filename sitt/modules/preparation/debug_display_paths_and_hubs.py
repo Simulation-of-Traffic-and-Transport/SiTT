@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Debug loaded roads and hubs"""
+"""Debug loaded paths and hubs"""
 import logging
 from zlib import crc32
 
@@ -48,7 +48,7 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
 
     def run(self, config: Configuration, context: Context) -> Context:
         if context.graph:
-            logger.info("Displaying roads and hubs")
+            logger.info("Displaying paths and hubs")
 
             # draw complete network
             if self.draw_network:
@@ -159,7 +159,7 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
                                     bbox_inches='tight', dpi=150)
 
         else:
-            logger.info("Skipping display of roads and hubs - no data.")
+            logger.info("Skipping display of paths and hubs - no data.")
 
         return context
 

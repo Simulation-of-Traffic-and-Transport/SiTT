@@ -22,7 +22,10 @@ class SortableRoute:
 
 
 class CreateRoutes(BaseClass, PreparationInterface):
-    """Create routes to be traversed by the simulation."""
+    """
+    Create routes to be traversed by the simulation. This is used right before the simulation starts.
+    You need precalculated routes for this, so run CalculatePathsAndHubs before calling this class.
+    """
 
     def __init__(self, maximum_routes: int = 0, maximum_difference_from_shortest: float = 0.):
         super().__init__()

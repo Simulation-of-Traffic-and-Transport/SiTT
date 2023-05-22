@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Set the height for roads and hubs using a GeoTIFF height map"""
+"""Set the height for paths and hubs using a GeoTIFF height map"""
 import logging
 
 import geopandas as gpd
@@ -16,7 +16,7 @@ logger = logging.getLogger()
 
 
 class GeoTIFFHeightForPathsAndHubs(PreparationInterface):
-    """Set the height for roads and hubs using a GeoTIFF height map"""
+    """Set the height for paths and hubs using a GeoTIFF height map"""
 
     def __init__(self, file: str | None = None, crs_from: str = "EPSG:4326", always_xy: bool = True,
                  band: int = 1, overwrite: bool = False):
@@ -29,7 +29,7 @@ class GeoTIFFHeightForPathsAndHubs(PreparationInterface):
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
-            logger.info("Setting heights for roads and hubs using GeoTIFF height map " + self.file)
+            logger.info("Setting heights for paths and hubs using GeoTIFF height map " + self.file)
 
         # load geo
         rds: rasterio.io.DatasetReader = rasterio.open(self.file)
@@ -37,6 +37,7 @@ class GeoTIFFHeightForPathsAndHubs(PreparationInterface):
 
         # calculate hub heights
         context.raw_roads = self.calculate_heights(rds, transformer, context.raw_roads, 'roads')
+        context.raw_rivers = self.calculate_heights(rds, transformer, context.raw_rivers, 'rivers')
         context.raw_hubs = self.calculate_heights(rds, transformer, context.raw_hubs, 'hubs')
 
         return context

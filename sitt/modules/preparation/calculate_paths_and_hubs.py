@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Prepare raw roads and hubs anc precalculate then into a graph"""
+"""Prepare raw paths and hubs anc precalculate then into a graph"""
 import logging
 
+import geopandas as gpd
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -18,7 +19,10 @@ logger = logging.getLogger()
 
 
 class CalculatePathsAndHubs(PreparationInterface):
-    """Prepare raw roads and hubs anc precalculate then into a graph"""
+    """
+    Prepare raw paths and hubs anc precalculate then into a graph. This is the step before actual route creation.
+    Run this before CreateRoutes to create a graph of prepared routes.
+    """
 
     def __init__(self, crs_from: str = 'EPSG:4326', crs_to: str = 'EPSG:32633', always_xy: bool = True,
                  length_including_heights: bool = False):
@@ -32,16 +36,16 @@ class CalculatePathsAndHubs(PreparationInterface):
         logger.info("Preparing graph...")
 
         # prepare data to be read into graph - this will precalculate leg lengths and so on
-        context = self.prepare_data(config, context)
+        path = self.prepare_data(config, context)
 
         # create actual graph
-        context = self.calculate_graph(config, context)
+        context = self.calculate_graph(path, config, context)
 
         return context
 
-    def prepare_data(self, config: Configuration, context: Context) -> Context:
+    def prepare_data(self, config: Configuration, context: Context) -> pd.DataFrame:
         """
-        Prepare/normalize raw data - precalculate distances of roads
+        Prepare/normalize raw data - precalculate distances of roads and rivers
 
         :param config: configuration
         :param context: context object
@@ -49,20 +53,38 @@ class CalculatePathsAndHubs(PreparationInterface):
         """
         transformer = Transformer.from_crs(self.crs_from, self.crs_to, always_xy=self.always_xy)
 
-        if context.raw_roads is not None and len(context.raw_roads) > 0:
-            roads = {
-                'length_m': {},
-                'legs': {},
-                'slopes': {},
-                'geom': {},
-                'hubaid': {},
-                'hubbid': {},
-                'source': {},
-                'target': {},
-                'uid': {}  # TODO: remove
-            }
+        # define path data
+        path = {
+            'length_m': {},
+            'legs': {},
+            'slopes': {},
+            'geom': {},
+            'hubaid': {},
+            'hubbid': {},
+            'source': {},
+            'target': {},
+            'type': {},
+            'uid': {}
+        }
 
-            for idx, row in context.raw_roads.iterrows():
+        self._prepare_data_for_path(path, context.raw_roads, transformer)
+        self._prepare_data_for_path(path, context.raw_rivers, transformer, path_type="river")
+
+        return pd.DataFrame(path)
+
+    def _prepare_data_for_path(self, path: dict, field: gpd.geodataframe.GeoDataFrame,
+                               transformer: Transformer, path_type: str = "road") -> None:
+        """
+        Helper function for the actual work done above (prepare_data)
+
+        :param path: object containing data
+        :param field: field, either context.raw_roads or context.raw_rivers
+        :param transformer: transformer defined above
+        :param path_type: road or river
+        :return: None
+        """
+        if field is not None and len(field) > 0:
+            for idx, row in field.iterrows():
                 line = LineString(row.geom)
 
                 # Calculate single legs
@@ -96,26 +118,23 @@ class CalculatePathsAndHubs(PreparationInterface):
 
                     last_coord = coord
 
-                # recreate roads
-                roads['length_m'][idx] = length
-                roads['legs'][idx] = np.array(legs, dtype=np.float64)
-                roads['slopes'][idx] = np.array(slopes, dtype=np.float64)
-                roads['geom'][idx] = row.geom
-                roads['hubaid'][idx] = row.hubaid
-                roads['hubbid'][idx] = row.hubbid
+                # recreate paths
+                path['length_m'][idx] = length
+                path['legs'][idx] = np.array(legs, dtype=np.float64)
+                path['slopes'][idx] = np.array(slopes, dtype=np.float64)
+                path['geom'][idx] = row.geom
+                path['hubaid'][idx] = row.hubaid
+                path['hubbid'][idx] = row.hubbid
                 # these attributes are in preparation of calculate_graph below
-                roads['source'][idx] = row.hubaid
-                roads['target'][idx] = row.hubbid
-                roads['uid'][idx] = idx
+                path['source'][idx] = row.hubaid
+                path['target'][idx] = row.hubbid
+                path['type'][idx] = path_type
+                path['uid'][idx] = idx
 
-                context.raw_roads = pd.DataFrame(roads)
-
-        return context
-
-    def calculate_graph(self, config: Configuration, context: Context):
-        # create roads as multigraph because they can be traversed in both ways
-        g: nx.MultiGraph = nx.from_pandas_edgelist(context.raw_roads, edge_key='uid',
-                                                   create_using=nx.MultiGraph, edge_attr=True)
+    def calculate_graph(self, path: pd.DataFrame, config: Configuration, context: Context):
+        # create paths as multigraph because all can be traversed in both ways (at least in theory)
+        g: nx.MultiGraph = nx.from_pandas_edgelist(path, edge_key='uid',
+                                                     create_using=nx.MultiGraph, edge_attr=True)
 
         # add hub data, too
         if context.raw_hubs is not None and len(context.raw_hubs) > 0:
