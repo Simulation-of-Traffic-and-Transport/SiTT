@@ -38,6 +38,11 @@ def prepare_test_database(fill_test_data: bool = True):
                     ' (id TEXT PRIMARY KEY, geom geometry(LineStringZ, 4326), hubaid TEXT,'
                     ' hubbid TEXT); ALTER TABLE topology.recroads owner TO postgres;'
                     ' CREATE INDEX sidx_recroads_geom ON topology.recroads USING gist (geom)')
+        # create recrivers
+        cur.execute('CREATE TABLE topology.recrivers'
+                    ' (id TEXT PRIMARY KEY, geom geometry(LineStringZ, 4326), hubaid TEXT,'
+                    ' hubbid TEXT); ALTER TABLE topology.recrivers owner TO postgres;'
+                    ' CREATE INDEX sidx_recrivers_geom ON topology.recrivers USING gist (geom)')
 
         # fill test data?
         if fill_test_data:
@@ -45,6 +50,8 @@ def prepare_test_database(fill_test_data: bool = True):
                         "('PORTA_NIGRA', ST_GeomFromText('POINT (6.644151892965795 49.75965278853013 0.0)'), 'y')")
             cur.execute("INSERT INTO topology.rechubs (id, geom, overnight) VALUES "
                         "('BIB', ST_GeomFromText('POINT (6.687209246598741 49.74608947105753 0.0)'), 'y')")
+            cur.execute("INSERT INTO topology.rechubs (id, geom, overnight) VALUES "
+                        "('BRIDGE', ST_GeomFromText('POINT (6.626544875220759 49.751895168576425 0.0)'), 'y')")
             cur.execute("INSERT INTO topology.recroads (geom, id, hubaid, hubbid) VALUES "
                         "(ST_GeomFromText('LINESTRING (6.644056679284432 49.75969676782253 0.0, 6.644121013232677 "
                         "49.759786498253845 0.0, 6.644368114080152 49.759809166967926 0.0, 6.644524562545001 "
@@ -116,6 +123,15 @@ def prepare_test_database(fill_test_data: bool = True):
                         "49.74652844792695 0.0, 6.687335931570573 49.746336771200475 0.0, 6.68723879773799 "
                         "49.74615568356123 0.0, 6.6872058513383195 49.74608841410739 0.0)'), "
                         "'PORTA_NIGRA-BIB', 'PORTA_NIGRA', 'BIB')")
+            cur.execute("INSERT INTO topology.recrivers (geom, id, hubaid, hubbid) VALUES"
+                        "(ST_GeomFromText('LINESTRING (6.644151367216693 49.75965481826566 0.0, "
+                        "6.644116640449113 49.75978576613784 0.0, 6.643806502176318 49.7599324735919 0.0, "
+                        "6.6422926776987765 49.76039526364784 0.0, 6.639925997923655 49.761204719797405 0.0, "
+                        "6.637818623835386 49.761429948828464 0.0, 6.635376783849864 49.760996785342314 0.0, "
+                        "6.632766201694608 49.75989124634924 0.0, 6.630629052855795 49.759602531587376 0.0, "
+                        "6.629177054524774 49.758546948312414 0.0, 6.628133540961585 49.75607738394797 0.0, "
+                        "6.627397783517466 49.75491592850298 0.0, 6.626544875220759 49.751895168576425 0.0)'), "
+                        "'RIVER', 'PORTA_NIGRA', 'BRIDGE')")
 
         cur.close()
         conn.close()

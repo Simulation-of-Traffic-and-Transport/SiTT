@@ -285,10 +285,11 @@ class Context(object):
     def __init__(self):
         # raw data
         self.raw_roads: gpd.geodataframe.GeoDataFrame | None = None
+        self.raw_rivers: gpd.geodataframe.GeoDataFrame | None = None
         self.raw_hubs: gpd.geodataframe.GeoDataFrame | None = None
 
         self.graph: nx.MultiGraph | None = None
-        """Graph data for roads and other ways"""
+        """Full graph data for roads, rivers and other paths (undirected)"""
         self.routes: nx.MultiDiGraph | None = None
         """
         Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to

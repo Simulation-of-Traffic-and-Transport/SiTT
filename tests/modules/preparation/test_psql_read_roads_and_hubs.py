@@ -21,6 +21,12 @@ def test_psql_read_roads_and_hubs_init():
     assert entity.roads_coerce_float is True
     assert entity.roads_hub_a_id == 'hubaid'
     assert entity.roads_hub_b_id == 'hubbid'
+    assert entity.rivers_table_name == 'topology.recrivers'
+    assert entity.rivers_geom_col == 'geom'
+    assert entity.rivers_index_col == 'id'
+    assert entity.rivers_coerce_float is True
+    assert entity.rivers_hub_a_id == 'hubaid'
+    assert entity.rivers_hub_b_id == 'hubbid'
     assert entity.hubs_table_name == 'topology.rechubs'
     assert entity.hubs_geom_col == 'geom'
     assert entity.hubs_index_col == 'id'
@@ -44,10 +50,12 @@ def test_psql_read_roads_and_hubs_run():
     context = entity.run(Configuration(), Context())
 
     # checks
-    assert len(context.raw_hubs) == 2
+    assert len(context.raw_hubs) == 3
     assert len(context.raw_roads) == 1
+    assert len(context.raw_rivers) == 1
     assert len(context.raw_hubs.columns) == 2
     assert len(context.raw_roads.columns) == 3
+    assert len(context.raw_rivers.columns) == 3
 
     assert context.raw_hubs.columns[0] == 'geom'
     assert context.raw_hubs.columns[1] == 'overnight'
@@ -56,4 +64,6 @@ def test_psql_read_roads_and_hubs_run():
     assert context.raw_roads.columns[1] == 'hubaid'
     assert context.raw_roads.columns[2] == 'hubbid'
 
-    print(context.raw_roads)
+    assert context.raw_rivers.columns[0] == 'geom'
+    assert context.raw_rivers.columns[1] == 'hubaid'
+    assert context.raw_rivers.columns[2] == 'hubbid'
