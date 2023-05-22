@@ -10,7 +10,7 @@ import rasterio
 import requests
 from pyproj import Transformer
 
-from sitt.modules.preparation import GeoTIFFHeightForRoadsAndHubs
+from sitt.modules.preparation import GeoTIFFHeightForPathsAndHubs
 
 
 # download test data from leoworks
@@ -26,8 +26,8 @@ def prepare_test_data():
     return filename
 
 
-def test_geotiff_height_for_roads_and_hubs_calculate_init():
-    entity = GeoTIFFHeightForRoadsAndHubs()
+def test_geotiff_height_for_paths_and_hubs_calculate_init():
+    entity = GeoTIFFHeightForPathsAndHubs()
 
     assert entity.file is None
     assert entity.crs_from ==  "EPSG:4326"
@@ -36,7 +36,7 @@ def test_geotiff_height_for_roads_and_hubs_calculate_init():
     assert entity.band == 1
 
 
-def test_geotiff_height_for_roads_and_hubs_calculate_heights():
+def test_geotiff_height_for_paths_and_hubs_calculate_heights():
     # load raster io
     filename = prepare_test_data()
     rds: rasterio.io.DatasetReader = rasterio.open(filename)
@@ -47,7 +47,7 @@ def test_geotiff_height_for_roads_and_hubs_calculate_heights():
     gdf = gpd.GeoDataFrame([{"geom": s[0]}])
 
     # load test class
-    subject = GeoTIFFHeightForRoadsAndHubs()
+    subject = GeoTIFFHeightForPathsAndHubs()
     output = subject.calculate_heights(rds, transformer, gdf, "test")
 
     # expected values

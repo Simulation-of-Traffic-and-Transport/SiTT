@@ -6,8 +6,8 @@ Read roads and hubs from PostgreSQL database
 
 Example configuration:
 preparation:
-  - class: PsqlReadRoadsAndHubs
-    module: preparation_modules.psql_read_roads_and_hubs
+  - class: PsqlReadPathsAndHubs
+    module: preparation_modules.psql_read_paths_and_hubs
     args:
       server: !Env "${PSQL_SERVER}"
       port: !Env ${PSQL_PORT}
@@ -54,8 +54,8 @@ from sitt import Configuration, Context, PreparationInterface
 logger = logging.getLogger()
 
 
-class PsqlReadRoadsAndHubs(PreparationInterface):
-    """Read roads and hubs from PostgreSQL database"""
+class PsqlReadPathsAndHubs(PreparationInterface):
+    """Read paths and hubs from PostgreSQL database"""
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', roads_table_name: str = 'topology.recroads', roads_geom_col: str = 'geom',
@@ -211,4 +211,4 @@ class PsqlReadRoadsAndHubs(PreparationInterface):
         return yaml.dump(self)
 
     def __str__(self):
-        return 'PsqlReadRoadsAndHubs'
+        return 'PsqlReadPathsAndHubs'

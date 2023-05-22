@@ -3,32 +3,32 @@
 # SPDX-License-Identifier: MIT
 """Preparation Modules"""
 
-from .calculate_roads_and_hubs import CalculateRoadsAndHubs
+from .calculate_paths_and_hubs import CalculatePathsAndHubs
 from .conditional_module import ConditionalModule
 from .create_routes import CreateRoutes
-from .debug_display_roads_and_hubs import DebugDisplayRoadsAndHubs
+from .debug_display_paths_and_hubs import DebugDisplayPathsAndHubs
 from .dummy import Dummy
 from .geotiff_create_segmented_paths import GeoTIFFCreateSegmentedPaths
-from .geotiff_height_for_roads_and_hubs import GeoTIFFHeightForRoadsAndHubs
+from .geotiff_height_for_paths_and_hubs import GeoTIFFHeightForPathsAndHubs
 from .graph_load import GraphLoad
 from .graph_save import GraphSave
 from .load_data_from_netcdf import LoadDataFromNETCDF
 from .post_clean_raw_data import PostCleanRawData
-from .psql_read_roads_and_hubs import PsqlReadRoadsAndHubs
-from .psql_save_roads_and_hubs import PsqlSaveRoadsAndHubs
+from .psql_read_paths_and_hubs import PsqlReadPathsAndHubs
+from .psql_save_paths_and_hubs import PsqlSavePathsAndHubs
 
 __all__ = [
-    'CalculateRoadsAndHubs',
+    'CalculatePathsAndHubs',
     'ConditionalModule',
     'CreateRoutes',
-    'DebugDisplayRoadsAndHubs',
+    'DebugDisplayPathsAndHubs',
     'Dummy',
     'GeoTIFFCreateSegmentedPaths',
-    'GeoTIFFHeightForRoadsAndHubs',
+    'GeoTIFFHeightForPathsAndHubs',
     'GraphLoad',
     'GraphSave',
     'LoadDataFromNETCDF',
     'PostCleanRawData',
-    'PsqlReadRoadsAndHubs',
-    'PsqlSaveRoadsAndHubs',
+    'PsqlReadPathsAndHubs',
+    'PsqlSavePathsAndHubs',
 ]

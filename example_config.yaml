@@ -58,7 +58,7 @@ variables:
 settings:
   connections:
     # source connections can be defined here, so you do not have to add these repeatedly below.
-    # Here is an example of a PostgreSQL connection setting used for PsqlReadRoadsAndHubs and PsqlSaveRoadsAndHubs.
+    # Here is an example of a PostgreSQL connection setting used for PsqlReadPathsAndHubs and PsqlSavePathsAndHubs.
     # It takes both environment variables (defined by YAML tags) and YAML node anchors.
     # In our example the following environment variables are considered to be set:
     # PSQL_SERVER=127.0.0.1
@@ -74,24 +74,35 @@ settings:
       password: !Env "${PSQL_PASSWORD}"
       # roads table definitions - the table name itself (can contain schema names as seen here)
       roads_table_name: topology.recroads
-      # column name containing Postgis data
+      # roads: column name containing Postgis data
       roads_geom_col: geom
-      # column name containing index name
+      # roads: column name containing index name
       roads_index_col: recroadid
-      # column names for both start and end hubs (must contain the hub id)
+      # roads: column names for both start and end hubs (must contain the hub id)
       roads_hub_a_id: hubaid
       roads_hub_b_id: hubbid
-      # coerce float conversion when loading Postgis data
+      # roads: coerce float conversion when loading Postgis data
       roads_coerce_float: true
+      # rivers table definitions - the table name itself (can contain schema names as seen here)
+      rivers_table_name: topology.recrivers
+      # rivers: column name containing Postgis data
+      rivers_geom_col: geom
+      # rivers: column name containing index name
+      rivers_index_col: recriverid
+      # rivers: column names for both start and end hubs (must contain the hub id)
+      rivers_hub_a_id: hubaid
+      rivers_hub_b_id: hubbid
+      # rivers: coerce float conversion when loading Postgis data
+      rivers_coerce_float: true
       # hub table definitions - table name for hubs (can contain schema names as seen here)
       hubs_table_name: topology.rechubs
-      # column name containing Postgis data
+      # hubs: column name containing Postgis data
       hubs_geom_col: geom
-      # column name containing index name
+      # hubs: column name containing index name
       hubs_index_col: rechubid
-      # column name for overnight stay hubs
+      # hubs: column name for overnight stay hubs
       hubs_overnight: overnight
-      # extra fields that should go into our hub model - can be retrieved as instance variables later on
+      # hubs: extra fields that should go into our hub model - can be retrieved as instance variables later on
       hubs_extra_fields:
         - hubtypeid
         - storage
@@ -118,7 +129,7 @@ preparation:
 
 # You can chain modules by adding them to the preparation array. Here is an example using settings from the connection
 # settings defined above. It will load roads and hubs from the database.
-#  - class: PsqlSaveRoadsAndHubs
+#  - class: PsqlSavePathsAndHubs
 #    module: modules.preparation
 #    args:
 #      connection: psql_default
@@ -139,18 +150,18 @@ preparation:
 # time ConditionalModule is executed. Consequently, all the submodules will be skipped, if the graph was loaded. If not,
 # the ConditionalModule will be run (context.graph will be empty).
 #
-# PsqlReadRoadsAndHubs will load roads and hubs data from a Postgres database. connection will contain the connection
+# PsqlReadPathsAndHubs will load roads and hubs data from a Postgres database. connection will contain the connection
 # definition set above. There you can see what columns you have to define in order to define the data properly. More
 # on the data structure can be found in the docs.
 #
-# GeoTIFFHeightForRoadsAndHubs will set the heights of roads and hubs using a GeoTIFF image. "crs_from" defines the
+# GeoTIFFHeightForPathsAndHubs will set the heights of roads and hubs using a GeoTIFF image. "crs_from" defines the
 # geometric projection, "always_xy" will define the order of x and y, and "overwrite" can be set to true to overwrite
 # height data, if it exists already.
 #
-# PsqlSaveRoadsAndHubs will save the changed data back into the database. This is handy in our example, because the
+# PsqlSavePathsAndHubs will save the changed data back into the database. This is handy in our example, because the
 # calculation of heights from GEoTIFF is relatively expensive. So we speed up our preparation a tiny bit.
 #
-# CalculateRoadsAndHubs is an important module. It will take the raw data extracted from the database and create a
+# CalculatePathsAndHubs is an important module. It will take the raw data extracted from the database and create a
 # graph of all possible routes. "crs_from" is the original geographic projection (should be EPSG:4326 in most cases).
 # "crs_to" defines the target projection which should be one having meters as unit attribute (if unsure, check e.g.
 # https://epsg.io/32633). "length_including_heights" can be set to true to calculate the length of the legs more
@@ -163,7 +174,7 @@ preparation:
 # PostCleanRawData: It is good practice to clean raw data at the end of the preparation run in order to save memory.
 # You can skip this step if you want to retain the raw data for some reason.
 #
-# DebugDisplayRoadsAndHubs is a utility module to check if everything went smoothly during preparation. The options are:
+# DebugDisplayPathsAndHubs is a utility module to check if everything went smoothly during preparation. The options are:
 # "draw_network": Draw or save a network graph. Dependent options are: "save_network": Save graph as file to disk.
 # "show_network": Display network on stdout (depends on platform). If save_network is true, "save_network_name" and
 # "save_network_type" will define the output file name and type. Possible file types are eps, jpeg, jpg, pdf, pgf, png,
@@ -182,23 +193,23 @@ preparation:
 #  - class: ConditionalModule
 #    module: modules.preparation
 #    submodules:
-#      - class: PsqlReadRoadsAndHubs
+#      - class: PsqlReadPathsAndHubs
 #        module: modules.preparation
 #        args:
 #          connection: psql_default
 #          strategy: merge
-#      - class: GeoTIFFHeightForRoadsAndHubs
+#      - class: GeoTIFFHeightForPathsAndHubs
 #        module: modules.preparation
 #        args:
 #          file: ./data/DTM Austria 10m v2 by Sonny.tif
 #          crs_from: "EPSG:4326"
 #          always_xy: true
 #          overwrite: false
-#      - class: PsqlSaveRoadsAndHubs
+#      - class: PsqlSavePathsAndHubs
 #        module: modules.preparation
 #        args:
 #          connection: psql_default
-#      - class: CalculateRoadsAndHubs
+#      - class: CalculatePathsAndHubs
 #        module: modules.preparation
 #        args:
 #          crs_from: EPSG:4326
@@ -222,7 +233,7 @@ preparation:
 #      hubs_and_roads: true
 #      force_gc: true
 #      skip: false
-#  - class: DebugDisplayRoadsAndHubs
+#  - class: DebugDisplayPathsAndHubs
 #    module: modules.preparation
 #    args:
 #      draw_network: true

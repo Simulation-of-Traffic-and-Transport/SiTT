@@ -17,7 +17,7 @@ from sitt import Configuration, Context, PreparationInterface
 logger = logging.getLogger()
 
 
-class CalculateRoadsAndHubs(PreparationInterface):
+class CalculatePathsAndHubs(PreparationInterface):
     """Prepare raw roads and hubs anc precalculate then into a graph"""
 
     def __init__(self, crs_from: str = 'EPSG:4326', crs_to: str = 'EPSG:32633', always_xy: bool = True,
@@ -131,4 +131,4 @@ class CalculateRoadsAndHubs(PreparationInterface):
         return yaml.dump(self)
 
     def __str__(self):
-        return "CalculateRoadsAndHubs"
+        return "CalculatePathsAndHubs"

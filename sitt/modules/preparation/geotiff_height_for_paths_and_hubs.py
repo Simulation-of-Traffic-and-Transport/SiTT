@@ -15,7 +15,7 @@ from sitt import Configuration, Context, PreparationInterface
 logger = logging.getLogger()
 
 
-class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
+class GeoTIFFHeightForPathsAndHubs(PreparationInterface):
     """Set the height for roads and hubs using a GeoTIFF height map"""
 
     def __init__(self, file: str | None = None, crs_from: str = "EPSG:4326", always_xy: bool = True,
@@ -84,4 +84,4 @@ class GeoTIFFHeightForRoadsAndHubs(PreparationInterface):
         return yaml.dump(self)
 
     def __str__(self):
-        return "GeoTIFFHeightForRoadsAndHubs"
+        return "GeoTIFFHeightForPathsAndHubs"

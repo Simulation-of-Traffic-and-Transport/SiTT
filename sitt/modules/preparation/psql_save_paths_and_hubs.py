@@ -6,8 +6,8 @@ Save existing/updated roads and hubs to PostgreSQL database
 
 Example configuration:
 preparation:
-  - class: PsqlSaveRoadsAndHubs
-    module: preparation_modules.psql_read_roads_and_hubs
+  - class: PsqlSavePathsAndHubs
+    module: preparation_modules.psql_save_paths_and_hubs
     args:
       server: !Env "${PSQL_SERVER}"
       port: !Env ${PSQL_PORT}
@@ -45,7 +45,7 @@ from sitt import Configuration, Context, PreparationInterface
 logger = logging.getLogger()
 
 
-class PsqlSaveRoadsAndHubs(PreparationInterface):
+class PsqlSavePathsAndHubs(PreparationInterface):
     """Save existing/updated roads and hubs to PostgreSQL database"""
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
@@ -68,6 +68,7 @@ class PsqlSaveRoadsAndHubs(PreparationInterface):
         self.roads_coerce_float: bool = roads_coerce_float
         self.roads_hub_a_id: str = roads_hub_a_id
         self.roads_hub_b_id: str = roads_hub_b_id
+
         self.hubs_table_name: str = hubs_table_name
         self.hubs_geom_col: str = hubs_geom_col
         self.hubs_index_col: str = hubs_index_col
@@ -148,4 +149,4 @@ class PsqlSaveRoadsAndHubs(PreparationInterface):
         return yaml.dump(self)
 
     def __str__(self):
-        return 'PsqlReadRoadsAndHubs'
+        return 'PsqlSavePathsAndHubs'

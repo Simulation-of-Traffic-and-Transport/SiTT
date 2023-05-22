@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: MIT
 
 from sitt import Configuration, Context
-from sitt.modules.preparation import PsqlReadRoadsAndHubs
+from sitt.modules.preparation import PsqlReadPathsAndHubs
 from tests.helpers.prepare_test_database import prepare_test_database
 
 
-def test_psql_read_roads_and_hubs_init():
-    entity = PsqlReadRoadsAndHubs()
+def test_psql_read_paths_and_hubs_init():
+    entity = PsqlReadPathsAndHubs()
 
     assert entity.server == 'localhost'
     assert entity.port == 5432
@@ -37,13 +37,13 @@ def test_psql_read_roads_and_hubs_init():
     assert entity.connection is None
 
 
-def test_psql_read_roads_and_hubs_run():
+def test_psql_read_paths_and_hubs_run():
     if prepare_test_database() is False:
-        print("Skipping test test_psql_read_roads_and_hubs_run because we cannot prepare database.")
+        print("Skipping test test_psql_read_paths_and_hubs_run because we cannot prepare database.")
         return
 
     # create module
-    entity = PsqlReadRoadsAndHubs(db='sitt_test', password='12345')
+    entity = PsqlReadPathsAndHubs(db='sitt_test', password='12345')
     assert entity.db == 'sitt_test'
 
     # run module

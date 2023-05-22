@@ -17,7 +17,7 @@ from sitt import Configuration, Context, PreparationInterface
 logger = logging.getLogger()
 
 
-class DebugDisplayRoadsAndHubs(PreparationInterface):
+class DebugDisplayPathsAndHubs(PreparationInterface):
     def __init__(self, draw_network: bool = True, show_network: bool = True, save_network: bool = False,
                  save_network_name: str = 'network', save_network_type: str = 'png', display_routes: bool = True,
                  start: str | None = None, end: str | None = None, show_graphs: bool = True, save_graphs: bool = False,
@@ -167,4 +167,4 @@ class DebugDisplayRoadsAndHubs(PreparationInterface):
         return yaml.dump(self)
 
     def __str__(self):
-        return 'DebugDisplayRoadsAndHubs'
+        return 'DebugDisplayPathsAndHubs'
