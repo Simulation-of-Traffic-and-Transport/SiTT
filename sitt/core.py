@@ -241,16 +241,7 @@ class Simulation(BaseClass):
         if first_day:
             for agent in agents:
                 # Add node information
-                agent.route_data.add_node(agent.this_hub, agents={agent.uid: {
-                    'start': {
-                        'day': agent.current_day,
-                        'time': agent.current_time,
-                    },
-                    'end': {
-                        'day': agent.current_day,
-                        'time': agent.current_time,
-                    }
-                }})
+                agent.add_first_route_data_entry()
 
         return agents
 

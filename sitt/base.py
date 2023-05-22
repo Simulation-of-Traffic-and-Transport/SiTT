@@ -460,6 +460,17 @@ class Agent(object):
         self.uid = generate_id()
         return self.uid
 
+    def add_first_route_data_entry(self):
+        self.route_data.add_node(self.this_hub, agents={self.uid: {
+            'start': {
+                'day': self.current_day,
+                'time': self.current_time,
+            },
+            'end': {
+                'day': self.current_day,
+                'time': self.current_time,
+            }
+        }})
 
 ########################################################################################################################
 # Set of Results
