@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 """
 Simple stepper will have a constant speed and will have a certain slowdown factor for ascending and descending slopes.
+Moreover, this stepper will not care for the type of path (river, etc.).
 Other than that, it does not take into account weather or other factors.
 """
 import logging
@@ -17,6 +18,7 @@ logger = logging.getLogger()
 class Simple(SimulationStepInterface):
     """
     Simple stepper will have a constant speed and will have a certain slowdown factor for ascending and descending slopes.
+    Moreover, this stepper will not care for the type of path (river, etc.).
     Other than that, it does not take into account weather or other factors.
     """
 
