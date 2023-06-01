@@ -196,6 +196,7 @@ class JSONOutput(OutputInterface):
                 'id': path[2],
                 'from': path[3]["hubaid"],
                 'to': path[3]["hubbid"],
+                'type': path[3]["type"],
                 'length_m': path[3]['length_m'],
                 'geom': mapping(path[3]['geom']),
             })
