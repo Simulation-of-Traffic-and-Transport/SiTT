@@ -154,6 +154,10 @@ preparation:
 # definition set above. There you can see what columns you have to define in order to define the data properly. More
 # on the data structure can be found in the docs.
 #
+# PsqlConstructRiverPaths will calculate river paths within water bodies. This is only needed of you want to calculate
+# river paths automatically. It is quite costly and will take a lot of time when using complex river systems. You also
+# have to prepare the river system, see readmes/water_data.md - you must not have touching rings in your river shapes.
+#
 # GeoTIFFHeightForPathsAndHubs will set the heights of paths and hubs using a GeoTIFF image. "crs_from" defines the
 # geometric projection, "always_xy" will define the order of x and y, and "overwrite" can be set to true to overwrite
 # height data, if it exists already.
@@ -198,6 +202,23 @@ preparation:
 #        args:
 #          connection: psql_default
 #          strategy: merge
+#      - class: ConditionalModule
+#        module: modules.preparation
+#        submodules:
+#          - class: PsqlConstructRiverPaths
+#            module: modules.preparation
+#            args:
+#              connection: psql_default
+#              water_body_table_name: topology.water_body
+#              water_body_geom: geom
+#              water_lines_table_name: topology.water_lines
+#              water_lines_geom: geom
+#              hubs_harbor: 'harbor'
+#              crs_no: '4326'
+#        conditions:
+#          not_data_must_exist:
+#            class: context
+#            key: raw_rivers
 #      - class: GeoTIFFHeightForPathsAndHubs
 #        module: modules.preparation
 #        args:

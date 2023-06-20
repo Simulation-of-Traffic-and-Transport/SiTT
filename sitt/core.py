@@ -15,7 +15,9 @@ import math
 import os.path
 from typing import Dict, List
 
+import geopandas as gpd
 import networkx as nx
+import pandas as pd
 
 from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
 
@@ -110,7 +112,11 @@ class BaseClass(abc.ABC):
                 c = self.class_instance_for_name(data['class'], module, context)
                 if c is not None:
                     if 'key' in data and hasattr(c, data['key']):
-                        return getattr(c, data['key']) is not None
+                        attr = getattr(c, data['key'])
+                        # check pandas and geopandas type
+                        if type(attr) == gpd.GeoDataFrame or type(attr) == pd.DataFrame:
+                            return attr.size > 0
+                        return attr is not None
             logger.warning("%s not in %s not valid: %s = %s" % (condition, module, condition, data))
         else:
             # Show warning if unknown condition
