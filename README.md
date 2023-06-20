@@ -65,6 +65,8 @@ pytests -v .
 You can read some documentation on the following pages:
 
 * [Si.T.T.'S General Concept](readmes/concept.md) (with figures)
+* [Postgres Schemata](readmes/postgres_schemata.md)
+* [Water Data](readmes/water_data.md) - information on water bodies, rivers, etc.
 
 ## Examples
 

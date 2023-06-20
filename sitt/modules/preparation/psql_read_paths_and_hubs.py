@@ -136,7 +136,7 @@ class PsqlReadPathsAndHubs(PreparationInterface):
                                                  index_col='id',
                                                  coerce_float=self.rivers_coerce_float)
 
-        logger.info('Read %d road(s) from PostgreSQL', len(raw_rivers))
+        logger.info('Read %d rivers(s) from PostgreSQL', len(raw_rivers))
 
         # for idx, row in geoms.iterrows():
         #    print(idx)
