@@ -63,7 +63,7 @@ class PsqlSavePathsAndHubs(PreparationInterface):
                  rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid',
                  hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
                  hubs_index_col: str = 'id', hubs_coerce_float: bool = True, hubs_overnight: str = 'overnight',
-                 hubs_extra_fields: List[str] = [], connection: str | None = None):
+                 hubs_extra_fields: List[str] = [], crs_no: str = 4326, connection: str | None = None):
         # connection data - should be set/overwritten by config
         super().__init__()
         self.server: str = server
@@ -90,6 +90,7 @@ class PsqlSavePathsAndHubs(PreparationInterface):
         self.hubs_coerce_float: bool = hubs_coerce_float
         self.hubs_overnight: str = hubs_overnight
         self.hubs_extra_fields: List[str] = hubs_extra_fields
+        self.crs_no: str = crs_no
         """merge or overwrite"""
         # runtime settings
         self.connection: str | None = connection
@@ -118,7 +119,8 @@ class PsqlSavePathsAndHubs(PreparationInterface):
             for idx, row in context.raw_roads.iterrows():
                 data = {
                     t.c[self.roads_geom_col]: text(
-                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.geom))),
+                        String().literal_processor(dialect=self.conn.dialect)(
+                            value="SRID=" + str(self.crs_no) + ";" + str(row.geom))),
                     t.c[self.roads_hub_a_id]: text(
                         String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubaid))),
                     t.c[self.roads_hub_b_id]: text(
@@ -156,7 +158,8 @@ class PsqlSavePathsAndHubs(PreparationInterface):
             for idx, row in context.raw_rivers.iterrows():
                 data = {
                     t.c[self.rivers_geom_col]: text(
-                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.geom))),
+                        String().literal_processor(dialect=self.conn.dialect)(
+                            value="SRID=" + str(self.crs_no) + ";" + str(row.geom))),
                     t.c[self.rivers_hub_a_id]: text(
                         String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubaid))),
                     t.c[self.rivers_hub_b_id]: text(
@@ -194,7 +197,8 @@ class PsqlSavePathsAndHubs(PreparationInterface):
             for idx, row in context.raw_hubs.iterrows():
                 data = {
                     t.c[self.hubs_geom_col]: text(
-                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.geom))),
+                        String().literal_processor(dialect=self.conn.dialect)(
+                            value="SRID=" + str(self.crs_no) + ";" + str(row.geom))),
                     t.c[self.hubs_overnight]: text(
                         String().literal_processor(dialect=self.conn.dialect)(value=str(row.overnight) or '')),
                 }
