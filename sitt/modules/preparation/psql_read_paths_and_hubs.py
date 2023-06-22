@@ -40,14 +40,14 @@ preparation:
 
 """
 import logging
+import sys
 import urllib.parse
 from typing import List
 
 import geopandas as gpd
 import pandas as pd
 import yaml
-from sqlalchemy import create_engine
-from sqlalchemy.sql import table, column, select
+from sqlalchemy import create_engine, MetaData, Table, Column, select
 
 from sitt import Configuration, Context, PreparationInterface
 
@@ -60,7 +60,7 @@ class PsqlReadPathsAndHubs(PreparationInterface):
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', roads_table_name: str = 'topology.recroads', roads_geom_col: str = 'geom',
                  roads_index_col: str = 'id', roads_coerce_float: bool = True, roads_hub_a_id: str = 'hubaid',
-                 roads_hub_b_id: str = 'hubbid',  rivers_table_name: str = 'topology.recrivers',
+                 roads_hub_b_id: str = 'hubbid', rivers_table_name: str = 'topology.recrivers',
                  rivers_geom_col: str = 'geom', rivers_index_col: str = 'id', river_coerce_float: bool = True,
                  rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid',
                  hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
@@ -96,6 +96,8 @@ class PsqlReadPathsAndHubs(PreparationInterface):
         """merge or overwrite"""
         # runtime settings
         self.connection: str | None = connection
+        self.conn: create_engine | None = None
+        self.metadata_obj: MetaData = MetaData()
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -104,19 +106,19 @@ class PsqlReadPathsAndHubs(PreparationInterface):
 
         # create connection string and connect to db
         db_string: str = self._create_connection_string()
-        conn = create_engine(db_string)
+        self.conn = create_engine(db_string).connect()
 
         # get roads - create statement via sql alchemy
         table_parts = self.roads_table_name.rpartition('.')
-        t = table(table_parts[2], schema=table_parts[0])
-        geom_col = column(self.roads_geom_col).label('geom')
-        s = select(column(self.roads_index_col).label('id'), geom_col,
-                   column(self.roads_hub_a_id).label('hubaid'),
-                   column(self.roads_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
+        t = Table(table_parts[2], self.metadata_obj, schema=table_parts[0])
+        geom_col = Column(self.roads_geom_col).label('geom')
+        s = select(Column(self.roads_index_col).label('id'), geom_col,
+                   Column(self.roads_hub_a_id).label('hubaid'),
+                   Column(self.roads_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
         raw_roads = gpd.GeoDataFrame.from_postgis(str(s.compile()),
-                                                 conn, geom_col='geom',
-                                                 index_col='id',
-                                                 coerce_float=self.roads_coerce_float)
+                                                  self.conn, geom_col='geom',
+                                                  index_col='id',
+                                                  coerce_float=self.roads_coerce_float)
 
         logger.info('Read %d road(s) from PostgreSQL', len(raw_roads))
 
@@ -125,17 +127,16 @@ class PsqlReadPathsAndHubs(PreparationInterface):
 
         # get rivers - create statement via sql alchemy
         table_parts = self.rivers_table_name.rpartition('.')
-        t = table(table_parts[2], schema=table_parts[0])
-        geom_col = column(self.rivers_geom_col).label('geom')
-        s = select(column(self.rivers_index_col).label('id'), geom_col,
-                   column(self.rivers_hub_a_id).label('hubaid'),
-                   column(self.rivers_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
+        t = Table(table_parts[2], self.metadata_obj, schema=table_parts[0])
+        geom_col = Column(self.rivers_geom_col).label('geom')
+        s = select(Column(self.rivers_index_col).label('id'), geom_col,
+                   Column(self.rivers_hub_a_id).label('hubaid'),
+                   Column(self.rivers_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
 
         raw_rivers = gpd.GeoDataFrame.from_postgis(str(s.compile()),
-                                                 conn, geom_col='geom',
-                                                 index_col='id',
-                                                 coerce_float=self.rivers_coerce_float)
-
+                                                   self.conn, geom_col='geom',
+                                                   index_col='id',
+                                                   coerce_float=self.rivers_coerce_float)
         logger.info('Read %d rivers(s) from PostgreSQL', len(raw_rivers))
 
         # for idx, row in geoms.iterrows():
@@ -143,18 +144,21 @@ class PsqlReadPathsAndHubs(PreparationInterface):
 
         # get hubs - create statement via sql alchemy
         table_parts = self.hubs_table_name.rpartition('.')
-        t = table(table_parts[2], schema=table_parts[0])
-        fields = [column(self.hubs_index_col).label('id'), column(self.hubs_geom_col).label('geom'),
-                  column(self.hubs_overnight).label('overnight')]
+        t = Table(table_parts[2], self.metadata_obj, schema=table_parts[0])
+        fields = [Column(self.hubs_index_col).label('id'), Column(self.hubs_geom_col).label('geom'),
+                  Column(self.hubs_overnight).label('overnight')]
         for field in self.hubs_extra_fields:
-            fields.append(column(field))
-        s = select(fields).select_from(t)
-        raw_hubs = gpd.GeoDataFrame.from_postgis(str(s.compile()), conn,
-                                                geom_col='geom',
-                                                index_col='id',
-                                                coerce_float=self.hubs_coerce_float)
+            fields.append(Column(field))
+        s = select(*fields).select_from(t)
+        raw_hubs = gpd.GeoDataFrame.from_postgis(str(s.compile()), self.conn,
+                                                 geom_col='geom',
+                                                 index_col='id',
+                                                 coerce_float=self.hubs_coerce_float)
 
         logger.info('Read %d hub(s) from PostgreSQL', len(raw_hubs))
+
+        # close connection
+        self.conn.close()
 
         return self._merge_or_overwrite(context, raw_roads, raw_rivers, raw_hubs)
 

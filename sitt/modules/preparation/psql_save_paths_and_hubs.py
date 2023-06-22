@@ -39,12 +39,13 @@ preparation:
 
 """
 import logging
+import pickle
+import sys
 import urllib.parse
 from typing import List
 
 import yaml
-from sqlalchemy import create_engine, String
-from sqlalchemy.sql import table, column, text
+from sqlalchemy import create_engine, MetaData, String, Table, Column, text, select, update, insert
 
 from sitt import Configuration, Context, PreparationInterface
 
@@ -57,7 +58,7 @@ class PsqlSavePathsAndHubs(PreparationInterface):
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', roads_table_name: str = 'topology.recroads', roads_geom_col: str = 'geom',
                  roads_index_col: str = 'id', roads_coerce_float: bool = True, roads_hub_a_id: str = 'hubaid',
-                 roads_hub_b_id: str = 'hubbid',  rivers_table_name: str = 'topology.recrivers',
+                 roads_hub_b_id: str = 'hubbid', rivers_table_name: str = 'topology.recrivers',
                  rivers_geom_col: str = 'geom', rivers_index_col: str = 'id', river_coerce_float: bool = True,
                  rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid',
                  hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
@@ -92,6 +93,8 @@ class PsqlSavePathsAndHubs(PreparationInterface):
         """merge or overwrite"""
         # runtime settings
         self.connection: str | None = connection
+        self.conn: create_engine | None = None
+        self.metadata_obj: MetaData = MetaData()
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -100,66 +103,125 @@ class PsqlSavePathsAndHubs(PreparationInterface):
 
         # create connection string and connect to db
         db_string: str = self._create_connection_string()
-        conn = create_engine(db_string)
+        self.conn = create_engine(db_string).connect()
 
         # update roads
         if context.raw_roads is not None and len(context.raw_roads) > 0:
+            updated = 0
+            inserted = 0
+
             table_parts = self.roads_table_name.rpartition('.')
-            t = table(table_parts[2], column(self.roads_index_col), column(self.roads_geom_col),
-                      column(self.roads_hub_a_id), column(self.roads_hub_b_id), schema=table_parts[0])
+            idx_col = Column(self.roads_index_col)
+            t = Table(table_parts[2], self.metadata_obj, idx_col, Column(self.roads_geom_col),
+                      Column(self.roads_hub_a_id), Column(self.roads_hub_b_id), schema=table_parts[0])
 
             for idx, row in context.raw_roads.iterrows():
-                stmt = t.update() \
-                    .ordered_values(
-                    (t.c[self.roads_geom_col],
-                     text(String('').literal_processor(dialect=conn.dialect)(value=str(row.geom)))),
-                    (t.c[self.roads_hub_a_id],
-                     text(String('').literal_processor(dialect=conn.dialect)(value=row.hubaid))),
-                    (t.c[self.roads_hub_b_id],
-                     text(String('').literal_processor(dialect=conn.dialect)(value=row.hubbid))),
-                ) \
-                    .where(t.c[self.roads_index_col] == idx)
-                conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+                data = {
+                    t.c[self.roads_geom_col]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.geom))),
+                    t.c[self.roads_hub_a_id]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubaid))),
+                    t.c[self.roads_hub_b_id]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubbid)))
+                }
+
+                # exists?
+                s = select(idx_col).select_from(t).where(t.c[self.roads_index_col] == idx)
+
+                # insert or update
+                if self.conn.execute(s).rowcount == 0:
+                    data[t.c[self.roads_index_col]] = text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(idx)))
+                    stmt = insert(t).values(data)
+                    inserted += 1
+                else:
+                    stmt = update(t).where(t.c[self.roads_index_col] == idx).values(data)
+                    updated += 1
+                self.conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+            self.conn.commit()
+            if logger.level <= logging.INFO:
+                logger.info(f"Roads: {updated} updated, {inserted} inserted")
 
         # update rivers
         if context.raw_rivers is not None and len(context.raw_rivers) > 0:
+            updated = 0
+            inserted = 0
+
             table_parts = self.rivers_table_name.rpartition('.')
-            t = table(table_parts[2], column(self.rivers_index_col), column(self.rivers_geom_col),
-                      column(self.rivers_hub_a_id), column(self.rivers_hub_b_id), schema=table_parts[0])
+            idx_col = Column(self.rivers_index_col)
+            t = Table(table_parts[2], self.metadata_obj, idx_col, Column(self.rivers_geom_col),
+                      Column(self.rivers_hub_a_id), Column(self.rivers_hub_b_id), schema=table_parts[0])
 
             for idx, row in context.raw_rivers.iterrows():
-                stmt = t.update() \
-                    .ordered_values(
-                    (t.c[self.rivers_geom_col],
-                     text(String('').literal_processor(dialect=conn.dialect)(value=str(row.geom)))),
-                    (t.c[self.rivers_hub_a_id],
-                     text(String('').literal_processor(dialect=conn.dialect)(value=row.hubaid))),
-                    (t.c[self.rivers_hub_b_id],
-                     text(String('').literal_processor(dialect=conn.dialect)(value=row.hubbid))),
-                ) \
-                    .where(t.c[self.rivers_index_col] == idx)
-                conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+                data = {
+                    t.c[self.rivers_geom_col]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.geom))),
+                    t.c[self.rivers_hub_a_id]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubaid))),
+                    t.c[self.rivers_hub_b_id]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubbid))),
+                }
+
+                # exists?
+                s = select(idx_col).select_from(t).where(t.c[self.rivers_index_col] == idx)
+                if self.conn.execute(s).rowcount == 0:
+                    data[t.c[self.rivers_index_col]] = text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(idx)))
+                    stmt = insert(t).values(data)
+                    inserted += 1
+                else:
+                    stmt = update(t).where(t.c[self.rivers_index_col] == idx).values(data)
+                    updated += 1
+                self.conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+            self.conn.commit()
+            if logger.level <= logging.INFO:
+                logger.info(f"Rivers: {updated} updated, {inserted} inserted")
 
         # update hubs
         if context.raw_hubs is not None and len(context.raw_hubs) > 0:
+            updated = 0
+            inserted = 0
+
             table_parts = self.hubs_table_name.rpartition('.')
-            fields = [column(self.hubs_index_col), column(self.hubs_geom_col), column(self.hubs_overnight)]
+            idx_col = Column(self.hubs_index_col)
+            fields = [idx_col, Column(self.hubs_geom_col), Column(self.hubs_overnight)]
             for field in self.hubs_extra_fields:
-                fields.append(column(field))
-            t = table(table_parts[2], *fields, schema=table_parts[0])
+                fields.append(Column(field))
+            t = Table(table_parts[2], self.metadata_obj, *fields, schema=table_parts[0])
 
             for idx, row in context.raw_hubs.iterrows():
-                values = [(t.c[self.hubs_geom_col],
-                           text(String('').literal_processor(dialect=conn.dialect)(value=str(row.geom)))), (
-                              t.c[self.hubs_overnight],
-                              text(String('').literal_processor(dialect=conn.dialect)(value=row.overnight or '')))]
+                data = {
+                    t.c[self.hubs_geom_col]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.geom))),
+                    t.c[self.hubs_overnight]: text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(row.overnight) or '')),
+                }
                 for field in self.hubs_extra_fields:
-                    values.append(
-                        (t.c[field], text(String('').literal_processor(dialect=conn.dialect)(value=row[field]))))
+                    if field in row and row[field] is not None:
+                        v = row[field]
+                    else:
+                        v = ''
+                    data[t.c[field]] = text(String().literal_processor(dialect=self.conn.dialect)(value=str(v)))
 
-                stmt = t.update().ordered_values(*values) \
-                    .where(t.c[self.hubs_index_col] == idx)
-                conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+                # exists?
+                s = select(idx_col).select_from(t).where(t.c[self.hubs_index_col] == idx)
+
+                # insert or update
+                if self.conn.execute(s).rowcount == 0:
+                    data[t.c[self.hubs_index_col]] = text(
+                        String().literal_processor(dialect=self.conn.dialect)(value=str(idx)))
+                    stmt = insert(t).values(data)
+                    inserted += 1
+                else:
+                    stmt = update(t).where(t.c[self.hubs_index_col] == idx).values(data)
+                    updated += 1
+                self.conn.execute(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+            self.conn.commit()
+            if logger.level <= logging.INFO:
+                logger.info(f"Hubs: {updated} updated, {inserted} inserted")
 
         return context
 

@@ -12,8 +12,7 @@ import pandas as pd
 import yaml
 from shapely import LineString, MultiLineString, Point, wkb, get_parts, get_coordinates, prepare, destroy_prepared, \
     line_merge
-from sqlalchemy import create_engine
-from sqlalchemy.sql import table, column, select, literal_column, func
+from sqlalchemy import create_engine, MetaData, Table, Column, select, literal_column, func, text
 
 from sitt import Configuration, Context, PreparationInterface
 
@@ -58,6 +57,8 @@ class PsqlConstructRiverPaths(PreparationInterface):
         self.crs_no: str = crs_no
         # runtime settings
         self.connection: str | None = connection
+        self.conn: create_engine | None = None
+        self.metadata_obj: MetaData = MetaData()
 
     def run(self, config: Configuration, context: Context) -> Context:
         if self.skip:
@@ -69,34 +70,37 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         # create connection string and connect to db
         db_string: str = self._create_connection_string()
-        conn = create_engine(db_string)
+        self.conn = create_engine(db_string).connect()
 
         # get all the harbor hubs and create groups
-        groups = self._get_harbor_groups(conn)
+        groups = self._get_harbor_groups()
 
         # construct river paths
         logger.info("Constructing paths for " + str(len(groups)) + " river(s)")
-        paths = self._construct_river_paths(conn, groups)
+        paths = self._construct_river_paths(groups)
 
         # create GeoPandas data frame for river paths and add to context
         self._convert_river_paths_to_geopandas(paths, context)
 
+        # close connection
+        self.conn.close()
+
         return context
 
-    def _get_harbor_groups(self, conn: create_engine) -> dict[int, dict[str, any]]:
+    def _get_harbor_groups(self) -> dict[int, dict[str, any]]:
         # get all harbors first
-        hubs = self._get_all_harbors(conn)
+        hubs = self._get_all_harbors()
 
         table_parts = self.water_body_table_name.rpartition('.')
-        t = table(table_parts[2], schema=table_parts[0])
-        geom_col = column(self.water_body_geom).label('geom')
-        fields = [column(self.water_body_index_col).label('id'), geom_col]
+        t = Table(table_parts[2], self.metadata_obj, schema=table_parts[0])
+        geom_col = Column(self.water_body_geom).label('geom')
+        fields = [Column(self.water_body_index_col).label('id'), geom_col]
         groups = {}
 
         for idx, row in hubs.iterrows():
             # get the closest water body for this harbor
-            s = select(fields).select_from(t).limit(1).order_by(func.ST_Distance(geom_col, literal_column("'SRID=" + str(self.crs_no) + ";" + str(row[self.water_body_geom]) + "'")))
-            result = conn.execute(s).fetchone()
+            s = select(*fields).select_from(t).limit(1).order_by(func.ST_Distance(geom_col, literal_column("'SRID=" + str(self.crs_no) + ";" + str(row[self.water_body_geom]) + "'")))
+            result = self.conn.execute(s).fetchone()
 
             if result is None:
                 logger.warning(f"No water body found for harbor {idx}")
@@ -114,28 +118,26 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         return groups
 
-    def _get_all_harbors(self, conn: create_engine) -> gpd.GeoDataFrame:
+    def _get_all_harbors(self) -> gpd.GeoDataFrame:
         """
         Get list of all harbors.
 
-        :param conn: PostgreSQL connection
         :return: GeoPandas GeoDataFrame with all harbors
         """
         # get hubs - create statement via sql alchemy
         table_parts = self.hubs_table_name.rpartition('.')
-        t = table(table_parts[2], column(self.hubs_harbor), schema=table_parts[0])
-        fields = [column(self.hubs_index_col).label('id'), column(self.hubs_geom_col).label('geom')]
-        s = select(fields).select_from(t).where(t.c[self.hubs_harbor] == literal_column("'y'"))
-        return gpd.GeoDataFrame.from_postgis(str(s.compile()), conn,
+        t = Table(table_parts[2], self.metadata_obj, Column(self.hubs_harbor), schema=table_parts[0])
+        fields = [Column(self.hubs_index_col).label('id'), Column(self.hubs_geom_col).label('geom')]
+        s = select(*fields).select_from(t).where(t.c[self.hubs_harbor] == literal_column("'y'"))
+        return gpd.GeoDataFrame.from_postgis(str(s.compile()), self.conn,
                                              geom_col='geom',
                                              index_col='id',
                                              coerce_float=self.hubs_coerce_float)
 
-    def _construct_river_paths(self, conn: create_engine, groups: dict[int, dict[str, any]]) -> nx.Graph:
+    def _construct_river_paths(self, groups: dict[int, dict[str, any]]) -> nx.Graph:
         """
         Construct river paths
 
-        :param conn: PostgreSQL connection
         :param groups: Groups created by _get_harbor_groups
         :return: nx.Graph graph of all river paths
         """
@@ -143,23 +145,22 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         for idx, water_body in groups.items():
             # get single river path system
-            graph = nx.compose(graph, self._construct_river_path(conn, idx, water_body))
+            graph = nx.compose(graph, self._construct_river_path(idx, water_body))
 
         return graph
 
-    def _construct_river_path(self, conn: create_engine, idx: int, water_body: dict[str, any]) -> nx.Graph:
+    def _construct_river_path(self, idx: int, water_body: dict[str, any]) -> nx.Graph:
         """
         Create single river path
 
-        :param conn: PostgreSQL connection
         :param idx: River index within database
         :param water_body: water body structure reperesenting river and hubs
         :return: nx.Graph single graph system for this river
         """
 
         logger.info(f"Getting approximate medial axis for river system {idx} - this can take a long time...")
-        result = conn.execute(
-            f"SELECT st_approximatemedialaxis(geom) as axis from topology.water_body where id = {idx}").fetchone()
+        result = self.conn.execute(text(
+            f"SELECT st_approximatemedialaxis(geom) as axis from topology.water_body where id = {idx}")).fetchone()
         ideal_axis = wkb.loads(result[0])
 
         # explode the multistring into single lines in order to create the graph
@@ -239,7 +240,7 @@ class PsqlConstructRiverPaths(PreparationInterface):
         graph = self.remove_dangling_edges(graph, [hub['id'] for hub in water_body['hubs']])
 
         # simplify our graph in order ro reduce complexity
-        graph = self.compact_graph(graph, conn)
+        graph = self.compact_graph(graph)
 
         logger.info(
             f"Compacted graph has {len(graph.nodes)} nodes and {len(graph.edges)} edges - finding"
@@ -294,7 +295,7 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         return g
 
-    def compact_graph(self, g: nx.Graph, conn: create_engine) -> nx.Graph:
+    def compact_graph(self, g: nx.Graph) -> nx.Graph:
         # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
 
         graph_edges = g.edges()
