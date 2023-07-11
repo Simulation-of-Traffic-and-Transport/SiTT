@@ -15,8 +15,8 @@ CREATE TABLE topology.rechubs (
     id integer NOT NULL,
     geom public.geometry(PointZ,4326),
     rechubid text,
-    overnight text NOT NULL DEFAULT '',
-    harbor text NOT NULL DEFAULT ''
+    overnight text NOT NULL DEFAULT 'n',
+    harbor text NOT NULL DEFAULT 'n'
 );
 
 CREATE SEQUENCE topology.rec_hubs_id_seq
