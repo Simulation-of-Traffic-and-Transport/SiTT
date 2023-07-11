@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 
 import logging
-import sys
 import urllib.parse
 
 import geopandas as gpd
@@ -20,7 +19,8 @@ logger = logging.getLogger()
 
 
 class PsqlConstructRiverPaths(PreparationInterface):
-    """Construct river paths from harbor hubs."""
+    """Construct river paths from harbor hubs. This is a pretty complicated module, taking approximate median paths
+     through rivers and creating connected paths and hubs from them."""
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', rivers_table_name: str = 'topology.recrivers',
@@ -99,7 +99,8 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         for idx, row in hubs.iterrows():
             # get the closest water body for this harbor
-            s = select(*fields).select_from(t).limit(1).order_by(func.ST_Distance(geom_col, literal_column("'SRID=" + str(self.crs_no) + ";" + str(row[self.water_body_geom]) + "'")))
+            s = select(*fields).select_from(t).limit(1).order_by(func.ST_Distance(geom_col, literal_column(
+                "'SRID=" + str(self.crs_no) + ";" + str(row[self.water_body_geom]) + "'")))
             result = self.conn.execute(s).fetchone()
 
             if result is None:
