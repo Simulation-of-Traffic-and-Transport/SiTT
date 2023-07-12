@@ -39,20 +39,18 @@ preparation:
 
 """
 import logging
-import pickle
-import sys
-import urllib.parse
 from typing import List
 
 import yaml
-from sqlalchemy import create_engine, MetaData, String, Table, Column, text, select, update, insert
+from sqlalchemy import create_engine, String, Table, Column, text, select, update, insert, Float
 
-from sitt import Configuration, Context, PreparationInterface
+from sitt import Configuration, Context
+from sitt.modules.preparation import PSQLBase
 
 logger = logging.getLogger()
 
 
-class PsqlSavePathsAndHubs(PreparationInterface):
+class PsqlSavePathsAndHubs(PSQLBase):
     """Save existing/updated paths and hubs to PostgreSQL database"""
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
@@ -60,17 +58,12 @@ class PsqlSavePathsAndHubs(PreparationInterface):
                  roads_index_col: str = 'id', roads_coerce_float: bool = True, roads_hub_a_id: str = 'hubaid',
                  roads_hub_b_id: str = 'hubbid', rivers_table_name: str = 'topology.recrivers',
                  rivers_geom_col: str = 'geom', rivers_index_col: str = 'id', river_coerce_float: bool = True,
-                 rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid',
+                 rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid', rivers_width_m: str = 'width_m',
                  hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
                  hubs_index_col: str = 'id', hubs_coerce_float: bool = True, hubs_overnight: str = 'overnight',
                  hubs_extra_fields: List[str] = [], crs_no: str = 4326, connection: str | None = None):
         # connection data - should be set/overwritten by config
-        super().__init__()
-        self.server: str = server
-        self.port: int = port
-        self.db: str = db
-        self.user: str = user
-        self.password: str = password
+        super().__init__(server, port, db, user, password, connection)
         # db data - where to query from
         self.roads_table_name: str = roads_table_name
         self.roads_geom_col: str = roads_geom_col
@@ -84,6 +77,7 @@ class PsqlSavePathsAndHubs(PreparationInterface):
         self.rivers_coerce_float: bool = river_coerce_float
         self.rivers_hub_a_id: str = rivers_hub_a_id
         self.rivers_hub_b_id: str = rivers_hub_b_id
+        self.rivers_width_m: str = rivers_width_m
         self.hubs_table_name: str = hubs_table_name
         self.hubs_geom_col: str = hubs_geom_col
         self.hubs_index_col: str = hubs_index_col
@@ -92,10 +86,6 @@ class PsqlSavePathsAndHubs(PreparationInterface):
         self.hubs_extra_fields: List[str] = hubs_extra_fields
         self.crs_no: str = crs_no
         """merge or overwrite"""
-        # runtime settings
-        self.connection: str | None = connection
-        self.conn: create_engine | None = None
-        self.metadata_obj: MetaData = MetaData()
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -153,7 +143,8 @@ class PsqlSavePathsAndHubs(PreparationInterface):
             table_parts = self.rivers_table_name.rpartition('.')
             idx_col = Column(self.rivers_index_col)
             t = Table(table_parts[2], self.metadata_obj, idx_col, Column(self.rivers_geom_col),
-                      Column(self.rivers_hub_a_id), Column(self.rivers_hub_b_id), schema=table_parts[0])
+                      Column(self.rivers_hub_a_id), Column(self.rivers_hub_b_id), Column(self.rivers_width_m, Float),
+                      schema=table_parts[0])
 
             for idx, row in context.raw_rivers.iterrows():
                 data = {
@@ -164,6 +155,7 @@ class PsqlSavePathsAndHubs(PreparationInterface):
                         String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubaid))),
                     t.c[self.rivers_hub_b_id]: text(
                         String().literal_processor(dialect=self.conn.dialect)(value=str(row.hubbid))),
+                    t.c[self.rivers_width_m]: row.width_m
                 }
 
                 # exists?
@@ -227,21 +219,10 @@ class PsqlSavePathsAndHubs(PreparationInterface):
             if logger.level <= logging.INFO:
                 logger.info(f"Hubs: {updated} updated, {inserted} inserted")
 
+        # close connection
+        self.conn.close()
+
         return context
-
-    def _create_connection_string(self, for_printing=False):
-        """
-        Create DB connection string
-
-        :param for_printing: hide password, so connection can be printed
-        """
-        if for_printing:
-            return 'postgresql://' + self.user + ':***@' + self.server + ':' + str(
-                self.port) + '/' + self.db
-        else:
-            return 'postgresql://' + self.user + ':' + urllib.parse.quote_plus(
-                self.password) + '@' + self.server + ':' + str(
-                self.port) + '/' + self.db
 
     def __repr__(self):
         return yaml.dump(self)

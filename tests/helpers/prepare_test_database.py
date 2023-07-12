@@ -41,7 +41,7 @@ def prepare_test_database(fill_test_data: bool = True):
         # create recrivers
         cur.execute('CREATE TABLE topology.recrivers'
                     ' (id TEXT PRIMARY KEY, geom geometry(LineStringZ, 4326), hubaid TEXT,'
-                    ' hubbid TEXT); ALTER TABLE topology.recrivers owner TO postgres;'
+                    ' hubbid TEXT, width_m float default 0); ALTER TABLE topology.recrivers owner TO postgres;'
                     ' CREATE INDEX sidx_recrivers_geom ON topology.recrivers USING gist (geom)')
 
         # fill test data?

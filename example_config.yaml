@@ -92,6 +92,8 @@ settings:
       # rivers: column names for both start and end hubs (must contain the hub id)
       rivers_hub_a_id: hubaid
       rivers_hub_b_id: hubbid
+      # rivers: minimum width of river section in m
+      rivers_width_m: width_m
       # rivers: coerce float conversion when loading Postgis data
       rivers_coerce_float: true
       # hub table definitions - table name for hubs (can contain schema names as seen here)
@@ -158,6 +160,9 @@ preparation:
 # river paths automatically. It is quite costly and will take a lot of time when using complex river systems. You also
 # have to prepare the river system, see readmes/water_data.md - you must not have touching rings in your river shapes.
 #
+# PsqlCalculateRiverWidths on the other hand will calculate the widths of river sections based on the data in raw rivers
+# and raw hubs. It also takes some time - you need to have a water_lines table prepared, see documentation.
+#
 # GeoTIFFHeightForPathsAndHubs will set the heights of paths and hubs using a GeoTIFF image. "crs_from" defines the
 # geometric projection, "always_xy" will define the order of x and y, and "overwrite" can be set to true to overwrite
 # height data, if it exists already.
@@ -215,6 +220,10 @@ preparation:
 #              water_lines_geom: geom
 #              hubs_harbor: 'harbor'
 #              crs_no: '4326'
+#          - class: PsqlCalculateRiverWidths
+#            module: modules.preparation
+#            args:
+#              connection: psql_default
 #        conditions:
 #          not_data_must_exist:
 #            class: context

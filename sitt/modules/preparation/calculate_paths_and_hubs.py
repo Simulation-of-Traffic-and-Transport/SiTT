@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Prepare raw paths and hubs anc precalculate then into a graph"""
+"""Prepare raw paths and hubs anc precalculate then into a graph. This is the step before actual route creation.
+Run this before CreateRoutes to create a graph of prepared routes."""
 import logging
 
 import geopandas as gpd

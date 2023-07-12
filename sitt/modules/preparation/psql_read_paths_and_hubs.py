@@ -40,21 +40,20 @@ preparation:
 
 """
 import logging
-import sys
-import urllib.parse
 from typing import List
 
 import geopandas as gpd
 import pandas as pd
 import yaml
-from sqlalchemy import create_engine, MetaData, Table, Column, select
+from sqlalchemy import create_engine, Table, Column, select
 
-from sitt import Configuration, Context, PreparationInterface
+from sitt import Configuration, Context
+from sitt.modules.preparation import PSQLBase
 
 logger = logging.getLogger()
 
 
-class PsqlReadPathsAndHubs(PreparationInterface):
+class PsqlReadPathsAndHubs(PSQLBase):
     """Read paths and hubs from PostgreSQL database"""
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
@@ -62,17 +61,12 @@ class PsqlReadPathsAndHubs(PreparationInterface):
                  roads_index_col: str = 'id', roads_coerce_float: bool = True, roads_hub_a_id: str = 'hubaid',
                  roads_hub_b_id: str = 'hubbid', rivers_table_name: str = 'topology.recrivers',
                  rivers_geom_col: str = 'geom', rivers_index_col: str = 'id', river_coerce_float: bool = True,
-                 rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid',
+                 rivers_hub_a_id: str = 'hubaid', rivers_hub_b_id: str = 'hubbid', rivers_width_m: str = 'width_m',
                  hubs_table_name: str = 'topology.rechubs', hubs_geom_col: str = 'geom',
                  hubs_index_col: str = 'id', hubs_coerce_float: bool = True, hubs_overnight: str = 'overnight',
                  hubs_extra_fields: List[str] = [], strategy: str = 'merge', connection: str | None = None):
         # connection data - should be set/overwritten by config
-        super().__init__()
-        self.server: str = server
-        self.port: int = port
-        self.db: str = db
-        self.user: str = user
-        self.password: str = password
+        super().__init__(server, port, db, user, password, connection)
         # db data - where to query from
         self.roads_table_name: str = roads_table_name
         self.roads_geom_col: str = roads_geom_col
@@ -86,6 +80,7 @@ class PsqlReadPathsAndHubs(PreparationInterface):
         self.rivers_coerce_float: bool = river_coerce_float
         self.rivers_hub_a_id: str = rivers_hub_a_id
         self.rivers_hub_b_id: str = rivers_hub_b_id
+        self.rivers_width_m: str = rivers_width_m
         self.hubs_table_name: str = hubs_table_name
         self.hubs_geom_col: str = hubs_geom_col
         self.hubs_index_col: str = hubs_index_col
@@ -94,10 +89,6 @@ class PsqlReadPathsAndHubs(PreparationInterface):
         self.hubs_extra_fields: List[str] = hubs_extra_fields
         self.strategy: str = strategy
         """merge or overwrite"""
-        # runtime settings
-        self.connection: str | None = connection
-        self.conn: create_engine | None = None
-        self.metadata_obj: MetaData = MetaData()
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -131,7 +122,8 @@ class PsqlReadPathsAndHubs(PreparationInterface):
         geom_col = Column(self.rivers_geom_col).label('geom')
         s = select(Column(self.rivers_index_col).label('id'), geom_col,
                    Column(self.rivers_hub_a_id).label('hubaid'),
-                   Column(self.rivers_hub_b_id).label('hubbid')).where(geom_col.is_not(None)).select_from(t)
+                   Column(self.rivers_hub_b_id).label('hubbid'),
+                   Column(self.rivers_width_m).label('width_m')).where(geom_col.is_not(None)).select_from(t)
 
         raw_rivers = gpd.GeoDataFrame.from_postgis(str(s.compile()),
                                                    self.conn, geom_col='geom',
@@ -196,20 +188,6 @@ class PsqlReadPathsAndHubs(PreparationInterface):
         # let pandas do the bulk of work
         context.raw_hubs = pd.concat([context.raw_hubs, raw_hubs], copy=False).drop_duplicates()
         return context
-
-    def _create_connection_string(self, for_printing=False):
-        """
-        Create DB connection string
-
-        :param for_printing: hide password, so connection can be printed
-        """
-        if for_printing:
-            return 'postgresql://' + self.user + ':***@' + self.server + ':' + str(
-                self.port) + '/' + self.db
-        else:
-            return 'postgresql://' + self.user + ':' + urllib.parse.quote_plus(
-                self.password) + '@' + self.server + ':' + str(
-                self.port) + '/' + self.db
 
     def __repr__(self):
         return yaml.dump(self)

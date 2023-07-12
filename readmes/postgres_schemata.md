@@ -66,7 +66,8 @@ CREATE TABLE recrivers
     geom       public.geometry(LineStringZ, 4326),
     recriverid text,
     hubaid     text,
-    hubbid     text
+    hubbid     text,
+    width_m    float default 0
 );
 
 CREATE INDEX sidx_recrivers_geom ON topology.recrivers USING gist (geom);

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 
 import logging
-import urllib.parse
 
 import geopandas as gpd
 import networkx as nx
@@ -11,14 +10,15 @@ import pandas as pd
 import yaml
 from shapely import LineString, MultiLineString, Point, wkb, get_parts, get_coordinates, prepare, destroy_prepared, \
     line_merge
-from sqlalchemy import create_engine, MetaData, Table, Column, select, literal_column, func, text
+from sqlalchemy import create_engine, Table, Column, select, literal_column, func, text
 
-from sitt import Configuration, Context, PreparationInterface
+from sitt import Configuration, Context
+from sitt.modules.preparation import PSQLBase
 
 logger = logging.getLogger()
 
 
-class PsqlConstructRiverPaths(PreparationInterface):
+class PsqlConstructRiverPaths(PSQLBase):
     """Construct river paths from harbor hubs. This is a pretty complicated module, taking approximate median paths
      through rivers and creating connected paths and hubs from them."""
 
@@ -32,17 +32,12 @@ class PsqlConstructRiverPaths(PreparationInterface):
                  water_body_geom: str = 'geom', water_lines_table_name: str = 'topology.water_lines',
                  water_lines_geom: str = 'geom', crs_no: str = 4326, connection: str | None = None):
         # connection data - should be set/overwritten by config
-        super().__init__()
-        self.server = server
-        self.port = port
-        self.db = db
-        self.user = user
-        self.password = password
-        self.water_body_table_name = water_body_table_name
-        self.water_body_index_col = water_body_index_col
-        self.water_body_geom = water_body_geom
-        self.water_lines_table_name = water_lines_table_name
-        self.water_lines_geom = water_lines_geom
+        super().__init__(server, port, db, user, password, connection)
+        self.water_body_table_name: str = water_body_table_name
+        self.water_body_index_col: str = water_body_index_col
+        self.water_body_geom: str = water_body_geom
+        self.water_lines_table_name: str = water_lines_table_name
+        self.water_lines_geom: str = water_lines_geom
         self.rivers_table_name: str = rivers_table_name
         self.rivers_geom_col: str = rivers_geom_col
         self.rivers_index_col: str = rivers_index_col
@@ -55,10 +50,6 @@ class PsqlConstructRiverPaths(PreparationInterface):
         self.hubs_coerce_float: bool = hubs_coerce_float
         self.hubs_harbor: str = hubs_harbor
         self.crs_no: str = crs_no
-        # runtime settings
-        self.connection: str | None = connection
-        self.conn: create_engine | None = None
-        self.metadata_obj: MetaData = MetaData()
 
     def run(self, config: Configuration, context: Context) -> Context:
         if self.skip:
@@ -99,7 +90,7 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         for idx, row in hubs.iterrows():
             # get the closest water body for this harbor
-            s = select(*fields).select_from(t).limit(1).order_by(func.ST_Distance(geom_col, literal_column(
+            s = select(*fields).select_from(t).limit(1).order_by(func.ST_DistanceSpheroid(geom_col, literal_column(
                 "'SRID=" + str(self.crs_no) + ";" + str(row[self.water_body_geom]) + "'")))
             result = self.conn.execute(s).fetchone()
 
@@ -161,7 +152,7 @@ class PsqlConstructRiverPaths(PreparationInterface):
 
         logger.info(f"Getting approximate medial axis for river system {idx} - this can take a long time...")
         result = self.conn.execute(text(
-            f"SELECT st_approximatemedialaxis(geom) as axis from topology.water_body where id = {idx}")).fetchone()
+            f"SELECT st_approximatemedialaxis({self.water_body_geom}) as axis from {self.water_body_table_name} where {self.water_body_index_col} = {idx}")).fetchone()
         ideal_axis = wkb.loads(result[0])
 
         # explode the multistring into single lines in order to create the graph
@@ -405,20 +396,6 @@ class PsqlConstructRiverPaths(PreparationInterface):
         # update epsg, because we might have lost it
         context.raw_hubs = context.raw_hubs.set_geometry('geom').set_crs(epsg=self.crs_no)
         context.raw_rivers = context.raw_rivers.set_geometry('geom').set_crs(epsg=self.crs_no)
-
-    def _create_connection_string(self, for_printing=False):
-        """
-        Create DB connection string
-
-        :param for_printing: hide password, so connection can be printed
-        """
-        if for_printing:
-            return 'postgresql://' + self.user + ':***@' + self.server + ':' + str(
-                self.port) + '/' + self.db
-        else:
-            return 'postgresql://' + self.user + ':' + urllib.parse.quote_plus(
-                self.password) + '@' + self.server + ':' + str(
-                self.port) + '/' + self.db
 
     def __repr__(self):
         return yaml.dump(self)
