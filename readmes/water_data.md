@@ -10,7 +10,7 @@ schema `water_wip` in your PostgreSQL/PostGIS database:
 
 ```postgresql
 -- create a schema to work with the data
-CREATE SCHEMA water_wip;
+CREATE SCHEMA IF NOT EXISTS water_wip;
 ```
 
 Import data:
@@ -24,16 +24,16 @@ ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=su
 If you have different shapefiles, like river, islands, and lakes, you can do the following:
 
 ```shell
-ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_islands" Islands.shp
 ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_rivers" Rivers.shp
 ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_lakes" Lakes.shp
+ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_islands" Islands.shp
 ```
 
 You can now create proper data by joining, cutting and splitting the geo data. First, create a union of water bodies and islands.
 
 ```postgresql
 -- create a schema to work with the data
-CREATE SCHEMA water_wip;
+CREATE SCHEMA IF NOT EXISTS water_wip;
 
 SELECT 1 as id, ST_Union(st_makevalid(i.wkb_geometry)) as geom INTO water_wip.all_islands FROM water_wip.raw_islands i WHERE i.wkb_geometry IS NOT NULL;
 SELECT 1 as id, ST_Union(st_makevalid(w.wkb_geometry)) as geom INTO water_wip.all_rivers FROM water_wip.raw_rivers w WHERE w.wkb_geometry IS NOT NULL;
@@ -52,8 +52,9 @@ Finally, create separate water body entities in the normalized table:
 ```postgresql
 SELECT (wb.dump).path[1] as id, (wb.dump).geom as geom, true as is_river INTO topology.water_body FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_river_body) as wb;
 -- now from lakes
-SELECT (wb.dump).path[1] + (SELECT MAX(id) FROM topology.water_body) as id, (wb.dump).geom as geom, false as is_river INTO water_wip.lakes_for_import FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_river_body) as wb;
+SELECT (wb.dump).path[1] + (SELECT MAX(id) FROM topology.water_body) as id, (wb.dump).geom as geom, false as is_river INTO water_wip.lakes_for_import FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_lake_body) as wb;
 INSERT INTO topology.water_body SELECT * FROM water_wip.lakes_for_import;
+DROP TABLE water_wip.lakes_for_import;
 -- finally, create index
 CREATE INDEX sidx_water_body_geom ON topology.water_body USING gist (geom);
 ```
