@@ -118,6 +118,10 @@ class BaseClass(abc.ABC):
                             return attr.size > 0
                         return attr is not None
             logger.warning("%s not in %s not valid: %s = %s" % (condition, module, condition, data))
+        elif key == 'is_true':
+            return data is True
+        elif key == 'is_false':
+            return data is False
         else:
             # Show warning if unknown condition
             logger.warning("Unknown condition in %s: %s = %s" % (module, condition, data))
