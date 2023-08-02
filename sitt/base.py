@@ -17,9 +17,9 @@ from enum import Enum
 from typing import Dict, List
 
 import geopandas as gpd
+import igraph as ig
 import nanoid
 import netCDF4 as nc
-import networkx as nx
 import numpy as np
 import yaml
 
@@ -288,12 +288,13 @@ class Context(object):
         self.raw_rivers: gpd.geodataframe.GeoDataFrame | None = None
         self.raw_hubs: gpd.geodataframe.GeoDataFrame | None = None
 
-        self.graph: nx.MultiGraph | None = None
-        """Full graph data for roads, rivers and other paths (undirected)"""
-        self.routes: nx.MultiDiGraph | None = None
+        self.graph: ig.Graph | None = None
+        """Full (multi-)graph data for roads, rivers and other paths (undirected)"""
+        self.routes: ig.Graph | None = None
         """
         Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to
-        find the correct route.
+        find the correct route. It is a multidigraph containing possible routes (normally determined by k-shortest
+        paths in preparation.create_routes).
         """
         self.space_time_data: Dict[str, SpaceTimeData] = {}
 
@@ -395,8 +396,8 @@ class Agent(object):
         self.tries: int = 0
         """internal value for tries at this hub - will break at 100"""
 
-        self.route_data: nx.MultiDiGraph = nx.MultiDiGraph()
-        """keeps route taken"""
+        self.route_data: ig.Graph = ig.Graph(directed=True)
+        """keeps route taken (multidigrapjh)"""
         self.last_possible_resting_place: str = this_hub
         """keeps last possible resting place"""
         self.last_possible_resting_time: float = current_time
