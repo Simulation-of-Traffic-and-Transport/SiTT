@@ -5,7 +5,7 @@
 import logging
 from bisect import insort
 
-import networkx as nx
+import igraph as ig
 import yaml
 
 from sitt import BaseClass, Configuration, Context, PreparationInterface
@@ -47,10 +47,33 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         # We first create the set of simple edge paths and then construct a directed graph from this. The directed graph
         # will contain all possible paths from source to target, so we can efficiently traverse it.
-        context.routes = nx.MultiDiGraph()
+        context.routes = ig.Graph(directed=True)
 
         # create sorted routes in order of increasing lengths
         sorted_routes = []
+
+        # iGraph
+        g = ig.Graph()
+
+        for node in context.graph.nodes(data=True):
+            g.add_vertex(node[0], **node[1])
+
+        for edge in context.graph.edges(data=True):
+            g.add_edge(edge[0], edge[1], **edge[2])
+
+        out = g.get_k_shortest_paths(config.simulation_start, config.simulation_end, k=100, weights=g.es['length_m'], mode="all")
+
+        print(len(out))
+
+        # TODO: https://github.com/guilhermemm/k-shortest-path
+        # Besser ist Eppstein?
+        # Siehe auch igraph-Packet
+        # Networkx slow: https://www.timlrx.com/blog/benchmark-of-popular-graph-network-packages-v2
+        # k-shortest paths using Yen's or Eppstein's algorithm
+        # Yen for networkx/igraph:
+        # https://stackoverflow.com/questions/15878204/k-shortest-paths-implementation-in-igraph-networkx-yens-algorithm
+        print("TODO")
+        exit()
         for p in nx.all_simple_edge_paths(context.graph, config.simulation_start, config.simulation_end):
             r = SortableRoute()
             r.length = 0.

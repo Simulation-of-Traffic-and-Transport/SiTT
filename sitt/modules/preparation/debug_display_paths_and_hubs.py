@@ -7,7 +7,6 @@ from zlib import crc32
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
 import yaml
 from shapely.geometry import GeometryCollection

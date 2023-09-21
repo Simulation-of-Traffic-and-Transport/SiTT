@@ -6,7 +6,6 @@ Run this before CreateRoutes to create a graph of prepared routes."""
 import logging
 
 import geopandas as gpd
-import networkx as nx
 import numpy as np
 import pandas as pd
 import shapely.ops as sp_ops

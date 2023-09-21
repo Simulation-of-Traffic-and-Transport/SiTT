@@ -16,7 +16,6 @@ import os.path
 from typing import Dict, List
 
 import geopandas as gpd
-import networkx as nx
 import pandas as pd
 
 from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
@@ -188,9 +187,9 @@ class Simulation(BaseClass):
         :param context: context object
         """
         super().__init__(config)
-        self.context = context
+        self.context: Context = context
 
-        self.current_day = 1
+        self.current_day: int = 1
         """Current day of simulation"""
 
     def check(self) -> bool:
@@ -232,15 +231,18 @@ class Simulation(BaseClass):
         if agent_to_clone is None:
             agent_to_clone = Agent(hub, '', '', current_time=current_time, max_time=max_time)
 
-        for target in self.context.routes[hub]:
-            for route_key in self.context.routes[hub][target]:
-                # create new agent for each option
-                new_agent = copy.deepcopy(agent_to_clone)
-                new_agent.this_hub = hub
-                new_agent.next_hub = target
-                new_agent.route_key = route_key
+        # create new agent for each outbound edge
+        for edge in self.context.routes.incident(hub):
+            target_id = self.context.routes.es[edge].target
+            target = self.context.routes.vs[target_id]['name']
 
-                agents.append(new_agent)
+            # create new agent for each option
+            new_agent = copy.deepcopy(agent_to_clone)
+            new_agent.this_hub = hub
+            new_agent.next_hub = target
+            new_agent.route_key = edge
+
+            agents.append(new_agent)
 
         # create new uids, if agents have split
         if len(agents) > 1:

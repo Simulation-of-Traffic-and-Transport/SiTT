@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-import networkx as nx
+import igraph as ig
 
 from sitt import Agent, Configuration, Context, SetOfResults, Simulation
 from sitt.modules.simulation_step import DummyForTests
@@ -25,25 +25,26 @@ def test_check():
     assert not sim.check()
     config.simulation_start = 'TEST1'
     config.simulation_end = 'TEST2'
-    context.routes = nx.MultiDiGraph()
-    context.routes.add_nodes_from(['TEST1', 'TEST2'])
+    context.routes = ig.Graph(directed=True)
+    context.routes.add_vertices(['TEST1', 'TEST2'])
     assert sim.check()
 
 
 def test_create_agents_on_node():
     config: Configuration = Configuration()
     context: Context = Context()
-    context.routes = nx.MultiDiGraph()
-    context.routes.add_edges_from([('START', 'N1'), ('START', 'N2'), ('N1', 'STOP'), ('N2', 'STOP')])
+    context.routes = ig.Graph(directed=True)
+    context.routes.add_vertices(['START', 'N1', 'N2', 'STOP'])
+    context.routes.add_edges([('START', 'N1'), ('START', 'N2'), ('START', 'N2'), ('N1', 'STOP'), ('N2', 'STOP')])
     sim: Simulation = Simulation(config, context)
 
     # test initial creation of agents
-    assert len(sim.create_agents_on_node('START')) == 2
+    assert len(sim.create_agents_on_node('START')) == 3 # ('START', 'N2') is multiple entry and that should work!
     assert len(sim.create_agents_on_node('N1')) == 1
     assert len(sim.create_agents_on_node('STOP')) == 0
 
     # test cloning of existing agents
-    agent = Agent('START', '', '', current_time=8., max_time=16.)
+    agent = Agent('START', '', -1, current_time=8., max_time=16.)
     agents = sim.create_agents_on_node('START')
     for a in agents:
         assert a.current_day == agent.current_day
@@ -65,15 +66,16 @@ def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop
     config.simulation_end = 'STOP'
     config.simulation_step.append(DummyForTests(time_taken_per_node, force_stop_at_node))
     context: Context = Context()
-    context.graph = nx.MultiGraph()
-    context.graph.add_nodes_from([
+    context.graph = ig.Graph()
+    context.graph.add_vertices([
         ('START', {'overnight': 'y'}),
         ('PASS', {'overnight': 'n'}),
         ('STAY', {'overnight': 'y'}),
         ('STOP', {'overnight': 'y'}),
     ])
-    context.routes = nx.MultiDiGraph()
-    context.routes.add_edges_from([('START', 'PASS'), ('START', 'STAY'), ('PASS', 'STOP'), ('STAY', 'STOP')])
+    context.routes = ig.Graph(directed=True)
+    context.routes.add_vertices(['START', 'PASS', 'STAY', 'STOP'])
+    context.routes.add_edges([('START', 'PASS'), ('START', 'STAY'), ('PASS', 'STOP'), ('STAY', 'STOP')])
 
     results: SetOfResults = SetOfResults()
     agents_proceed: list[Agent] = []
@@ -86,8 +88,8 @@ def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop
 def test_run_single_step_start_pass1():
     # this is the simplest test case for the single day loop
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
-    agent = Agent('START', 'PASS', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry() # init correct data
+    agent = Agent('START', 'PASS', -1, current_time=8., max_time=16.)
+    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None

@@ -364,7 +364,7 @@ class State(object):
 class Agent(object):
     """Agent - simulating single travelling entity at a specific time and date"""
 
-    def __init__(self, this_hub: str, next_hub: str, route_key: str, state: State | None = None,
+    def __init__(self, this_hub: str, next_hub: str, route_key: int, state: State | None = None,
                  current_time: float = 0., max_time: float = 0.):
         self.uid: str = generate_id()
         """unique id"""
@@ -379,8 +379,8 @@ class Agent(object):
         """Current hub"""
         self.next_hub: str = next_hub
         """Destination hub"""
-        self.route_key: str = route_key
-        """Key/vertex id of route between hubs"""
+        self.route_key: str | int = route_key
+        """Key/vertex id of route between hubs (can be a number or a key for the "name" attribute)"""
 
         self.current_day: int = 1
         """Current day of agent - copied from simulation"""
@@ -462,7 +462,7 @@ class Agent(object):
         return self.uid
 
     def add_first_route_data_entry(self):
-        self.route_data.add_node(self.this_hub, agents={self.uid: {
+        self.route_data.add_vertex(self.this_hub, agents={self.uid: {
             'start': {
                 'day': self.current_day,
                 'time': self.current_time,

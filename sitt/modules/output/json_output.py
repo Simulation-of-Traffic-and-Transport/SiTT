@@ -6,7 +6,6 @@ import json
 import logging
 from typing import Dict, List, Tuple
 
-import networkx as nx
 from shapely.geometry import mapping
 
 from sitt import Agent, Configuration, Context, OutputInterface, SetOfResults, is_truthy
