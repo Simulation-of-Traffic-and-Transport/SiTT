@@ -5,14 +5,17 @@
 done in advance."""
 
 import argparse
+import sys
 from urllib import parse
 
 import igraph as ig
 from geoalchemy2 import Geometry
 from shapely import wkb, get_parts, prepare, destroy_prepared, \
-    delaunay_triangles, contains, overlaps, intersection, STRtree, relate_pattern, centroid
+    delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, relate_pattern, centroid
+import shapely.ops as sp_ops
 from sqlalchemy import create_engine, Table, Column, literal_column, insert, schema, MetaData, \
-    Integer, Boolean, select
+    Integer, Boolean, String, select, text
+from pyproj import Transformer
 
 
 def init():
@@ -95,22 +98,27 @@ def networks():
     water_body_table = _get_water_body_table()
     parts_table = _get_parts_table()
 
-    # nodes_table = Table("water_nodes", metadata_obj,
-    #       Column("id", String(length=16), primary_key=True),
-    #       Column("geom", Geometry('POINT')),
-    #       Column("water_body_id", Integer, index=True),
-    #       Column("is_river", Boolean),
-    #       schema=args.wip_schema)
-    #
-    # edges_table = Table("water_edges", metadata_obj,
-    #                     Column("id", String(length=32), primary_key=True),
-    #                     Column("geom", Geometry('LINESTRING')),
-    #                     Column("water_body_id", Integer, index=True),
-    #                     Column("is_river", Boolean),
-    #                     schema=args.wip_schema)
-    #
-    # metadata_obj.create_all(bind=conn, checkfirst=True)
-    # conn.commit()
+    nodes_table = Table("water_nodes", metadata_obj,
+          Column("id", String(length=16), primary_key=True),
+          Column("geom", Geometry('POINT')),
+          Column("water_body_id", Integer, index=True),
+          Column("is_river", Boolean),
+          schema=args.wip_schema)
+
+    edges_table = Table("water_edges", metadata_obj,
+                        Column("id", String(length=32), primary_key=True),
+                        Column("geom", Geometry('LINESTRING')),
+                        Column("water_body_id", Integer, index=True),
+                        Column("is_river", Boolean),
+                        schema=args.wip_schema)
+
+    metadata_obj.create_all(bind=conn, checkfirst=True)
+
+    conn.execute(text("TRUNCATE TABLE " + args.wip_schema + ".water_nodes"))
+    conn.execute(text("TRUNCATE TABLE " + args.wip_schema + ".water_edges"))
+    conn.commit()
+
+    transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
 
     # read water body entries
     for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 131)):
@@ -151,34 +159,96 @@ def networks():
 
                 g.add_edge(str_idx, str_id)
 
-        # for v in g.vs:
-        #     stmt = insert(nodes_table).values(
-        #         id=v['name'],
-        #         geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(v['center']) + "'"), water_body_id=body[0],
-        #         is_river=body[2])
-        #     compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
-        #     print(compiled_stmt)
-        #     conn.execute(stmt)
-        #     # print(v['name'], v.degree())
-        #     # 1 = Ende
-        #     # 2 = Mitte
-        #     # 3+ = Verzweigung
-        #     # TODO
-        #
-        # for e in g.es:
-        #     source = g.vs[e.source]
-        #     target = g.vs[e.target]
-        #
-        #     stmt = insert(edges_table).values(
-        #         id=source['name'] + '=' + target['name'],
-        #         geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(LineString([source['center'], target['center']])) + "'"), water_body_id=body[0],
-        #         is_river=body[2])
-        #     compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
-        #     print(compiled_stmt)
-        #     conn.execute(stmt)
-        #
-        # conn.commit()
+        # compact graph
+        # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
+        # need to preserve the geometry
+        # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
 
+        # get all nodes that are simple connectors or end points (degree <= 2)
+        is_chain = [vertex['name'] for vertex in g.vs if vertex.degree() <= 2]
+        # ids of vertices that are not simple connectors or end points (degree > 2) - will be added to
+        ids = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
+
+        # find chain components - this is a list of single edge lists
+        components = g.subgraph(is_chain).connected_components().subgraphs()
+
+        # now we filter chains that are too short and add their names to ids list
+        for component in components:
+            if component.vcount() == 1:
+                ids.append(component.vs[0]['name'])
+
+        # create a copy of our graph - add connectors and dangling endpoints first
+        tg = g.subgraph(ids)
+        for e in tg.es:
+            # direct connection
+            source = tg.vs[e.source]
+            target = tg.vs[e.target]
+            e['name'] = source['name'] + '=' + target['name']
+            e['geom'] = LineString([source['center'], target['center']])
+            e['length'] = sp_ops.transform(transformer.transform, e['geom']).length
+
+        # TODO: create components from created subgraph - we want to compact those later
+
+        # walk chains and get endpoints for each component cluster
+        for component in g.subgraph(is_chain).connected_components().subgraphs():
+            if component.vcount() > 1:
+                endpoints = [vertex['name'] for vertex in component.vs if vertex.degree() == 1]
+                if len(endpoints) != 2:
+                    print("fatal error: to many endpoints", endpoints)
+                    sys.exit(-1)
+                source = component.vs.find(name=endpoints[0])
+                target = component.vs.find(name=endpoints[1])
+                # add vertices
+                tg.add_vertex(source['name'], geom=source['geom'], center=source['center'])
+                tg.add_vertex(target['name'], geom=target['geom'], center=target['center'])
+                # construct new edge from path
+                [line, shape] = _merge_path(component, source['name'], target['name'])
+                length = sp_ops.transform(transformer.transform, line).length
+                tg.add_edge(endpoints[0], endpoints[1], geom=line, name=endpoints[0] + '=' + endpoints[1], length=length)
+                # TODO: do something with the shape
+
+                # connect new end points to connectors
+                _complete_neighboring_connections(g, tg, source, transformer)
+                _complete_neighboring_connections(g, tg, target, transformer)
+
+        for v in tg.vs:
+            stmt = insert(nodes_table).values(
+                id=v['name'],
+                geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(v['center']) + "'"), water_body_id=body[0],
+                is_river=body[2])
+            compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
+            print(compiled_stmt)
+            conn.execute(stmt)
+
+        for e in tg.es:
+            stmt = insert(edges_table).values(
+                id=e['name'],
+                geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"), water_body_id=body[0],
+                is_river=body[2])
+            compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
+            print(compiled_stmt)
+            conn.execute(stmt)
+
+        conn.commit()
+
+def _complete_neighboring_connections(g: ig.Graph, tg: ig.Graph, vertex: ig.Vertex, transformer: Transformer) -> None:
+    for i in g.neighbors(vertex['name'], 'all'):
+        neighbor = g.vs[i]
+        # neighbor in target graph?
+        try:
+            tg.vs.find(name=neighbor['name'])
+        except:
+            continue
+
+        # no exception - check if we have already added this edge
+        try:
+            tg.es.find(_source=neighbor['name'],_target=vertex['name'])
+        except:
+            # add new edge
+            line = LineString([vertex['center'], neighbor['center']])
+            length = sp_ops.transform(transformer.transform, line).length
+            tg.add_edge(vertex['name'], neighbor['name'], geom=line, name=vertex['name'] + '=' + neighbor['name'],
+                        length=length)
 
 def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
     """Add a vertex to the graph. if it does not exist yet. Returns the index of the vertex."""
@@ -192,6 +262,20 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
 
     return str_idx
 
+
+def _merge_path(g: ig.Graph, source: str, target: str) -> [LineString, Polygon]:
+    """merge a path from source to target in the graph into a single shape and edge"""
+    points: list = []
+    shape: Polygon | None = None
+    for id in g.get_shortest_paths(source, target)[0]:
+        vertex = g.vs[id]
+        points.append(vertex['center'])
+        if shape is None:
+            shape = vertex['geom']
+        else:
+            shape = shape.union(vertex['geom'])
+
+    return LineString(points), shape
 
 def _create_connection_string(server: str, db: str, user: str, password: str, port: int, for_printing=False):
     """
@@ -247,6 +331,7 @@ if __name__ == "__main__":
                         help='name of water_body table')
 
     parser.add_argument('--crs', dest='crs_no', default=4326, type=int, help='projection')
+    parser.add_argument('--crs-to', dest='crs_to', default=32633, type=int, help='target projection (for approximation of lengths)')
 
     # parse or help
     args: argparse.Namespace | None = None
