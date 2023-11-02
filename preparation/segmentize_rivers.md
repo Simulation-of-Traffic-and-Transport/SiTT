@@ -32,13 +32,13 @@ polygons and create a graph model from them:
 ![04_graph_model_of_triangles.png](img%2F04_graph_model_of_triangles.png)
 
 From this model, we have to figure out segments of the water body. Since water bodies can branch into
-multiple subsegments, we need to figure out where the water body brances. This is easy to do within
+multiple subsegments, we need to figure out where the water body branches. This is easy to do within
 a network - we just have to check the degree of each node - if a node's degree is greater than two
 (more than two edges connecting to other nodes), it is a branch. In our example, these are the branches:
 
 ![05_connecting_vertices.png](img%2F05_connecting_vertices.png)
 
-In a first step, we connect single ("dead-end" vertcices) and interconnected branches with single lines:
+In a first step, we connect single ("dead-end" vertices) and interconnected branches with single lines:
 
 ![06_connecting_and_dangling_vertices.png](img%2F06_connecting_and_dangling_vertices.png)
 
