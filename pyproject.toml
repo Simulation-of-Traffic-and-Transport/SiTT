@@ -4,30 +4,36 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sitt"
-description = 'Si.T.T. (Simulation of Traffic and Transport) is an agent-based simulation for pre-industrial trade routes.'
+description = "Si.T.T. (Simulation of Traffic and Transport) is an agent-based simulation for pre-industrial trade routes."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = "MIT"
 keywords = ["simulation", "history", "university", "trade", "ancient"]
 authors = [
-  { name = "Maximilian Kalus", email = "info@auxnet.de" },
+    { name = "Maximilian Kalus", email = "info@auxnet.de" },
 ]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
-  "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-  "Intended Audience :: Education",
-  "Intended Audience :: Science/Research",
-  "Topic :: Scientific/Engineering",
-  "Typing :: Typed",
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
 ]
 dynamic = ["version", "dependencies"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.2",
+    "psycopg2-binary>=2.9.9",
+]
 
 [project.urls]
 Documentation = "https://github.com/Simulation-of-Traffic-and-Transport/SiTT#readme"
@@ -49,8 +55,8 @@ files = ["requirements.txt"]
 
 [tool.hatch.envs.default]
 dependencies = [
-  "pytest",
-  "pytest-cov",
+    "pytest",
+    "pytest-cov",
 ]
 [tool.hatch.envs.default.scripts]
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=sitt --cov=tests {args}"
@@ -63,12 +69,12 @@ python = ["310", "311"]
 branch = true
 parallel = true
 omit = [
-  "sitt/__about__.py",
+    "sitt/__about__.py",
 ]
 
 [tool.coverage.report]
 exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]
