@@ -121,7 +121,7 @@ def networks():
     transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
 
     # read water body entries
-    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 131)):
+    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 11)):
         print("Networking water body", body[0])
 
         # get all data
@@ -129,6 +129,8 @@ def networks():
         stmt = select(parts_table.c.geom).select_from(parts_table).where(parts_table.c.water_body_id == body[0])
         for row in conn.execute(stmt):
             tree.append(wkb.loads(row[0].desc))
+
+        print("Got", len(tree), "parts to consider")
 
         # keeps entities already considered and still to consider
         already_considered = set()
@@ -140,6 +142,7 @@ def networks():
 
         # graph
         g = ig.Graph()
+        counter = 0
 
         while len(to_consider) > 0:
             idx = to_consider.pop()
@@ -159,26 +162,24 @@ def networks():
 
                 g.add_edge(str_idx, str_id)
 
+            counter += 1
+            if counter % 1000 == 0:
+                print(counter, "shapes processed")
+
+        print("Neighbors tested, compacting graph.")
+
         # compact graph
         # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
         # need to preserve the geometry
         # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
 
         # get all nodes that are simple connectors or end points (degree <= 2)
-        is_chain = [vertex['name'] for vertex in g.vs if vertex.degree() <= 2]
-        # ids of vertices that are not simple connectors or end points (degree > 2) - will be added to
-        ids = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
-
-        # find chain components - this is a list of single edge lists
-        components = g.subgraph(is_chain).connected_components().subgraphs()
-
-        # now we filter chains that are too short and add their names to ids list
-        for component in components:
-            if component.vcount() == 1:
-                ids.append(component.vs[0]['name'])
+        is_chain = [vertex for vertex in g.vs if 0 < vertex.degree() <= 2]
+        # vertices that are not simple connectors or end points (degree > 2) - will be added to
+        connectors = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
 
         # create a copy of our graph - add connectors and dangling endpoints first
-        tg = g.subgraph(ids)
+        tg = g.subgraph(connectors)
         for e in tg.es:
             # direct connection
             source = tg.vs[e.source]
@@ -187,30 +188,65 @@ def networks():
             e['geom'] = LineString([source['center'], target['center']])
             e['length'] = sp_ops.transform(transformer.transform, e['geom']).length  # TODO: not needed now
 
-        # TODO: create components from created subgraph - we want to compact those later
-
+        # find chain components - this is a list of single edge lists
         # walk chains and get endpoints for each component cluster
         for component in g.subgraph(is_chain).connected_components().subgraphs():
-            if component.vcount() > 1:
+            # Case 1: single endpoint without neighbors
+            if component.vcount() == 1:
+                # find vertex in original graph and look for neighbors
+                source = component.vs[0]['name']
+                neighbors = g.vs.find(name=source).neighbors()
+                # in the original graph, this point might be a single endpoint - or between two connectors
+                if len(neighbors) == 1:
+                    # endpoint
+                    target = neighbors[0]['name']
+                elif len(neighbors) == 2:
+                    # connector
+                    source = neighbors[0]['name']
+                    target = neighbors[1]['name']
+                else:
+                    print("fatal error: too many neighbors", source, neighbors)
+                    sys.exit(-1)
+            # Case 2: line of points - two endpoints
+            else:
+                names_to_exclude = [vertex['name'] for vertex in component.vs]
                 endpoints = [vertex['name'] for vertex in component.vs if vertex.degree() == 1]
                 if len(endpoints) != 2:
-                    print("fatal error: to many endpoints", endpoints)
+                    print("fatal error: too many endpoints", endpoints)
                     sys.exit(-1)
-                source = component.vs.find(name=endpoints[0])
-                target = component.vs.find(name=endpoints[1])
-                # add vertices
-                tg.add_vertex(source['name'], geom=source['geom'], center=source['center'])
-                tg.add_vertex(target['name'], geom=target['geom'], center=target['center'])
-                # construct new edge from path
-                [line, shape] = _merge_path(component, source['name'], target['name'])
-                length = sp_ops.transform(transformer.transform, line).length
-                tg.add_edge(endpoints[0], endpoints[1], geom=line, name=endpoints[0] + '=' + endpoints[1],
-                            length=length)
-                # TODO: do something with the shape
+                source = component.vs.find(name=endpoints[0])['name']
+                target = component.vs.find(name=endpoints[1])['name']
+                # in the original graph, find neighbors that are not on the current line
+                possible_neighbor = _get_outer_neighbor(g, source, names_to_exclude)
+                if possible_neighbor is not None:
+                    source = possible_neighbor
 
-                # connect new end points to connectors
-                _complete_neighboring_connections(g, tg, source, transformer)
-                _complete_neighboring_connections(g, tg, target, transformer)
+                possible_neighbor = _get_outer_neighbor(g, target, names_to_exclude)
+                if possible_neighbor is not None:
+                    target = possible_neighbor
+
+            # add vertices to new graph
+            try:
+                tg.vs.find(name=source)
+            except:
+                source_node = g.vs.find(name=source)
+                tg.add_vertex(source_node['name'], geom=source_node['geom'], center=source_node['center'])
+            try:
+                tg.vs.find(name=target)
+            except:
+                target_node = g.vs.find(name=target)
+                tg.add_vertex(target_node['name'], geom=target_node['geom'], center=target_node['center'])
+
+            # construct new edge from path
+            [line, shape] = _merge_path(g, source, target)
+            length = sp_ops.transform(transformer.transform, line).length
+            edge_name = source + '=' + target
+            try:
+                tg.es.find(name=edge_name)
+            except:
+                tg.add_edge(source, target, geom=line, name=edge_name, length=length)
+            # TODO: do something with the shape
+            print(shape)
 
         for v in tg.vs:
             stmt = insert(nodes_table).values(
@@ -233,24 +269,22 @@ def networks():
         conn.commit()
 
 
-def _complete_neighboring_connections(g: ig.Graph, tg: ig.Graph, vertex: ig.Vertex, transformer: Transformer) -> None:
-    for i in g.neighbors(vertex['name'], 'all'):
-        neighbor = g.vs[i]
-        # neighbor in target graph?
-        try:
-            tg.vs.find(name=neighbor['name'])
-        except:
-            continue
-
-        # no exception - check if we have already added this edge
-        try:
-            tg.es.find(_source=neighbor['name'], _target=vertex['name'])
-        except:
-            # add new edge
-            line = LineString([vertex['center'], neighbor['center']])
-            length = sp_ops.transform(transformer.transform, line).length
-            tg.add_edge(vertex['name'], neighbor['name'], geom=line, name=vertex['name'] + '=' + neighbor['name'],
-                        length=length)
+def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> str | None:
+    """
+    Get the outer neighbor of a vertex in the graph. Neighbors must not be in the list of my_ids.
+    :param g: graph
+    :param name: name to look for
+    :param excluded_names: list of vertex names to exclude
+    :return:
+    """
+    neighbors = [vertex['name'] for vertex in g.vs.find(name=name).neighbors() if
+                 vertex['name'] not in excluded_names]
+    if len(neighbors) == 1:
+        return neighbors[0]
+    if len(neighbors) > 1:
+        print("fatal error: too many neighbors", name, neighbors)
+        sys.exit(-1)
+    return None
 
 
 def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
