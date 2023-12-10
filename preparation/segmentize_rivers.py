@@ -5,6 +5,7 @@
 done in advance."""
 
 import argparse
+import pickle
 import sys
 from urllib import parse
 
@@ -268,6 +269,12 @@ def networks():
 
         conn.commit()
 
+        # pickle graph
+        with open('graph_dump.pickle', 'wb') as f:
+            pickle.dump(g, f)
+
+        print("Graph saved to 'graph_dump.pickle'")
+
 
 def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> str | None:
     """
@@ -304,13 +311,31 @@ def _merge_path(g: ig.Graph, source: str, target: str) -> [LineString, Polygon]:
     """merge a path from source to target in the graph into a single shape and edge"""
     points: list = []
     shape: Polygon | None = None
-    for id in g.get_shortest_paths(source, target)[0]:
+    last_shape: Polygon | None = None
+
+    shortest_path = g.get_shortest_paths(source, target)[0]
+
+    # add center of first shape
+    vertex = g.vs[shortest_path[0]]
+    points.append(vertex['center'])
+
+    for id in shortest_path:
         vertex = g.vs[id]
-        points.append(vertex['center'])
+        #points.append(vertex['center'])
         if shape is None:
             shape = vertex['geom']
         else:
             shape = shape.union(vertex['geom'])
+
+        # find common line of both shapes and take the center of it to get the new point
+        if last_shape is not None:
+            points.append(centroid(intersection(last_shape, vertex['geom'])))
+
+        last_shape = vertex['geom']
+
+    # add center of first and last shapes
+    vertex = g.vs[shortest_path[-1]]
+    points.append(vertex['center'])
 
     return LineString(points), shape
 
