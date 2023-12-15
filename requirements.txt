@@ -13,3 +13,4 @@ requests>=2.31.0
 Shapely>=2.0.1
 sqlalchemy>=2.0
 GeoAlchemy2~=0.14.2
+igraph~=0.11.3

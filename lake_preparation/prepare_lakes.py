@@ -6,10 +6,14 @@
 import argparse
 from urllib import parse
 from typing import Tuple
+
+import igraph as ig
 from geoalchemy2 import Geometry
 from shapely import wkb
+import shapely.ops as sp_ops
 from sqlalchemy import create_engine, Table, Column, schema, MetaData, Integer, text, Connection, Row
 from math import sqrt
+from pyproj import Transformer
 
 
 def run():
@@ -52,6 +56,64 @@ def run():
             _calculate_lakes_with_normals(conn, lake)
         elif args.mode == "scale":
             _calculate_routes_with_down_scale(conn, lake)
+
+
+def evaluate_routes():
+    print("Initializing database from",
+          _create_connection_string(args.server, args.database, args.user, args.password, args.port, for_printing=True))
+    conn = create_engine(
+        _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
+
+    routes_table = _get_routes_scale_mode_table()
+
+    metadata_obj.create_all(bind=conn, checkfirst=True)
+    conn.commit()
+
+    for lake in conn.execute(routes_table.select()).fetchall():
+        points_query = text(f"SELECT (ST_DumpPoints('{lake[1]}')).geom;")
+        points = conn.execute(points_query).fetchall()
+
+        nodes = set()
+        for point in points:
+            decoded_point = wkb.loads(point[0])
+            nodes.add(decoded_point)
+
+        transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
+        nodes = {value: index for index, value in enumerate(nodes)}
+        edges = []
+        weights = []
+        for i in range(0, len(points), 2):
+            start = wkb.loads(points[i])[0]
+            end = wkb.loads(points[i + 1])[0]
+
+            start_index = nodes.get(start, None)
+            end_index = nodes.get(end, None)
+
+            start_coord = sp_ops.transform(transformer.transform, start)
+            end_coord = sp_ops.transform(transformer.transform, end)
+            distance = start_coord.distance(end_coord)
+            weights.append(distance)
+
+            edges.append((start_index, end_index))
+
+        nodes = list(nodes)
+
+        graph = ig.Graph(len(nodes), edges)
+        graph.es["weight"] = weights
+
+        results = graph.get_shortest_path(0, to=1, weights=graph.es["weight"], output="epath")
+        if len(results) > 0:
+            # Add up the weights across all edges on the shortest path
+            sum = 0
+            for e in results:
+                distance += graph.es[e]["weight"]
+            print("Shortest weighted distance is: ", distance)
+
+        a = sp_ops.transform(transformer.transform, nodes[0])
+        b = sp_ops.transform(transformer.transform, nodes[1])
+        distance = a.distance(b)
+        print(f"direct distance is: {distance}")
+
 
 
 def _create_connection_string(server: str, db: str, user: str, password: str, port: int, for_printing=False):
@@ -230,7 +292,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Take lake data an generate the routes on those",
         exit_on_error=False)
-    parser.add_argument('action', default='help', choices=['help', 'run'],
+    parser.add_argument('action', default='help', choices=['help', 'run', 'eval'],
                         help='action to perform')
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
@@ -273,3 +335,5 @@ if __name__ == "__main__":
         parser.print_help()
     elif args.action == 'run':
         run()
+    elif args.action == 'eval':
+        evaluate_routes()
