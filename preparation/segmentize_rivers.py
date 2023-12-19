@@ -43,8 +43,33 @@ def init():
 
 
 def segment_rivers_and_water_bodies():
-    """Segment rivers and water bodies - actual segmentation, takes a long time to complete."""
-    print("Segment rivers and water bodies - actual segmentation, takes a long time to complete.")
+    """Segment rivers and water bodies - actual segmentation, this uses Postgis and Geos >= 3.11.0."""
+    print("Segment rivers and water bodies - actual segmentation, this uses Postgis and Geos >= 3.11.0.")
+
+    # database stuff
+    conn = create_engine(
+        _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
+    water_body_table = _get_water_body_table()
+    parts_table = _get_parts_table()
+
+    # read water body entries
+    for body in conn.execute(water_body_table.select()):
+        print("Segmenting water body", body[0])
+
+        # split the water body into triangles
+        parts = conn.execute(text("SELECT (ST_dump(ST_TriangulatePolygon('" + body[1].desc + "'))).geom"))
+        for part in parts:
+            stmt = insert(parts_table).values(
+                geom=literal_column("'SRID=" + str(args.crs_no) + ";" + part[0] + "'"), water_body_id=body[0],
+                is_river=body[2])
+            conn.execute(stmt)
+
+        conn.commit()
+
+
+def segment_rivers_and_water_bodies_no_geos():
+    """Segment rivers and water bodies - actual segmentation, this does not use Geos and is very slow."""
+    print("Segment rivers and water bodies - actual segmentation, this does not use Geos and is very slow.")
 
     # database stuff
     conn = create_engine(
@@ -165,7 +190,7 @@ def networks():
 
             counter += 1
             if counter % 1000 == 0:
-                print(counter, "shapes processed")
+                print(counter, "shapes processed, water body", body[0])
 
         print("Neighbors tested, compacting graph.")
 
@@ -371,13 +396,13 @@ def _get_parts_table() -> Table:
 
 
 if __name__ == "__main__":
-    """Segment rivers and water bodies - this is stuff that will take a very long time."""
+    """Segment rivers and water bodies - this is stuff that will take a (very) long time."""
 
     # parse arguments
     parser = argparse.ArgumentParser(
-        description="Segment rivers and water bodies - this is stuff that will take a very long time to complete, so it should be done in advance.",
+        description="Segment rivers and water bodies - this is stuff that will take a (very) long time to complete, so it should be done in advance.",
         exit_on_error=False)
-    parser.add_argument('action', default='help', choices=['help', 'init', 'segment', 'networks'],
+    parser.add_argument('action', default='help', choices=['help', 'init', 'segment', 'segment_no_geos', 'networks'],
                         help='action to perform')
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
@@ -412,9 +437,16 @@ if __name__ == "__main__":
     # select action
     if args.action == 'help':
         parser.print_help()
+        print("\nActions:")
+        print("\ninit - initialize the database (create schemas/tables)")
+        print("\nsegment - segment rivers and water bodies")
+        print("\nsegment_no_geos - segment rivers and water bodies not using newer geos version (very slow!)")
+        print("\nnetworks - create networks for water bodies from the triangles created in the segmentation")
     elif args.action == 'init':
         init()
     elif args.action == 'segment':
         segment_rivers_and_water_bodies()
+    elif args.action == 'segment_no_geos':
+        segment_rivers_and_water_bodies_no_geos()
     elif args.action == 'networks':
         networks()
