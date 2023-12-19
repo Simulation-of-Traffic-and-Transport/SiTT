@@ -147,7 +147,7 @@ def networks():
     transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
 
     # read water body entries
-    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 11)):
+    for body in conn.execute(water_body_table.select()):
         print("Networking water body", body[0])
 
         # get all data
