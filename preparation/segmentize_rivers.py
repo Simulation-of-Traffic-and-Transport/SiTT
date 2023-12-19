@@ -5,18 +5,17 @@
 done in advance."""
 
 import argparse
-import pickle
 import sys
 from urllib import parse
 
 import igraph as ig
+import shapely.ops as sp_ops
 from geoalchemy2 import Geometry
+from pyproj import Transformer
 from shapely import wkb, get_parts, prepare, destroy_prepared, \
     delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, relate_pattern, centroid
-import shapely.ops as sp_ops
 from sqlalchemy import create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, select, text
-from pyproj import Transformer
 
 
 def init():
@@ -272,15 +271,13 @@ def networks():
             except:
                 tg.add_edge(source, target, geom=line, name=edge_name, length=length)
             # TODO: do something with the shape
-            print(shape)
+            # print(shape)
 
         for v in tg.vs:
             stmt = insert(nodes_table).values(
                 id=v['name'],
                 geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(v['center']) + "'"), water_body_id=body[0],
                 is_river=body[2])
-            compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
-            print(compiled_stmt)
             conn.execute(stmt)
 
         for e in tg.es:
@@ -288,17 +285,9 @@ def networks():
                 id=e['name'],
                 geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"), water_body_id=body[0],
                 is_river=body[2])
-            compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
-            print(compiled_stmt)
             conn.execute(stmt)
 
         conn.commit()
-
-        # pickle graph
-        with open('graph_dump.pickle', 'wb') as f:
-            pickle.dump(g, f)
-
-        print("Graph saved to 'graph_dump.pickle'")
 
 
 def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> str | None:
