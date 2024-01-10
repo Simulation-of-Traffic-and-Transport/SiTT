@@ -1,6 +1,6 @@
-# River Segmentation
+# River and Lake Segmentation
 
-This document describes the segmentation of rivers into graphs.
+This document describes the segmentation of rivers and lakes into graphs.
 
 ## Preparation of data
 

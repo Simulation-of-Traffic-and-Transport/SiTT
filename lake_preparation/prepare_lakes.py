@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 """Take lake data and generate the paths on them. Additionally, some route calculations are done"""
 
+# TODO: move to preparation
+
 import argparse
 from urllib import parse
 from typing import Tuple

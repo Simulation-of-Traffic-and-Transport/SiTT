@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Segment rivers and water bodies - this is stuff that will take a very long time to complete, so it should be
+"""Segment rivers and water bodies - this is stuff that may take a very long time to complete, so it should be
 done in advance."""
 
 import argparse
@@ -10,12 +10,13 @@ from urllib import parse
 
 import igraph as ig
 import shapely.ops as sp_ops
+import sqlalchemy
 from geoalchemy2 import Geometry
 from pyproj import Transformer
 from shapely import wkb, get_parts, prepare, destroy_prepared, \
     delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, relate_pattern, centroid
 from sqlalchemy import create_engine, Table, Column, literal_column, insert, schema, MetaData, \
-    Integer, Boolean, String, select, text
+    Integer, Boolean, String, select, text, func
 
 
 def init():
@@ -57,13 +58,16 @@ def segment_rivers_and_water_bodies():
 
         # split the water body into triangles
         parts = conn.execute(text("SELECT (ST_dump(ST_TriangulatePolygon('" + body[1].desc + "'))).geom"))
+        count = 0
         for part in parts:
             stmt = insert(parts_table).values(
                 geom=literal_column("'SRID=" + str(args.crs_no) + ";" + part[0] + "'"), water_body_id=body[0],
                 is_river=body[2])
             conn.execute(stmt)
+            count += 1
 
         conn.commit()
+        print("Wrote", count, "parts for body", body[0])
 
 
 def segment_rivers_and_water_bodies_no_geos():
@@ -114,8 +118,8 @@ def segment_rivers_and_water_bodies_no_geos():
 
 
 def networks():
-    """Create networks from water body triangles. This is the toughest part of the process."""
-    print("Create networks from water body triangles. This is the toughest part of the process.")
+    """Create networks from water body triangles. This is the most complex of the process."""
+    print("Create networks from water body triangles. This is the most complex part of the process.")
 
     # database stuff
     conn = create_engine(
@@ -145,149 +149,178 @@ def networks():
 
     transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
 
+    # get ids of water bodies that are connected to hubs
+    water_body_ids = _get_water_body_ids_to_consider(conn, water_body_table)
+
     # read water body entries
-    for body in conn.execute(water_body_table.select()):
-        print("Networking water body", body[0])
+    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 196)): # TODO water_body_ids
+        print("Networking water body", body[0], "- river:", body[2])
 
-        # get all data
-        tree = []
-        stmt = select(parts_table.c.geom).select_from(parts_table).where(parts_table.c.water_body_id == body[0])
-        for row in conn.execute(stmt):
-            tree.append(wkb.loads(row[0].desc))
+        # river?
+        if body[2] == True:
+            # get all data
+            tree = []
+            stmt = select(parts_table.c.geom).select_from(parts_table).where(parts_table.c.water_body_id == body[0])
+            for row in conn.execute(stmt):
+                tree.append(wkb.loads(row[0].desc))
 
-        print("Got", len(tree), "parts to consider")
+            print("Got", len(tree), "parts to consider")
 
-        # keeps entities already considered and still to consider
-        already_considered = set()
-        to_consider = set()
-        to_consider.add(0)  # we will always consider the first entry
+            # keeps entities already considered and still to consider
+            already_considered = set()
+            to_consider = set()
+            to_consider.add(0)  # we will always consider the first entry
 
-        # efficient tree tester for fast geometry functions
-        tree = STRtree(tree)
+            # efficient tree tester for fast geometry functions
+            tree = STRtree(tree)
 
-        # graph
-        g = ig.Graph()
-        counter = 0
+            # graph
+            g = ig.Graph()
+            counter = 0
 
-        while len(to_consider) > 0:
-            idx = to_consider.pop()
-            already_considered.add(idx)
-            entity = tree.geometries.take(idx)
+            while len(to_consider) > 0:
+                idx = to_consider.pop()
+                already_considered.add(idx)
+                entity = tree.geometries.take(idx)
 
-            str_idx = _add_vertex(g, body[0], idx, entity)
+                str_idx = _add_vertex(g, body[0], idx, entity)
 
-            # get neighbors
-            for id in tree.query(entity, 'touches'):
-                if id in already_considered or not relate_pattern(entity, tree.geometries.take(id), '****1****'):
-                    continue
-                to_consider.add(id)
+                # get neighbors
+                for id in tree.query(entity, 'touches'):
+                    if id in already_considered or not relate_pattern(entity, tree.geometries.take(id), '****1****'):
+                        continue
+                    to_consider.add(id)
 
-                # add vertex
-                str_id = _add_vertex(g, body[0], id, tree.geometries.take(id))
+                    # add vertex
+                    str_id = _add_vertex(g, body[0], id, tree.geometries.take(id))
 
-                g.add_edge(str_idx, str_id)
+                    g.add_edge(str_idx, str_id)
 
-            counter += 1
-            if counter % 1000 == 0:
-                print(counter, "shapes processed, water body", body[0])
+                counter += 1
+                if counter % 1000 == 0:
+                    print(counter, "shapes processed, water body", body[0])
 
-        print("Neighbors tested, compacting graph.")
+            print("Neighbors tested, compacting graph.")
 
-        # compact graph
-        # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
-        # need to preserve the geometry
-        # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
+            # compact graph
+            # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
+            # need to preserve the geometry
+            # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
 
-        # get all nodes that are simple connectors or end points (degree <= 2)
-        is_chain = [vertex for vertex in g.vs if 0 < vertex.degree() <= 2]
-        # vertices that are not simple connectors or end points (degree > 2) - will be added to
-        connectors = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
+            # get all nodes that are simple connectors or end points (degree <= 2)
+            is_chain = [vertex for vertex in g.vs if 0 < vertex.degree() <= 2]
+            # vertices that are not simple connectors or end points (degree > 2) - will be added to
+            connectors = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
 
-        # create a copy of our graph - add connectors and dangling endpoints first
-        tg = g.subgraph(connectors)
-        for e in tg.es:
-            # direct connection
-            source = tg.vs[e.source]
-            target = tg.vs[e.target]
-            e['name'] = source['name'] + '=' + target['name']
-            e['geom'] = LineString([source['center'], target['center']])
-            e['length'] = sp_ops.transform(transformer.transform, e['geom']).length  # TODO: not needed now
+            # create a copy of our graph - add connectors and dangling endpoints first
+            tg = g.subgraph(connectors)
+            for e in tg.es:
+                # direct connection
+                source = tg.vs[e.source]
+                target = tg.vs[e.target]
+                e['name'] = source['name'] + '=' + target['name']
+                e['geom'] = LineString([source['center'], target['center']])
+                e['length'] = sp_ops.transform(transformer.transform, e['geom']).length  # TODO: not needed now
 
-        # find chain components - this is a list of single edge lists
-        # walk chains and get endpoints for each component cluster
-        for component in g.subgraph(is_chain).connected_components().subgraphs():
-            # Case 1: single endpoint without neighbors
-            if component.vcount() == 1:
-                # find vertex in original graph and look for neighbors
-                source = component.vs[0]['name']
-                neighbors = g.vs.find(name=source).neighbors()
-                # in the original graph, this point might be a single endpoint - or between two connectors
-                if len(neighbors) == 1:
-                    # endpoint
-                    target = neighbors[0]['name']
-                elif len(neighbors) == 2:
-                    # connector
-                    source = neighbors[0]['name']
-                    target = neighbors[1]['name']
+            # find chain components - this is a list of single edge lists
+            # walk chains and get endpoints for each component cluster
+            for component in g.subgraph(is_chain).connected_components().subgraphs():
+                # Case 1: single endpoint without neighbors
+                if component.vcount() == 1:
+                    # find vertex in original graph and look for neighbors
+                    source = component.vs[0]['name']
+                    neighbors = g.vs.find(name=source).neighbors()
+                    # in the original graph, this point might be a single endpoint - or between two connectors
+                    if len(neighbors) == 1:
+                        # endpoint
+                        target = neighbors[0]['name']
+                    elif len(neighbors) == 2:
+                        # connector
+                        source = neighbors[0]['name']
+                        target = neighbors[1]['name']
+                    else:
+                        print("fatal error: too many neighbors", source, neighbors)
+                        sys.exit(-1)
+                # Case 2: line of points - two endpoints
                 else:
-                    print("fatal error: too many neighbors", source, neighbors)
-                    sys.exit(-1)
-            # Case 2: line of points - two endpoints
-            else:
-                names_to_exclude = [vertex['name'] for vertex in component.vs]
-                endpoints = [vertex['name'] for vertex in component.vs if vertex.degree() == 1]
-                if len(endpoints) != 2:
-                    print("fatal error: too many endpoints", endpoints)
-                    sys.exit(-1)
-                source = component.vs.find(name=endpoints[0])['name']
-                target = component.vs.find(name=endpoints[1])['name']
-                # in the original graph, find neighbors that are not on the current line
-                possible_neighbor = _get_outer_neighbor(g, source, names_to_exclude)
-                if possible_neighbor is not None:
-                    source = possible_neighbor
+                    names_to_exclude = [vertex['name'] for vertex in component.vs]
+                    endpoints = [vertex['name'] for vertex in component.vs if vertex.degree() == 1]
+                    if len(endpoints) != 2:
+                        print("fatal error: too many endpoints", endpoints)
+                        sys.exit(-1)
+                    source = component.vs.find(name=endpoints[0])['name']
+                    target = component.vs.find(name=endpoints[1])['name']
+                    # in the original graph, find neighbors that are not on the current line
+                    possible_neighbor = _get_outer_neighbor(g, source, names_to_exclude)
+                    if possible_neighbor is not None:
+                        source = possible_neighbor
 
-                possible_neighbor = _get_outer_neighbor(g, target, names_to_exclude)
-                if possible_neighbor is not None:
-                    target = possible_neighbor
+                    possible_neighbor = _get_outer_neighbor(g, target, names_to_exclude)
+                    if possible_neighbor is not None:
+                        target = possible_neighbor
 
-            # add vertices to new graph
-            try:
-                tg.vs.find(name=source)
-            except:
-                source_node = g.vs.find(name=source)
-                tg.add_vertex(source_node['name'], geom=source_node['geom'], center=source_node['center'])
-            try:
-                tg.vs.find(name=target)
-            except:
-                target_node = g.vs.find(name=target)
-                tg.add_vertex(target_node['name'], geom=target_node['geom'], center=target_node['center'])
+                # add vertices to new graph
+                try:
+                    tg.vs.find(name=source)
+                except:
+                    source_node = g.vs.find(name=source)
+                    tg.add_vertex(source_node['name'], geom=source_node['geom'], center=source_node['center'])
+                try:
+                    tg.vs.find(name=target)
+                except:
+                    target_node = g.vs.find(name=target)
+                    tg.add_vertex(target_node['name'], geom=target_node['geom'], center=target_node['center'])
 
-            # construct new edge from path
-            [line, shape] = _merge_path(g, source, target)
-            length = sp_ops.transform(transformer.transform, line).length
-            edge_name = source + '=' + target
-            try:
-                tg.es.find(name=edge_name)
-            except:
-                tg.add_edge(source, target, geom=line, name=edge_name, length=length)
-            # TODO: do something with the shape
-            # print(shape)
+                # construct new edge from path
+                [line, shape] = _merge_path(g, source, target)
+                length = sp_ops.transform(transformer.transform, line).length
+                edge_name = source + '=' + target
+                try:
+                    tg.es.find(name=edge_name)
+                except:
+                    tg.add_edge(source, target, geom=line, name=edge_name, length=length)
+                # TODO: do something with the shape
+                # print(shape)
+                # TODO: width of segment
 
-        for v in tg.vs:
-            stmt = insert(nodes_table).values(
-                id=v['name'],
-                geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(v['center']) + "'"), water_body_id=body[0],
-                is_river=body[2])
-            conn.execute(stmt)
+            for v in tg.vs:
+                stmt = insert(nodes_table).values(
+                    id=v['name'],
+                    geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(v['center']) + "'"), water_body_id=body[0],
+                    is_river=body[2])
+                conn.execute(stmt)
 
-        for e in tg.es:
-            stmt = insert(edges_table).values(
-                id=e['name'],
-                geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"), water_body_id=body[0],
-                is_river=body[2])
-            conn.execute(stmt)
+            for e in tg.es:
+                stmt = insert(edges_table).values(
+                    id=e['name'],
+                    geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"), water_body_id=body[0],
+                    is_river=body[2])
+                conn.execute(stmt)
 
-        conn.commit()
+            conn.commit()
+        else:
+            # consider lake
+            print("x")
+            # TODO: enter lakes
+
+
+def _get_water_body_ids_to_consider(conn: sqlalchemy.Connection, water_body_table: Table) -> list[int]:
+    """
+    Narrow down water bodies to list of ids that are connected to harbor hubs.
+    :return: list[int]
+    """
+    hubs_table = _get_hubs_table()
+
+    # get ids of water bodies that are connected to hubs
+    water_body_ids: list[int] = []
+    cur = conn.execute(select(select(water_body_table.c.id).order_by(
+        func.ST_DistanceSpheroid(hubs_table.c.geom, water_body_table.c.geom)).limit(
+        1).scalar_subquery()).distinct().where(hubs_table.c.harbor == 'y').compile(
+        compile_kwargs={'literal_binds': True}))
+    for wb in cur:
+        water_body_ids.append(wb[0])
+
+    return water_body_ids
 
 
 def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> str | None:
@@ -335,7 +368,7 @@ def _merge_path(g: ig.Graph, source: str, target: str) -> [LineString, Polygon]:
 
     for id in shortest_path:
         vertex = g.vs[id]
-        #points.append(vertex['center'])
+        # points.append(vertex['center'])
         if shape is None:
             shape = vertex['geom']
         else:
@@ -384,8 +417,18 @@ def _get_parts_table() -> Table:
                  schema=args.wip_schema)
 
 
+def _get_hubs_table() -> Table:
+    return Table(args.hubs_table, metadata_obj,
+                 Column("id", Integer, primary_key=True, autoincrement=True),
+                 Column("geom", Geometry('POLYGON')),
+                 Column("rechubid", String, index=True, unique=True),
+                 Column("overnight", String),  # contains y/n
+                 Column("harbor", String),  # contains y/n
+                 schema=args.topology_schema)
+
+
 if __name__ == "__main__":
-    """Segment rivers and water bodies - this is stuff that will take a (very) long time."""
+    """Segment rivers and water bodies - this is stuff that may take a (very) long time."""
 
     # parse arguments
     parser = argparse.ArgumentParser(
@@ -406,6 +449,8 @@ if __name__ == "__main__":
     parser.add_argument('--parts-table', dest='parts_table', default='parts', type=str, help='name of parts table')
     parser.add_argument('--water-body-table', dest='water_body_table', default='water_body', type=str,
                         help='name of water_body table')
+    parser.add_argument('--original-hubs-table', dest='hubs_table', default='rechubs', type=str,
+                        help='table containing original hubs (and harbors)')
 
     parser.add_argument('--crs', dest='crs_no', default=4326, type=int, help='projection')
     parser.add_argument('--crs-to', dest='crs_to', default=32633, type=int,

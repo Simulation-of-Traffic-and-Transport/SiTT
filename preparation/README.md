@@ -4,4 +4,4 @@ This directory contains files that could be run once in order to prepare data in
 
 ## Contents
 
-* [River Segmentation and Preparation](segmentize_rivers.py)
+* [Water Body Segmentation and Preparation](segmentize_waterbodies.md) - [Code](segmentize_waterbodies.py)
