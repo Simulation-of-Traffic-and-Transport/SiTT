@@ -6,6 +6,7 @@ done in advance."""
 
 import argparse
 import sys
+import zlib
 from urllib import parse
 
 import igraph as ig
@@ -13,10 +14,12 @@ import shapely.ops as sp_ops
 import sqlalchemy
 from geoalchemy2 import Geometry
 from pyproj import Transformer
-from shapely import wkb, get_parts, prepare, destroy_prepared, \
-    delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, relate_pattern, centroid
+from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
+    delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, MultiPolygon, Point, \
+    relate_pattern, centroid
 from sqlalchemy import create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, select, text, func
+from extremitypathfinder import PolygonEnvironment
 
 
 def init():
@@ -157,7 +160,7 @@ def networks():
         print("Networking water body", body[0], "- river:", body[2])
 
         # river?
-        if body[2] == True:
+        if body[2]:  # col 2 is bool true or false, true is river
             # get all data
             tree = []
             stmt = select(parts_table.c.geom).select_from(parts_table).where(parts_table.c.water_body_id == body[0])
@@ -298,29 +301,86 @@ def networks():
                 conn.execute(stmt)
 
             conn.commit()
-        else:
+        else:  # false, not a river =>
             # consider lake
-            print("x")
-            # TODO: enter lakes
+            geom = wkb.loads(body[1].desc)
 
+            # get smaller ring shape from geometry of lake - this is where the boats can navigate within
+            # This is easier than doing the same in shapely (would need to transform into meters bases projection, then
+            # transform back).
+            result_shape: Polygon|MultiPolygon = wkb.loads(conn.execute(text(f"SELECT ST_Buffer(ST_GeogFromText('SRID={args.crs_no};{geom}'), -{args.lake_shore_distance})")).fetchone()[0])
+            # buffer can split our shape into multiple sub polygons, so we need to take case of this
+            shapes_to_check: list[Polygon] = []
+            print(result_shape)
 
-def _get_water_body_ids_to_consider(conn: sqlalchemy.Connection, water_body_table: Table) -> list[int]:
+            if type(result_shape) is MultiPolygon:
+                for sub_shape in result_shape.geoms:
+                    shapes_to_check.append(sub_shape)
+            else:
+                shapes_to_check.append(result_shape)
+
+            for ring_shape in shapes_to_check:
+                # now get the points where the harbors connect to the ring shape of the lake
+                harbor_lines: list[tuple[str, Point]] = []
+                points_for_navigation: list[list[Point]] = []
+
+                for hub_geom in water_body_ids[body[0]]:
+                    nearest_point = sp_ops.snap(hub_geom[1], ring_shape, 1)
+                    harbor_lines.append((hub_geom[0], hub_geom[1],))
+                    points_for_navigation.append(nearest_point)
+
+                # create environment for shortest paths
+                environment = PolygonEnvironment()
+                shore_line = ring_shape.exterior  # exterior hull
+                if not is_ccw(shore_line):  # need to be counter-clockwise
+                    shore_line = shore_line.reverse()
+
+                holes: list[tuple[float, float]] = []  # keeps holes
+                for hole in ring_shape.interiors:
+                    if is_ccw(hole):  # need to be clockwise
+                        hole = hole.reverse()
+                    holes.append(list(hole.coords)[:-1])
+
+                environment.store(list(shore_line.coords)[:-1], holes, validate=True)
+
+                # now get the shortest paths between all points
+                for i in range(len(points_for_navigation)):
+                    for j in range(i + 1, len(points_for_navigation)):
+                        path, _ = environment.find_shortest_path(list(points_for_navigation[i].coords)[0], list(points_for_navigation[j].coords)[0])
+                        path.insert(0, (harbor_lines[i][1].coords.xy[0][0], harbor_lines[i][1].coords.xy[1][0]))
+                        path.append((harbor_lines[j][1].coords.xy[0][0], harbor_lines[j][1].coords.xy[1][0]))
+                        shortest_path = LineString(path)
+                        print(shortest_path, harbor_lines[i][0], harbor_lines[j][0])
+
+                        stmt = insert(edges_table).values(
+                            id=harbor_lines[i][0] + '=' + harbor_lines[j][0] + ';' + str(zlib.crc32(wkb.dumps(shortest_path))),
+                            geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(shortest_path) + "'"), water_body_id=body[0],
+                            is_river=False)
+                        conn.execute(stmt)
+
+                conn.commit()
+
+def _get_water_body_ids_to_consider(conn: sqlalchemy.Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
     """
-    Narrow down water bodies to list of ids that are connected to harbor hubs.
-    :return: list[int]
+    Narrow down water bodies to list of ids that are connected to harbor hubs + their hubs.
+    :return: dict[int, list[str]]
     """
     hubs_table = _get_hubs_table()
 
-    # get ids of water bodies that are connected to hubs
-    water_body_ids: list[int] = []
-    cur = conn.execute(select(select(water_body_table.c.id).order_by(
+    # dict of water body ids and connected hubs
+    water_body_list: dict[int, list[tuple[str, Point]]] = {}
+
+    cur = conn.execute(select(hubs_table.c.geom, hubs_table.c.rechubid, select(water_body_table.c.id).order_by(
         func.ST_DistanceSpheroid(hubs_table.c.geom, water_body_table.c.geom)).limit(
-        1).scalar_subquery()).distinct().where(hubs_table.c.harbor == 'y').compile(
+        1).scalar_subquery()).where(hubs_table.c.harbor == 'y').compile(
         compile_kwargs={'literal_binds': True}))
     for wb in cur:
-        water_body_ids.append(wb[0])
+        if wb[2] not in water_body_list:
+            water_body_list[wb[2]] = []
+        shp = wkb.loads(wb[0].desc)
+        water_body_list[wb[2]].append((wb[1], shp,))
 
-    return water_body_ids
+    return water_body_list
 
 
 def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> str | None:
@@ -451,6 +511,8 @@ if __name__ == "__main__":
                         help='name of water_body table')
     parser.add_argument('--original-hubs-table', dest='hubs_table', default='rechubs', type=str,
                         help='table containing original hubs (and harbors)')
+    parser.add_argument('--lake-shore-distance', dest='lake_shore_distance', default=15, type=float,
+                        help='Distance in meters between lake and shore for circular path along shore in lakes')
 
     parser.add_argument('--crs', dest='crs_no', default=4326, type=int, help='projection')
     parser.add_argument('--crs-to', dest='crs_to', default=32633, type=int,
