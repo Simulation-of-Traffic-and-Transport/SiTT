@@ -12,6 +12,7 @@ from urllib import parse
 import igraph as ig
 import shapely.ops as sp_ops
 import sqlalchemy
+from extremitypathfinder import PolygonEnvironment
 from geoalchemy2 import Geometry
 from pyproj import Transformer
 from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
@@ -19,7 +20,6 @@ from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     relate_pattern, centroid
 from sqlalchemy import create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, select, text, func
-from extremitypathfinder import PolygonEnvironment
 
 
 def init():
@@ -342,6 +342,8 @@ def networks():
                     holes.append(list(hole.coords)[:-1])
 
                 environment.store(list(shore_line.coords)[:-1], holes, validate=True)
+                # TODO: Check, there is something to do, our path does not look right...
+                # open issue on this matter: https://github.com/jannikmi/extremitypathfinder/issues/84
 
                 # now get the shortest paths between all points
                 for i in range(len(points_for_navigation)):
