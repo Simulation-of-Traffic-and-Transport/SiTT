@@ -11,14 +11,13 @@ from urllib import parse
 
 import igraph as ig
 import shapely.ops as sp_ops
-import sqlalchemy
 from extremitypathfinder import PolygonEnvironment
 from geoalchemy2 import Geometry
 from pyproj import Transformer
 from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, MultiPolygon, Point, \
     relate_pattern, centroid
-from sqlalchemy import create_engine, Table, Column, literal_column, insert, schema, MetaData, \
+from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, select, text, func
 
 
@@ -362,7 +361,7 @@ def networks():
 
                 conn.commit()
 
-def _get_water_body_ids_to_consider(conn: sqlalchemy.Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
+def _get_water_body_ids_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
     """
     Narrow down water bodies to list of ids that are connected to harbor hubs + their hubs.
     :return: dict[int, list[str]]
