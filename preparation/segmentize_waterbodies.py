@@ -5,6 +5,7 @@
 done in advance."""
 
 import argparse
+import pickle
 import sys
 import zlib
 from urllib import parse
@@ -54,6 +55,10 @@ def segment_rivers_and_water_bodies():
     water_body_table = _get_water_body_table()
     parts_table = _get_parts_table()
 
+    # truncate
+    conn.execute(text("TRUNCATE TABLE " + args.wip_schema + "." + args.parts_table))
+    conn.commit()
+
     # read water body entries
     for body in conn.execute(water_body_table.select()):
         print("Segmenting water body", body[0])
@@ -81,6 +86,10 @@ def segment_rivers_and_water_bodies_no_geos():
         _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
     water_body_table = _get_water_body_table()
     parts_table = _get_parts_table()
+
+    # truncate
+    conn.execute(text("TRUNCATE TABLE " + args.wip_schema + "." + args.parts_table))
+    conn.commit()
 
     # read water body entries
     for body in conn.execute(water_body_table.select()):
@@ -155,7 +164,7 @@ def networks():
     water_body_ids = _get_water_body_ids_to_consider(conn, water_body_table)
 
     # read water body entries
-    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 196)): # TODO water_body_ids
+    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 11)): # TODO water_body_ids
         print("Networking water body", body[0], "- river:", body[2])
 
         # river?
@@ -266,12 +275,12 @@ def networks():
                     tg.vs.find(name=source)
                 except:
                     source_node = g.vs.find(name=source)
-                    tg.add_vertex(source_node['name'], geom=source_node['geom'], center=source_node['center'])
+                    tg.add_vertices(source_node['name'], attributes={"geom": source_node['geom'], "center": source_node['center']})
                 try:
                     tg.vs.find(name=target)
                 except:
                     target_node = g.vs.find(name=target)
-                    tg.add_vertex(target_node['name'], geom=target_node['geom'], center=target_node['center'])
+                    tg.add_vertices(target_node['name'], attributes={"geom": target_node['geom'], "center": target_node['center']})
 
                 # construct new edge from path
                 [line, shape] = _merge_path(g, source, target)
@@ -280,7 +289,7 @@ def networks():
                 try:
                     tg.es.find(name=edge_name)
                 except:
-                    tg.add_edge(source, target, geom=line, name=edge_name, length=length)
+                    tg.add_edges([(source, target)], attributes={'geom': line, 'name': edge_name, 'length': length})
                 # TODO: do something with the shape
                 # print(shape)
                 # TODO: width of segment
@@ -300,6 +309,13 @@ def networks():
                 conn.execute(stmt)
 
             conn.commit()
+
+            # pickle graph
+            # TODO: remove from debug
+            with open('graph_dump.pickle', 'wb') as f:
+                pickle.dump(tg, f)
+
+            print("Graph saved to 'graph_dump.pickle'")
         else:  # false, not a river =>
             # consider lake
             geom = wkb.loads(body[1].desc)
