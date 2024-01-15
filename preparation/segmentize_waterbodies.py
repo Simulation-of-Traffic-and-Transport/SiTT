@@ -164,7 +164,7 @@ def networks():
     water_body_ids = _get_water_body_ids_to_consider(conn, water_body_table)
 
     # read water body entries
-    for body in conn.execute(water_body_table.select().where(water_body_table.c.id == 11)): # TODO water_body_ids
+    for body in conn.execute(water_body_table.select().where(water_body_table.c.id.in_(water_body_ids.keys()))):
         print("Networking water body", body[0], "- river:", body[2])
 
         # river?
@@ -310,12 +310,12 @@ def networks():
 
             conn.commit()
 
-            # pickle graph
-            # TODO: remove from debug
-            with open('graph_dump.pickle', 'wb') as f:
-                pickle.dump(tg, f)
-
-            print("Graph saved to 'graph_dump.pickle'")
+            # # pickle graph
+            # # TODO: remove from debug
+            # with open('graph_dump.pickle', 'wb') as f:
+            #     pickle.dump(tg, f)
+            #
+            # print("Graph saved to 'graph_dump.pickle'")
         else:  # false, not a river =>
             # consider lake
             geom = wkb.loads(body[1].desc)
