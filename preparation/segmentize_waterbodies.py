@@ -5,21 +5,21 @@
 done in advance."""
 
 import argparse
-import pickle
 import sys
 import zlib
 from urllib import parse
 
 import igraph as ig
+import pyproj
 import shapely.ops as sp_ops
 from extremitypathfinder import PolygonEnvironment
 from geoalchemy2 import Geometry
 from pyproj import Transformer
 from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, MultiPolygon, Point, \
-    relate_pattern, centroid
+    relate_pattern, centroid, shortest_line
 from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
-    Integer, Boolean, String, select, text, func
+    Integer, Boolean, String, Float, select, text, func
 
 
 def init():
@@ -150,6 +150,7 @@ def networks():
                         Column("geom", Geometry('LINESTRING')),
                         Column("water_body_id", Integer, index=True),
                         Column("is_river", Boolean),
+                        Column("min_width", Float),
                         schema=args.wip_schema)
 
     metadata_obj.create_all(bind=conn, checkfirst=True)
@@ -231,7 +232,6 @@ def networks():
                 target = tg.vs[e.target]
                 e['name'] = source['name'] + '=' + target['name']
                 e['geom'] = LineString([source['center'], target['center']])
-                e['length'] = sp_ops.transform(transformer.transform, e['geom']).length  # TODO: not needed now
 
             # find chain components - this is a list of single edge lists
             # walk chains and get endpoints for each component cluster
@@ -283,16 +283,13 @@ def networks():
                     tg.add_vertices(target_node['name'], attributes={"geom": target_node['geom'], "center": target_node['center']})
 
                 # construct new edge from path
-                [line, shape] = _merge_path(g, source, target)
+                [line, min_width] = _merge_path(g, source, target, transformer)
                 length = sp_ops.transform(transformer.transform, line).length
                 edge_name = source + '=' + target
                 try:
                     tg.es.find(name=edge_name)
                 except:
-                    tg.add_edges([(source, target)], attributes={'geom': line, 'name': edge_name, 'length': length})
-                # TODO: do something with the shape
-                # print(shape)
-                # TODO: width of segment
+                    tg.add_edges([(source, target)], attributes={'geom': line, 'name': edge_name, 'length': length, 'min_width': min_width})
 
             for v in tg.vs:
                 stmt = insert(nodes_table).values(
@@ -305,7 +302,8 @@ def networks():
                 stmt = insert(edges_table).values(
                     id=e['name'],
                     geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"), water_body_id=body[0],
-                    is_river=body[2])
+                    is_river=body[2],
+                    min_width=e['min_width'])
                 conn.execute(stmt)
 
             conn.commit()
@@ -431,10 +429,9 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
     return str_idx
 
 
-def _merge_path(g: ig.Graph, source: str, target: str) -> [LineString, Polygon]:
+def _merge_path(g: ig.Graph, source: str, target: str, transformer: pyproj.Transformer) -> [LineString, float]:
     """merge a path from source to target in the graph into a single shape and edge"""
     points: list = []
-    shape: Polygon | None = None
     last_shape: Polygon | None = None
 
     shortest_path = g.get_shortest_paths(source, target)[0]
@@ -443,17 +440,25 @@ def _merge_path(g: ig.Graph, source: str, target: str) -> [LineString, Polygon]:
     vertex = g.vs[shortest_path[0]]
     points.append(vertex['center'])
 
+    # min width of first and last end points added...
+    pts = sp_ops.nearest_points(vertex['geom'].boundary, vertex['center'])
+    min_width: float = sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length * 2  # *2, because we need minimum to both sides
+
+    vertex = g.vs[shortest_path[-1]]
+    pts = sp_ops.nearest_points(vertex['geom'].boundary, vertex['center'])
+    min_width = min(min_width, sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length * 2) # *2, because we need minimum to both sides
+
     for id in shortest_path:
         vertex = g.vs[id]
-        # points.append(vertex['center'])
-        if shape is None:
-            shape = vertex['geom']
-        else:
-            shape = shape.union(vertex['geom'])
 
         # find common line of both shapes and take the center of it to get the new point
         if last_shape is not None:
-            points.append(centroid(intersection(last_shape, vertex['geom'])))
+            common_line = intersection(last_shape, vertex['geom'])
+            # calculate the length of the common line - this is the width of river
+            length = sp_ops.transform(transformer.transform, common_line).length
+            if length < min_width:
+                min_width = length
+            points.append(centroid(common_line))
 
         last_shape = vertex['geom']
 
@@ -461,7 +466,7 @@ def _merge_path(g: ig.Graph, source: str, target: str) -> [LineString, Polygon]:
     vertex = g.vs[shortest_path[-1]]
     points.append(vertex['center'])
 
-    return LineString(points), shape
+    return LineString(points), min_width
 
 
 def _create_connection_string(server: str, db: str, user: str, password: str, port: int, for_printing=False):
