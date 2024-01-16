@@ -5,8 +5,10 @@
 done in advance."""
 
 import argparse
+import pickle
 import sys
 import zlib
+from os.path import exists
 from urllib import parse
 
 import igraph as ig
@@ -60,6 +62,7 @@ def segment_rivers_and_water_bodies():
     conn.commit()
 
     # read water body entries
+    # TODO: only segment relevant water bodies
     for body in conn.execute(water_body_table.select()):
         print("Segmenting water body", body[0])
 
@@ -92,6 +95,7 @@ def segment_rivers_and_water_bodies_no_geos():
     conn.commit()
 
     # read water body entries
+    # TODO: only segment relevant water bodies
     for body in conn.execute(water_body_table.select()):
         print("Segmenting water body", body[0])
 
@@ -150,7 +154,8 @@ def networks():
                         Column("geom", Geometry('LINESTRING')),
                         Column("water_body_id", Integer, index=True),
                         Column("is_river", Boolean),
-                        Column("min_width", Float),
+                        Column("length", Float, default=0.),
+                        Column("min_width", Float, default=0.),
                         schema=args.wip_schema)
 
     metadata_obj.create_all(bind=conn, checkfirst=True)
@@ -170,47 +175,57 @@ def networks():
 
         # river?
         if body[2]:  # col 2 is bool true or false, true is river
-            # get all data
-            tree = []
-            stmt = select(parts_table.c.geom).select_from(parts_table).where(parts_table.c.water_body_id == body[0])
-            for row in conn.execute(stmt):
-                tree.append(wkb.loads(row[0].desc))
+            if exists('graph_dump_' + str(body[0]) + '.pickle'):
+                with open('graph_dump_' + str(body[0]) + '.pickle', 'rb') as f:
+                    g = pickle.load(f)
+            else:
+                # get all data
+                tree = []
+                stmt = select(parts_table.c.geom).select_from(parts_table).where(parts_table.c.water_body_id == body[0])
+                for row in conn.execute(stmt):
+                    tree.append(wkb.loads(row[0].desc))
 
-            print("Got", len(tree), "parts to consider")
+                print("Got", len(tree), "parts to consider")
 
-            # keeps entities already considered and still to consider
-            already_considered = set()
-            to_consider = set()
-            to_consider.add(0)  # we will always consider the first entry
+                # keeps entities already considered and still to consider
+                already_considered = set()
+                to_consider = set()
+                to_consider.add(0)  # we will always consider the first entry
 
-            # efficient tree tester for fast geometry functions
-            tree = STRtree(tree)
+                # efficient tree tester for fast geometry functions
+                tree = STRtree(tree)
 
-            # graph
-            g = ig.Graph()
-            counter = 0
+                # graph
+                g = ig.Graph()
+                counter = 0
 
-            while len(to_consider) > 0:
-                idx = to_consider.pop()
-                already_considered.add(idx)
-                entity = tree.geometries.take(idx)
+                while len(to_consider) > 0:
+                    idx = to_consider.pop()
+                    already_considered.add(idx)
+                    entity = tree.geometries.take(idx)
 
-                str_idx = _add_vertex(g, body[0], idx, entity)
+                    str_idx = _add_vertex(g, body[0], idx, entity)
 
-                # get neighbors
-                for id in tree.query(entity, 'touches'):
-                    if id in already_considered or not relate_pattern(entity, tree.geometries.take(id), '****1****'):
-                        continue
-                    to_consider.add(id)
+                    # get neighbors
+                    for id in tree.query(entity, 'touches'):
+                        if id in already_considered or not relate_pattern(entity, tree.geometries.take(id), '****1****'):
+                            continue
+                        to_consider.add(id)
 
-                    # add vertex
-                    str_id = _add_vertex(g, body[0], id, tree.geometries.take(id))
+                        # add vertex
+                        str_id = _add_vertex(g, body[0], id, tree.geometries.take(id))
 
-                    g.add_edge(str_idx, str_id)
+                        g.add_edge(str_idx, str_id)
 
-                counter += 1
-                if counter % 1000 == 0:
-                    print(counter, "shapes processed, water body", body[0])
+                    counter += 1
+                    if counter % 1000 == 0:
+                        print(counter, "shapes processed, water body", body[0])
+
+                # pickle graph
+                with open('graph_dump_' + str(body[0]) + '.pickle', 'wb') as f:
+                    pickle.dump(g, f)
+
+                print("Graph saved to 'graph_dump_" + str(body[0]) + ".pickle'")
 
             print("Neighbors tested, compacting graph.")
 
@@ -232,6 +247,9 @@ def networks():
                 target = tg.vs[e.target]
                 e['name'] = source['name'] + '=' + target['name']
                 e['geom'] = LineString([source['center'], target['center']])
+                e['min_width'] = min(_get_minimum_distance_in_polygon(source['geom'], target['center'], transformer),
+                                     _get_minimum_distance_in_polygon(target['geom'], target['center'], transformer))
+                e['length'] = sp_ops.transform(transformer.transform, e['geom']).length
 
             # find chain components - this is a list of single edge lists
             # walk chains and get endpoints for each component cluster
@@ -299,11 +317,17 @@ def networks():
                 conn.execute(stmt)
 
             for e in tg.es:
+                # just to make sure...
+                if e['min_width'] is None:
+                    e['min_width'] = 0.
+                    # TODO: should be set!
                 stmt = insert(edges_table).values(
                     id=e['name'],
-                    geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"), water_body_id=body[0],
+                    geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(e['geom']) + "'"),
+                    water_body_id=body[0],
                     is_river=body[2],
-                    min_width=e['min_width'])
+                    min_width=e['min_width'],
+                    length=e['length'])
                 conn.execute(stmt)
 
             conn.commit()
@@ -324,7 +348,6 @@ def networks():
             result_shape: Polygon|MultiPolygon = wkb.loads(conn.execute(text(f"SELECT ST_Buffer(ST_GeogFromText('SRID={args.crs_no};{geom}'), -{args.lake_shore_distance})")).fetchone()[0])
             # buffer can split our shape into multiple sub polygons, so we need to take case of this
             shapes_to_check: list[Polygon] = []
-            print(result_shape)
 
             if type(result_shape) is MultiPolygon:
                 for sub_shape in result_shape.geoms:
@@ -365,13 +388,14 @@ def networks():
                         path.insert(0, (harbor_lines[i][1].coords.xy[0][0], harbor_lines[i][1].coords.xy[1][0]))
                         path.append((harbor_lines[j][1].coords.xy[0][0], harbor_lines[j][1].coords.xy[1][0]))
                         shortest_path = LineString(path)
-                        print(shortest_path, harbor_lines[i][0], harbor_lines[j][0])
+                        length = sp_ops.transform(transformer.transform, shortest_path).length
 
                         stmt = insert(edges_table).values(
                             id=harbor_lines[i][0] + '=' + harbor_lines[j][0] + ';' + str(zlib.crc32(wkb.dumps(shortest_path))),
                             geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(shortest_path) + "'"), water_body_id=body[0],
-                            is_river=False)
+                            is_river=False, min_width=0., length=length)
                         conn.execute(stmt)
+                        # TODO: any measurement for width?
 
                 conn.commit()
 
@@ -416,6 +440,12 @@ def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> st
     return None
 
 
+def _get_minimum_distance_in_polygon(polygon: Polygon, center: Point, transformer: pyproj.Transformer) -> float:
+    """Get the minimum distance between a point and a polygon boundary."""
+    pts = sp_ops.nearest_points(polygon.boundary, center)
+    return sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length
+
+
 def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
     """Add a vertex to the graph. if it does not exist yet. Returns the index of the vertex."""
     str_idx = str(water_body_id) + '-' + str(idx)
@@ -441,12 +471,10 @@ def _merge_path(g: ig.Graph, source: str, target: str, transformer: pyproj.Trans
     points.append(vertex['center'])
 
     # min width of first and last end points added...
-    pts = sp_ops.nearest_points(vertex['geom'].boundary, vertex['center'])
-    min_width: float = sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length * 2  # *2, because we need minimum to both sides
-
-    vertex = g.vs[shortest_path[-1]]
-    pts = sp_ops.nearest_points(vertex['geom'].boundary, vertex['center'])
-    min_width = min(min_width, sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length * 2) # *2, because we need minimum to both sides
+    v2 = g.vs[shortest_path[-1]]
+    min_width = min(_get_minimum_distance_in_polygon(vertex['geom'], vertex['center'], transformer),
+                    _get_minimum_distance_in_polygon(v2['geom'], v2['center'], transformer)) * 2
+    # *2, because we need minimum to both sides
 
     for id in shortest_path:
         vertex = g.vs[id]
