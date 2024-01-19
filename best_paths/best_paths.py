@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Read pickled graph."""
+"""Find the best paths for a given route through the graph"""
 
 import time
 import pickle
@@ -16,9 +16,16 @@ import argparse
 from sqlalchemy import create_engine, schema, Table, MetaData, Column, Integer, String, insert, delete
 from geoalchemy2 import Geometry, WKTElement
 from shapely.geometry import LineString
-from typing import List, Tuple, NewType, Dict
+from typing import List, Tuple, NewType
+
+"""
+Good routes for testing:
+    - start_id: 161, end_id: 369 (has diverse paths for the route and fast)
+    - start_id: 18723, end_id: 15062 (for performance)
+"""
 
 EdgeList = NewType('EdgeList', List[int])
+distance_cache = {}
 
 
 class BestPathsResult:
@@ -80,16 +87,16 @@ def get_k_shortest_paths_a_star(start_index: int, end_index: int, k: int, graph:
 
 def _a_star(start_index: int, end_index: int, graph: ig.Graph) -> EdgeList:
 
-    heuristic_transformer = Transformer.from_crs(4326, 32633, always_xy=True)
-    heuristic_positions_cache = {}
-
     first: Node = Node(start_index, 0, None)
+    first_entry = (0, first)
     open_list: typing.List[typing.Tuple[float, Node]] = []
-    heapq.heappush(open_list, (0, first))
+    open_list_set = {first.vertex_id: first_entry}
+    heapq.heappush(open_list, first_entry)
 
     while len(open_list) > 0:
 
         current = heapq.heappop(open_list)[1]
+        del open_list_set[current.vertex_id]
 
         # found a path
         if current.vertex_id == end_index:
@@ -112,7 +119,7 @@ def _a_star(start_index: int, end_index: int, graph: ig.Graph) -> EdgeList:
 
             yield edge_list
 
-        neighbors = g.es.select(_source=current.vertex_id)
+        neighbors = g.vs[current.vertex_id].all_edges()
         for edge in neighbors:
 
             # if the edge leads to the parent we don't consider it. This is a speed-up
@@ -126,45 +133,37 @@ def _a_star(start_index: int, end_index: int, graph: ig.Graph) -> EdgeList:
             neighbor_id = edge.target_vertex.index if edge.source_vertex.index == current.vertex_id \
                 else edge.source_vertex.index
 
-            old_node_entry: Tuple[float, Node] | None = None
-            for node_entry in open_list:
-                if node_entry[1].vertex_id == neighbor_id:
-                    old_node_entry = node_entry
-                    break
-
-            if old_node_entry is None:
-                new_node = Node(neighbor_id, new_cost, current)
-                distance_to_target = new_cost + _heuristic(neighbor_id, end_index, graph, heuristic_transformer,
-                                                           heuristic_positions_cache)
-                heapq.heappush(open_list, (distance_to_target, new_node))
-
-            else:
+            if neighbor_id in open_list_set:
+                old_node_entry = open_list_set[neighbor_id]
                 old_node: Node = old_node_entry[1]
                 if new_cost < old_node.cost_so_far:
                     open_list.remove(old_node_entry)
                     old_node.cost_so_far = new_cost
                     old_node.parent = current
-                    h = new_cost + _heuristic(old_node.vertex_id, end_index, graph, heuristic_transformer,
-                                              heuristic_positions_cache)
-                    heapq.heappush(open_list, (h, old_node))
+                    h = new_cost + _heuristic(graph, old_node.vertex_id, end_index)
+                    new_entry = (h, old_node)
+                    heapq.heappush(open_list, new_entry)
+                    open_list_set[old_node.vertex_id] = new_entry
+
+            else:
+                new_node = Node(neighbor_id, new_cost, current)
+                distance_to_target = new_cost + _heuristic(graph, neighbor_id, end_index)
+                entry = (distance_to_target, new_node)
+                heapq.heappush(open_list, entry)
+                open_list_set[new_node.vertex_id] = entry
 
 
-def _heuristic(a: int, b: int, graph: ig.Graph, transformer: Transformer, cache: Dict):
+def _heuristic(graph: ig.Graph, a: int, b: int):
 
-    if a in cache:
-        start_position = cache[a]
+    global distance_cache
+    if (a, b) in distance_cache:
+        return distance_cache[(a, b)]
     else:
-        start_position = sp_ops.transform(transformer.transform, graph.vs[a]["center"])
-        cache[a] = start_position
-
-    if b in cache:
-        end_position = cache[b]
-    else:
-        end_position = sp_ops.transform(transformer.transform, graph.vs[b]["center"])
-        cache[b] = end_position
-
-    distance = start_position.distance(end_position)
-    return distance
+        start_position = graph.vs[a]["world_position"]
+        end_position = graph.vs[b]["world_position"]
+        distance = start_position.distance(end_position)
+        distance_cache[(a, b)] = distance
+        return distance
 
 
 def _create_connection_string(server: str, db: str, user: str, password: str, port: int, for_printing=False):
@@ -285,6 +284,15 @@ if __name__ == "__main__":
         g: ig.Graph = pickle.load(f)
         print(g.summary())
 
+        # precompute all world positions to speed up A* heuristic
+        transformer = Transformer.from_crs(4326, 32633, always_xy=True)
+        world_positions = []
+        for vertex in g.vs:
+            position = sp_ops.transform(transformer.transform, vertex["center"])
+            world_positions.append(position)
+        g.vs["world_position"] = world_positions
+        print(g.summary())
+
         vertex_count = len(g.vs)
         start_node = 0
         end_node = 0
@@ -353,6 +361,13 @@ if __name__ == "__main__":
 
         print(f"Method: A*")
         print(f"Found {len(a_star_paths)} paths")
+        print(f"The operation took {(end - start):.2f} seconds.")
+
+        start = time.time()
+        for i in range(0, 5):
+            g.get_shortest_path_astar(start_node, end_node, _heuristic, weights=g.es["length"], output="epath")
+        end = time.time()
+        print(f"Method: IGraph A*")
         print(f"The operation took {(end - start):.2f} seconds.")
 
         # saving and loading with pickle
