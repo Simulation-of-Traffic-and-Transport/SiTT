@@ -361,9 +361,9 @@ def networks():
                 points_for_navigation: list[list[Point]] = []
 
                 for hub_geom in water_body_ids[body[0]]:
-                    nearest_point = sp_ops.snap(hub_geom[1], ring_shape, 1)
+                    nearest_points = sp_ops.nearest_points(hub_geom[1], ring_shape)
                     harbor_lines.append((hub_geom[0], hub_geom[1],))
-                    points_for_navigation.append(nearest_point)
+                    points_for_navigation.append(nearest_points[1])
 
                 # create environment for shortest paths
                 environment = PolygonEnvironment()
