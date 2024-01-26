@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: MIT
 """Create routes to be traversed by the simulation."""
 import logging
-from bisect import insort
+import sys
 
 import igraph as ig
+import numpy as np
+from shapely import reverse
 import yaml
 
 from sitt import BaseClass, Configuration, Context, PreparationInterface
@@ -32,7 +34,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
         self.maximum_routes: int = maximum_routes
         """Maximum number of routes to retain (if greater than 0, x shortest routes will be retained)."""
         self.maximum_difference_from_shortest: float = maximum_difference_from_shortest
-        """Maximum difference from shortest route (if greater than 0)"""
+        """Maximum difference from shortest route (factor, if greater than 1)"""
 
     def run(self, config: Configuration, context: Context) -> Context:
         if logger.level <= logging.INFO:
@@ -45,82 +47,218 @@ class CreateRoutes(BaseClass, PreparationInterface):
         if not config.simulation_end:
             logger.error("simulation_end is empty - simulation failed!")
 
-        # We first create the set of simple edge paths and then construct a directed graph from this. The directed graph
-        # will contain all possible paths from source to target, so we can efficiently traverse it.
-        context.routes = ig.Graph(directed=True)
+        # get raw routes
+        all_paths, min_length, max_length = self._get_raw_routes(config.simulation_start, config.simulation_end,
+                                                                 context.graph)
 
-        # create sorted routes in order of increasing lengths
-        sorted_routes = []
+        # prune routes
+        all_paths = self._prune_routes_maximum_difference_from_shortest(all_paths, min_length, max_length)
+        all_paths = self._prune_routes_maximum_routes(all_paths)
 
-        # iGraph
-        g = ig.Graph()
+        # Now create the set of simple edge paths and then construct a directed graph from this. The directed graph will
+        # contain all possible paths from source to target, so we can efficiently traverse it.
+        edges_considered: set[int] = set()
+        g = ig.Graph(directed=True)
 
-        for node in context.graph.nodes(data=True):
-            g.add_vertex(node[0], **node[1])
+        for p in all_paths:
+            self._add_directed_graph(p[1], config.simulation_start, context.graph, g)
 
-        for edge in context.graph.edges(data=True):
-            g.add_edge(edge[0], edge[1], **edge[2])
+        context.routes = g
 
-        out = g.get_k_shortest_paths(config.simulation_start, config.simulation_end, k=100, weights=g.es['length_m'], mode="all")
+        # # TODO: https://github.com/guilhermemm/k-shortest-path
+        # # Besser ist Eppstein?
+        # # Siehe auch igraph-Packet
+        # # Networkx slow: https://www.timlrx.com/blog/benchmark-of-popular-graph-network-packages-v2
+        # # k-shortest paths using Yen's or Eppstein's algorithm
+        # # Yen for networkx/igraph:
+        # # https://stackoverflow.com/questions/15878204/k-shortest-paths-implementation-in-igraph-networkx-yens-algorithm
+        # print("TODO")
+        # exit()
+        # for p in nx.all_simple_edge_paths(context.graph, config.simulation_start, config.simulation_end):
+        #     r = SortableRoute()
+        #     r.length = 0.
+        #     r.legs = p
+        #
+        #     # get total length
+        #     for leg in p:
+        #         r.length += context.graph[leg[0]][leg[1]][leg[2]]['length_m']
+        #
+        #     insort(sorted_routes, r)
+        #
+        # for p in all_routes:
+        #     for leg in p:
+        #         if not context.routes.has_edge(leg[0], leg[1], leg[2]):
+        #             context.routes.add_edge(leg[0], leg[1], leg[2])
 
-        print(len(out))
-
-        # TODO: https://github.com/guilhermemm/k-shortest-path
-        # Besser ist Eppstein?
-        # Siehe auch igraph-Packet
-        # Networkx slow: https://www.timlrx.com/blog/benchmark-of-popular-graph-network-packages-v2
-        # k-shortest paths using Yen's or Eppstein's algorithm
-        # Yen for networkx/igraph:
-        # https://stackoverflow.com/questions/15878204/k-shortest-paths-implementation-in-igraph-networkx-yens-algorithm
-        print("TODO")
-        exit()
-        for p in nx.all_simple_edge_paths(context.graph, config.simulation_start, config.simulation_end):
-            r = SortableRoute()
-            r.length = 0.
-            r.legs = p
-
-            # get total length
-            for leg in p:
-                r.length += context.graph[leg[0]][leg[1]][leg[2]]['length_m']
-
-            insort(sorted_routes, r)
-
-        # remove routes longer than a certain length, if set
-        if self.maximum_difference_from_shortest > 0 and len(sorted_routes):
-            maximum_length = sorted_routes[0].length * self.maximum_difference_from_shortest
-
-            found = -1
-            for idx in range(len(sorted_routes) - 1):
-                if sorted_routes[idx + 1].length > maximum_length:
-                    found = idx
-                    break
-
-            # special case: cutoff on first entry
-            if found == 0:
-                sorted_routes = []
-                logger.info("PreparationInterface CreateRoutes: cutoff longer routes to length 0")
-            if found > 0:
-                sorted_routes = sorted_routes[:found]
-                if logger.level <= logging.INFO:
-                    logger.info(
-                        "PreparationInterface CreateRoutes: cutoff longer routes to length " + str(len(sorted_routes)))
-
-        all_routes = list(map(lambda a: a.legs, sorted_routes))
-
-        # prune routes by maximum_routes
-        if 0 < self.maximum_routes < len(all_routes):
-            all_routes = all_routes[:self.maximum_routes]
-            if logger.level <= logging.INFO:
-                logger.info(
-                    "PreparationInterface CreateRoutes: cutoff maximum number of routes to length " + str(
-                        len(all_routes)))
-
-        for p in all_routes:
-            for leg in p:
-                if not context.routes.has_edge(leg[0], leg[1], leg[2]):
-                    context.routes.add_edge(leg[0], leg[1], leg[2])
+        if logger.level <= logging.INFO:
+            logger.info("PreparationInterface CreateRoutes: finished creating routes and checking lengths - "
+                        f"considered {len(all_paths)} routes. Created directed graph with {len(g.vs)}"
+                        f"vertices and {len(g.es)} edges.")
 
         return context
+
+    def _get_raw_routes(self, simulation_start: str, simulation_end: str, g: ig.Graph)\
+            -> tuple[list[tuple[float, list[int]]], float, float]:
+        """
+        Get raw shortest paths from start to end - this will return a list of tuples (distance, path), containing the
+        path (edge numbers in igraph) and the distance from start to end (in m). The method also returns the shortest
+        and longest distance as float.
+
+        :param simulation_start:
+        :param simulation_end:
+        :param g:
+        :return: tuples of paths and their length, shortest and longest distance
+        """
+
+        # We create a number of shortest paths from the start to the end - this is a set of paths we can choose from.
+        # We will reduce the numbers below.
+        raw_shortest_paths = g.get_k_shortest_paths(simulation_start, to=simulation_end, k=100,
+                                                    weights='length_m', mode='all', output='epath')  # edge path!
+
+        longest_path_distance: float = sys.float_info.min
+        shortest_path_distance: float = sys.float_info.max
+        shortest_paths: list[tuple[float, list[int]]] = []
+
+        # determine length of each shortest path
+        for path in raw_shortest_paths:
+            if len(path) > 0:
+                distance = 0.0
+                for e in path:
+                    distance += g.es[e]["length_m"]
+
+                shortest_paths.append((distance, path))
+
+                if distance > longest_path_distance:
+                    longest_path_distance = distance
+                if distance < shortest_path_distance:
+                    shortest_path_distance = distance
+
+        return shortest_paths, shortest_path_distance, longest_path_distance
+
+    def _prune_routes_maximum_difference_from_shortest(self, all_paths: list[tuple[float, list[int]]],
+                                                       min_length: float, max_length: float)\
+            -> list[tuple[float, list[int]]]:
+        """
+        Remove routes longer than a certain length, if set in config.
+
+        :param all_paths:
+        :param min_length:
+        :param max_length:
+        :return: Updated list of routes.
+        """
+        if self.maximum_difference_from_shortest > 1.0 and len(all_paths):
+            maximum_length_allowed = min_length * self.maximum_difference_from_shortest
+            # only continue, if maximum_length_allowed is lower than max_length
+            if maximum_length_allowed <= max_length:
+                path_copy: list[tuple[float, list[int]]] = []
+
+                for path in all_paths:
+                    if path[0] < maximum_length_allowed:
+                        path_copy.append(path)
+
+                if logger.level <= logging.INFO:
+                    logger.info(
+                        "PreparationInterface CreateRoutes: Maximum difference from shortest route allowed: Weeded out "
+                        + str(len(all_paths) - len(path_copy)) + " routes, maximum length allowed: "
+                        + str(maximum_length_allowed))
+
+                return path_copy
+
+        return all_paths
+
+    def _prune_routes_maximum_routes(self, all_paths: list[tuple[float, list[int]]]) -> list[tuple[float, list[int]]]:
+        """
+        Prune routes, so that total number of routes is less than maximum_routes. This method will sort the routes by
+        length, so shorter routes are preferred.
+
+        :param all_paths:
+        :return:
+        """
+        # prune routes by maximum_routes
+        if 0 < self.maximum_routes < len(all_paths):
+            # ok, we take the n shortest routes, so we need to sort them first
+            all_paths = sorted(all_paths, key=lambda x: x[0])
+
+            all_paths = all_paths[:self.maximum_routes]
+            if logger.level <= logging.INFO:
+                logger.info(
+                    "PreparationInterface CreateRoutes: cutoff maximum number of routes to length "
+                    + str(len(all_paths)))
+
+        return all_paths
+
+    def _add_directed_graph(self, edges: list[int], start: str, g: ig.Graph, tg: ig.Graph) -> None:
+        """
+        Will add a directed graph to target graph from data of the source graph.
+
+        :param edges: edge list to add from source graph to target graph
+        :param start: start none name
+        :param g: source graph
+        :param tg: target graph
+        :return: None
+        """
+
+        # add start vertex, last vertex will keep last vertex to start from, so we know how to direct the edges
+        last_vertex = g.vs.find(name=start)
+        self._add_vertex_to_graph(last_vertex.attributes(), tg)
+
+        # traverse edges and check their direction
+        for e in edges:
+            edge = g.es[e]  # current edge to consider
+            target: ig.Vertex | None = None  # keeps next target vertex
+
+            if last_vertex.index == edge.source:  # edge is in correct order, add it to the target graph as is
+                # add target vertex
+                target = g.vs[edge.target]
+                self._add_vertex_to_graph(target.attributes(), tg)
+
+                # add edge
+                self._add_edge_to_graph(last_vertex['name'], target['name'], edge.attributes(), tg)
+            elif last_vertex.index != edge.source and last_vertex.index == edge.target:  # reverse edge
+                # add source vertex
+                target = g.vs[edge.source]
+                self._add_vertex_to_graph(target.attributes(), tg)
+
+                attr = edge.attributes().copy()
+                # flip data
+                attr['legs'] = np.flip(attr['legs'])
+                attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop degrees, too
+                attr['geom'] = reverse(attr['geom'])
+                attr['name'] = attr['name'] + '_rev'  # add new name - should be very unlikely, but just in case
+
+                # add edge
+                self._add_edge_to_graph(last_vertex['name'], target['name'], attr, tg)
+            else:
+                # this case should not happen, but just to be safe...
+                logger.fatal("PreparationInterface CreateRoutes: graph error - not consecutive vertices!")
+
+            last_vertex = target
+
+    def _add_vertex_to_graph(self, attributes: dict, g: ig.Graph) -> None:
+        """
+        Will add a vertex to a graph, if it does not exist yet (name = unique id)
+
+        :param attributes: vertex attributes
+        :param g: graph
+        :return: None
+        """
+        try:
+            g.vs.find(name=attributes['name'])
+        except:
+            g.add_vertices(1, attributes=attributes)
+
+    def _add_edge_to_graph(self, from_name: str, to_name: str, attributes: dict, g: ig.Graph) -> None:
+        """
+        Will add an edge to a graph, if it does not exist yet (name = unique id)
+
+        :param attributes: edge attributes
+        :param g: graph
+        :return: None
+        """
+        try:
+            g.es.find(name=attributes['name'])
+        except:
+            g.add_edges([(from_name, to_name)], attributes=attributes)
 
     def __repr__(self):
         return yaml.dump(self)
