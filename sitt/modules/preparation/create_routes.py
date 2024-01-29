@@ -61,7 +61,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
         g = ig.Graph(directed=True)
 
         for p in all_paths:
-            self._add_directed_graph(p[1], config.simulation_start, context.graph, g)
+            g = self._add_directed_graph(p[1], config.simulation_start, context.graph, g)
 
         context.routes = g
 
@@ -92,7 +92,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         if logger.level <= logging.INFO:
             logger.info("PreparationInterface CreateRoutes: finished creating routes and checking lengths - "
-                        f"considered {len(all_paths)} routes. Created directed graph with {len(g.vs)}"
+                        f"considered {len(all_paths)} routes. Created directed graph with {len(g.vs)} "
                         f"vertices and {len(g.es)} edges.")
 
         return context
@@ -187,7 +187,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         return all_paths
 
-    def _add_directed_graph(self, edges: list[int], start: str, g: ig.Graph, tg: ig.Graph) -> None:
+    def _add_directed_graph(self, edges: list[int], start: str, g: ig.Graph, tg: ig.Graph) -> ig.Graph:
         """
         Will add a directed graph to target graph from data of the source graph.
 
@@ -206,33 +206,28 @@ class CreateRoutes(BaseClass, PreparationInterface):
         for e in edges:
             edge = g.es[e]  # current edge to consider
             target: ig.Vertex | None = None  # keeps next target vertex
+            flip: bool = False  # flip direction?
 
             if last_vertex.index == edge.source:  # edge is in correct order, add it to the target graph as is
-                # add target vertex
+                # set target vertex
                 target = g.vs[edge.target]
-                self._add_vertex_to_graph(target.attributes(), tg)
-
-                # add edge
-                self._add_edge_to_graph(last_vertex['name'], target['name'], edge.attributes(), tg)
             elif last_vertex.index != edge.source and last_vertex.index == edge.target:  # reverse edge
-                # add source vertex
+                # set source vertex
                 target = g.vs[edge.source]
-                self._add_vertex_to_graph(target.attributes(), tg)
-
-                attr = edge.attributes().copy()
-                # flip data
-                attr['legs'] = np.flip(attr['legs'])
-                attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop degrees, too
-                attr['geom'] = reverse(attr['geom'])
-                attr['name'] = attr['name'] + '_rev'  # add new name - should be very unlikely, but just in case
-
-                # add edge
-                self._add_edge_to_graph(last_vertex['name'], target['name'], attr, tg)
+                flip = True
             else:
                 # this case should not happen, but just to be safe...
                 logger.fatal("PreparationInterface CreateRoutes: graph error - not consecutive vertices!")
 
+            # add vertex
+            self._add_vertex_to_graph(target.attributes(), tg)
+
+            # add edge
+            self._add_edge_to_graph(last_vertex['name'], target['name'], edge, flip, tg)
+
             last_vertex = target
+
+        return tg
 
     def _add_vertex_to_graph(self, attributes: dict, g: ig.Graph) -> None:
         """
@@ -245,20 +240,33 @@ class CreateRoutes(BaseClass, PreparationInterface):
         try:
             g.vs.find(name=attributes['name'])
         except:
-            g.add_vertices(1, attributes=attributes)
+            g.add_vertex(**attributes)
 
-    def _add_edge_to_graph(self, from_name: str, to_name: str, attributes: dict, g: ig.Graph) -> None:
+    def _add_edge_to_graph(self, from_name: str, to_name: str, edge: ig.Edge, flip: bool, g: ig.Graph) -> None:
         """
         Will add an edge to a graph, if it does not exist yet (name = unique id)
 
-        :param attributes: edge attributes
+        :param edge: edge to copy
+        :param flip: flip direction?
         :param g: graph
         :return: None
         """
         try:
-            g.es.find(name=attributes['name'])
+            g.es.find(name=edge['name'])
         except:
-            g.add_edges([(from_name, to_name)], attributes=attributes)
+            # add new edge
+            attr = edge.attributes().copy()
+            attr['legs'] = np.copy(attr['legs'])
+            attr['slopes'] = np.copy(attr['slopes'])
+
+            if flip:
+                # flip data
+                attr['legs'] = np.flip(attr['legs'])
+                attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop degrees, too
+                attr['geom'] = reverse(attr['geom'])
+                attr['name'] = attr['name'] + '_rev'  # add new name - should be very unlikely, but just in case
+
+            g.add_edge(from_name, to_name, **attr)
 
     def __repr__(self):
         return yaml.dump(self)

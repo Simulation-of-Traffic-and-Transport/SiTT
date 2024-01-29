@@ -5,6 +5,7 @@
 import logging
 from zlib import crc32
 
+import igraph as ig
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +21,8 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
     def __init__(self, draw_network: bool = True, show_network: bool = True, save_network: bool = False,
                  save_network_name: str = 'network', save_network_type: str = 'png', display_routes: bool = True,
                  start: str | None = None, end: str | None = None, show_graphs: bool = True, save_graphs: bool = False,
-                 save_graphs_names: str = 'possible_routes', save_graphs_type: str = 'png'):
+                 save_graphs_names: str = 'possible_routes', save_graphs_type: str = 'png',
+                 save_graphs_number: int = 5):
         super().__init__()
         self.draw_network: bool = draw_network
         """draw the network graph"""
@@ -44,6 +46,8 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
         self.save_graphs_names: str = save_graphs_names
         self.save_graphs_type: str = save_graphs_type
         """possible values are eps, jpeg, jpg, pdf, pgf, png, ps, raw, rgba, svg, svgz, tif, tiff"""
+        self.save_graphs_number: int = save_graphs_number
+        """number of graphs to save/show"""
 
     def run(self, config: Configuration, context: Context) -> Context:
         if context.graph:
@@ -53,29 +57,27 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
             if self.draw_network:
                 logger.info("Drawing network.")
 
-                pos = nx.spring_layout(context.graph)
-                nx.draw_networkx_nodes(context.graph, pos, node_size=100)
-                ax = plt.gca()
-                for e in context.graph.edges:
-                    # create random number using crc32 and a number between 10 and 99 for curve arc.
-                    id_code = crc32(e[2].encode())
-                    exp = pow(10, len(str(id_code)) - 2)
-                    ax.annotate("",
-                                xy=pos[e[0]], xycoords='data',
-                                xytext=pos[e[1]], textcoords='data',
-                                arrowprops=dict(arrowstyle="-",
-                                                shrinkA=0, shrinkB=0,
-                                                patchA=None, patchB=None,
-                                                connectionstyle="arc3,rad=rrr".replace('rrr',
-                                                                                       str(0.01 * id_code / exp)),
-                                                ),
-                                )
+                # coordinates for nodes
+                v_x = []
+                v_y = []
+                geometries = []
 
-                    for n in context.graph.nodes:
-                        ax.text(pos[n][0], pos[n][1], n, ha='center', backgroundcolor='#dddddd')
-                plt.axis('off')
+                for vs in context.graph.vs:
+                    v_x.append(vs['geom'].coords[0][0])
+                    v_y.append(vs['geom'].coords[0][1])
 
-                if self.show_network:
+                for es in context.graph.es:
+                    geometries.append(es['geom'])
+
+                _, ax = plt.subplots()
+
+                lines = gpd.GeoSeries(GeometryCollection(geometries))
+                lines.plot(ax=ax, color='coral')
+
+                p = gpd.GeoSeries(gpd.points_from_xy(x=v_x, y=v_y))
+                p.plot(ax=ax)
+
+                if self.show_graphs:
                     plt.show()
 
                 if self.save_network:
@@ -86,7 +88,8 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
             if self.display_routes and self.start and self.end:
                 counter = 0
                 paths = []
-                for p in nx.all_simple_edge_paths(context.graph, self.start, self.end):
+                for p in context.graph.get_k_shortest_paths(self.start, to=self.end, k=self.save_graphs_number,
+                                                            weights='length_m', mode='all', output='epath'):
                     paths.append(p)
                 if logger.level <= logging.INFO:
                     logger.info("Drawing %d route(s) from %s to %s.", len(paths), self.start, self.end)
@@ -99,16 +102,13 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
                     geometries = []
 
                     # get single legs
-                    for leg in path:
+                    for edge_id in path:
                         # third entry in tuple is the id of the vertex
-                        edge = context.graph[leg[0]][leg[1]][leg[2]]
+                        edge = context.graph.es[edge_id]
                         total_length += edge['length_m']
-                        is_reversed = edge['hubaid'] != leg[0]
 
                         # add leg points
                         my_legs = edge['legs']
-                        if is_reversed:
-                            my_legs = np.flip(my_legs)
 
                         offset = len(profile_legs)
                         my_len = len(my_legs)
@@ -121,10 +121,7 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
                         geom_len = len(my_coords)
                         my_heights = np.zeros((geom_len,))
                         for i in range(0, geom_len, 1):
-                            pos = i
-                            if is_reversed:
-                                pos = geom_len - i - 1
-                            my_heights[pos] = my_coords[i][2]
+                            my_heights[i] = my_coords[i][2]
 
                         if profile_height is not None:
                             # delete first height
@@ -160,6 +157,7 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
         else:
             logger.info("Skipping display of paths and hubs - no data.")
 
+        exit()
         return context
 
     def __repr__(self):

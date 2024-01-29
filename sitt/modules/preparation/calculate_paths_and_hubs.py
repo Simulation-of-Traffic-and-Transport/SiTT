@@ -12,7 +12,7 @@ import pandas as pd
 import shapely.ops as sp_ops
 import yaml
 from pyproj import Transformer
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 
 from sitt import Configuration, Context, PreparationInterface
 
@@ -32,6 +32,8 @@ class CalculatePathsAndHubs(PreparationInterface):
         self.crs_to: str = crs_to
         self.always_xy: bool = always_xy
         self.length_including_heights: bool = length_including_heights
+        # transient data
+        self.raw_river_hubs = []
 
     def run(self, config: Configuration, context: Context) -> Context:
         logger.info("Preparing graph...")
@@ -84,6 +86,8 @@ class CalculatePathsAndHubs(PreparationInterface):
         :param path_type: road or river
         :return: None
         """
+        river_hubs_added = set()
+
         if field is not None and len(field) > 0:
             for idx, row in field.iterrows():
                 line = LineString(row.geom)
@@ -130,6 +134,18 @@ class CalculatePathsAndHubs(PreparationInterface):
                 path['type'][idx] = path_type
                 path['name'][idx] = idx
 
+                # prepare river hubs, might be needed later
+                if path_type == "river":
+                    if row.hubaid not in river_hubs_added:
+                        self.raw_river_hubs.append({'name': row.hubaid, 'geom': Point(row.geom.coords[0]),
+                                                    'overnight': 'n', 'harbor': 'n', 'water_node': 'y'})
+                        river_hubs_added.add(row.hubaid)
+
+                    if row.hubbid not in river_hubs_added:
+                        self.raw_river_hubs.append({'name': row.hubbid, 'geom': Point(row.geom.coords[-1]),
+                                                    'overnight': 'n', 'harbor': 'n', 'water_node': 'y'})
+                        river_hubs_added.add(row.hubbid)
+
     def calculate_graph(self, path: pd.DataFrame, config: Configuration, context: Context):
         # create paths from dataframe
         g: ig.Graph = ig.Graph.TupleList(path.itertuples(index=False), directed=False, edge_attrs=['length_m', 'legs',
@@ -145,6 +161,12 @@ class CalculatePathsAndHubs(PreparationInterface):
                 for el in row.array:
                     vertex[cols[c]] = el
                     c += 1
+
+        # add river hubs, if there is no data
+        for hub in self.raw_river_hubs:
+            vertex: ig.Vertex = g.vs.find(name=hub['name'])
+            if vertex['geom'] is None:  # only update, if there is no geometry
+                vertex.update_attributes(**hub)
 
         context.graph = g
 

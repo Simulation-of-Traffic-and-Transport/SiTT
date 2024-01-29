@@ -293,12 +293,12 @@ def networks():
                     tg.vs.find(name=source)
                 except:
                     source_node = g.vs.find(name=source)
-                    tg.add_vertices(source_node['name'], attributes={"geom": source_node['geom'], "center": source_node['center']})
+                    tg.add_vertex(name=source_node['name'], geom=source_node['geom'], center=source_node['center'])
                 try:
                     tg.vs.find(name=target)
                 except:
                     target_node = g.vs.find(name=target)
-                    tg.add_vertices(target_node['name'], attributes={"geom": target_node['geom'], "center": target_node['center']})
+                    tg.add_vertex(name=target_node['name'], geom=target_node['geom'], center=target_node['center'])
 
                 # construct new edge from path
                 [line, min_width] = _merge_path(g, source, target, transformer)
@@ -307,7 +307,7 @@ def networks():
                 try:
                     tg.es.find(name=edge_name)
                 except:
-                    tg.add_edges([(source, target)], attributes={'geom': line, 'name': edge_name, 'length': length, 'min_width': min_width})
+                    tg.add_edge(source, target, geom=line, name=edge_name, length=length, min_width=min_width)
 
             for v in tg.vs:
                 stmt = insert(nodes_table).values(

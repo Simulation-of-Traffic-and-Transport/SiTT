@@ -17,8 +17,8 @@ logger = logging.getLogger()
 
 class Simple(SimulationStepInterface):
     """
-    Simple stepper will have a constant speed and will have a certain slowdown factor for ascending and descending slopes.
-    Moreover, this stepper will not care for the type of path (river, etc.).
+    Simple stepper will have a constant speed and will have a certain slowdown factor for ascending and descending
+    slopes. Moreover, this stepper will not care for the type of path (river, etc.).
     Other than that, it does not take into account weather or other factors.
     """
 
@@ -36,28 +36,20 @@ class Simple(SimulationStepInterface):
         state = agent.state
 
         # precalculate next hub
-        path_id = (agent.this_hub, agent.next_hub, agent.route_key)
-        leg = context.get_directed_path_by_id(path_id, agent.this_hub)
+        path_id = agent.route_key
+        leg = context.get_path_by_id(path_id)
         if not leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return state
 
-        # create range to traverse
-        if leg['is_reversed']:
-            r = range(len(leg['legs']) - 1, -1, -1)
-        else:
-            r = range(len(leg['legs']))
-
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
         time_for_legs: list[float] = []
 
-        for i in r:
+        for i in range(len(leg['legs'])):
             length = leg['legs'][i]
             slope = leg['slopes'][i]
-            if leg['is_reversed']:
-                slope *= -1
 
             if slope < 0:
                 slope_factor = slope * self.descend_slowdown_factor * -1

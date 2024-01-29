@@ -36,15 +36,16 @@ def test_create_agents_on_node():
     context.routes = ig.Graph(directed=True)
     context.routes.add_vertices(['START', 'N1', 'N2', 'STOP'])
     context.routes.add_edges([('START', 'N1'), ('START', 'N2'), ('START', 'N2'), ('N1', 'STOP'), ('N2', 'STOP')])
+    context.routes.es['name'] = ['START-N1', 'START-N2', 'START-N2', 'N1-STOP', 'N2-STOP']
     sim: Simulation = Simulation(config, context)
 
     # test initial creation of agents
-    assert len(sim.create_agents_on_node('START')) == 3 # ('START', 'N2') is multiple entry and that should work!
+    assert len(sim.create_agents_on_node('START')) == 3  # ('START', 'N2') is multiple entry and that should work!
     assert len(sim.create_agents_on_node('N1')) == 1
     assert len(sim.create_agents_on_node('STOP')) == 0
 
     # test cloning of existing agents
-    agent = Agent('START', '', -1, current_time=8., max_time=16.)
+    agent = Agent('START', '', '', current_time=8., max_time=16.)
     agents = sim.create_agents_on_node('START')
     for a in agents:
         assert a.current_day == agent.current_day
@@ -76,6 +77,7 @@ def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop
     context.routes = ig.Graph(directed=True)
     context.routes.add_vertices(['START', 'PASS', 'STAY', 'STOP'])
     context.routes.add_edges([('START', 'PASS'), ('START', 'STAY'), ('PASS', 'STOP'), ('STAY', 'STOP')])
+    context.routes.es['name'] = ['START-PASS', 'START-STAY', 'PASS-STOP', 'STAY-STOP']
 
     results: SetOfResults = SetOfResults()
     agents_proceed: list[Agent] = []
