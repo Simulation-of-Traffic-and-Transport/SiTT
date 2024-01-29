@@ -157,7 +157,6 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
         else:
             logger.info("Skipping display of paths and hubs - no data.")
 
-        exit()
         return context
 
     def __repr__(self):
