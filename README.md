@@ -57,7 +57,7 @@ You can run unit tests using pytest:
 ```console
 pip install pytest
 cd tests
-pytests -v .
+pytest -v .
 ```
 
 ## Documentation

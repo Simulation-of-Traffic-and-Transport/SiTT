@@ -6,13 +6,13 @@ Run this before CreateRoutes to create a graph of prepared routes."""
 import logging
 
 import geopandas as gpd
-import networkx as nx
+import igraph as ig
 import numpy as np
 import pandas as pd
 import shapely.ops as sp_ops
 import yaml
 from pyproj import Transformer
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 
 from sitt import Configuration, Context, PreparationInterface
 
@@ -32,6 +32,8 @@ class CalculatePathsAndHubs(PreparationInterface):
         self.crs_to: str = crs_to
         self.always_xy: bool = always_xy
         self.length_including_heights: bool = length_including_heights
+        # transient data
+        self.raw_river_hubs = []
 
     def run(self, config: Configuration, context: Context) -> Context:
         logger.info("Preparing graph...")
@@ -56,17 +58,17 @@ class CalculatePathsAndHubs(PreparationInterface):
 
         # define path data
         path = {
+            'source': {},
+            'target': {},
             'length_m': {},
             'legs': {},
             'slopes': {},
             'geom': {},
-            'hubaid': {},
-            'hubbid': {},
-            'source': {},
-            'target': {},
             'type': {},
-            'uid': {}
+            'name': {}
         }
+        # TODO: river width
+        # TODO: river base speed
 
         self._prepare_data_for_path(path, context.raw_roads, transformer)
         self._prepare_data_for_path(path, context.raw_rivers, transformer, path_type="river")
@@ -84,6 +86,8 @@ class CalculatePathsAndHubs(PreparationInterface):
         :param path_type: road or river
         :return: None
         """
+        river_hubs_added = set()
+
         if field is not None and len(field) > 0:
             for idx, row in field.iterrows():
                 line = LineString(row.geom)
@@ -120,30 +124,51 @@ class CalculatePathsAndHubs(PreparationInterface):
                     last_coord = coord
 
                 # recreate paths
+                path['source'][idx] = row.hubaid
+                path['target'][idx] = row.hubbid
                 path['length_m'][idx] = length
                 path['legs'][idx] = np.array(legs, dtype=np.float64)
                 path['slopes'][idx] = np.array(slopes, dtype=np.float64)
                 path['geom'][idx] = row.geom
-                path['hubaid'][idx] = row.hubaid
-                path['hubbid'][idx] = row.hubbid
-                # these attributes are in preparation of calculate_graph below
-                path['source'][idx] = row.hubaid
-                path['target'][idx] = row.hubbid
                 path['type'][idx] = path_type
-                path['uid'][idx] = idx
+                path['type'][idx] = path_type
+                path['name'][idx] = idx
+
+                # prepare river hubs, might be needed later
+                if path_type == "river":
+                    if row.hubaid not in river_hubs_added:
+                        self.raw_river_hubs.append({'name': row.hubaid, 'geom': Point(row.geom.coords[0]),
+                                                    'overnight': 'n', 'harbor': 'n', 'water_node': 'y'})
+                        river_hubs_added.add(row.hubaid)
+
+                    if row.hubbid not in river_hubs_added:
+                        self.raw_river_hubs.append({'name': row.hubbid, 'geom': Point(row.geom.coords[-1]),
+                                                    'overnight': 'n', 'harbor': 'n', 'water_node': 'y'})
+                        river_hubs_added.add(row.hubbid)
 
     def calculate_graph(self, path: pd.DataFrame, config: Configuration, context: Context):
-        # create paths as multigraph because all can be traversed in both ways (at least in theory)
-        g: nx.MultiGraph = nx.from_pandas_edgelist(path, edge_key='uid',
-                                                     create_using=nx.MultiGraph, edge_attr=True)
-
+        # create paths from dataframe
+        g: ig.Graph = ig.Graph.TupleList(path.itertuples(index=False), directed=False, edge_attrs=['length_m', 'legs',
+                                                                                                   'slopes', 'geom',
+                                                                                                   'type', 'name'])
         # add hub data, too
         if context.raw_hubs is not None and len(context.raw_hubs) > 0:
-            for idx, row in context.raw_hubs.iterrows():
-                g.add_node(idx, **row)
+            cols = context.raw_hubs.columns.tolist()
 
-        # set frozen graph to prevent changes
-        context.graph = nx.freeze(g)
+            for idx, row in context.raw_hubs.iterrows():
+                vertex = g.vs.find(name=idx)
+                c = 0
+                for el in row.array:
+                    vertex[cols[c]] = el
+                    c += 1
+
+        # add river hubs, if there is no data
+        for hub in self.raw_river_hubs:
+            vertex: ig.Vertex = g.vs.find(name=hub['name'])
+            if vertex['geom'] is None:  # only update, if there is no geometry
+                vertex.update_attributes(**hub)
+
+        context.graph = g
 
         return context
 
