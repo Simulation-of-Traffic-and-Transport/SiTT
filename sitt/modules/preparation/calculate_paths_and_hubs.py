@@ -156,7 +156,11 @@ class CalculatePathsAndHubs(PreparationInterface):
             cols = context.raw_hubs.columns.tolist()
 
             for idx, row in context.raw_hubs.iterrows():
-                vertex = g.vs.find(name=idx)
+                try:
+                    vertex = g.vs.find(name=idx)
+                except:
+                    # some hubs might not be defined yet, e.g. harbors without road connection
+                    vertex = g.add_vertex(name=idx)
                 c = 0
                 for el in row.array:
                     vertex[cols[c]] = el

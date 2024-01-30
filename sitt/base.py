@@ -416,9 +416,6 @@ class Agent(object):
                 vertex['agents'] = {}
 
             for edge in vertex.in_edges():
-                # TODO: continue
-                print(edge)
-
                 for uid in edge['agents']:
                     ag = edge['agents'][uid]
 
