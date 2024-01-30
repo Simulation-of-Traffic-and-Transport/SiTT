@@ -17,7 +17,6 @@ Moreover, this stepper will not care for the type of path (river, etc.).
 Other than that, it does not take into account weather or other factors.
 """
 import logging
-import math
 
 import yaml
 
