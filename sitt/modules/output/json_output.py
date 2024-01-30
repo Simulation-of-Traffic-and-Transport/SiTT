@@ -121,28 +121,28 @@ class JSONOutput(OutputInterface):
         # keeps unique list of agent ids
         uids: set = {agent.uid}
 
-        # add legs to history
-        for leg in agent.route_data.edges(data=True, keys=True):
-            if 'agents' in leg[3]:
-                history[leg[2]] = {
+        # add edges to history
+        for edge in agent.route_data.es:
+            if 'agents' in edge.attribute_names():
+                history[edge.index] = {
                     "type": "edge",
-                    "id": leg[2],
-                    "from": leg[0],
-                    "to": leg[1],
-                    "agents": leg[3]['agents'],
+                    "id": edge['key'],
+                    "from": agent.route_data.vs[edge.source]['name'],
+                    "to": agent.route_data.vs[edge.target]['name'],
+                    "agents": edge['agents'],
                 }
 
                 # add to list of agent ids
-                for ag in leg[3]['agents']:
+                for ag in edge['agents']:
                     uids.add(ag)
 
         # add hubs to history
-        for hub in agent.route_data.nodes(data=True):
-            if 'agents' in hub[1]:
-                history[hub[0]] = {
+        for hub in agent.route_data.vs:
+            if 'agents' in hub.attribute_names():
+                history[hub['name']] = {
                     "type": "node",
-                    "id": hub[0],
-                    "agents": hub[1]['agents'],
+                    "id": hub['name'],
+                    "agents": hub['agents'],
                 }
 
         agent = {
@@ -176,28 +176,28 @@ class JSONOutput(OutputInterface):
         paths: List[dict] = []
 
         # aggregate node data
-        for node in self.context.graph.nodes(data=True):
-            data = {'id': node[0]}
+        for node in self.context.graph.vs:
+            data = {'id': node['name']}
 
-            for key in node[1]:
+            for key in node.attribute_names():
                 if key == 'geom':
-                    data['geom'] = mapping(node[1]['geom'])
+                    data['geom'] = mapping(node['geom'])
                 elif key == 'overnight':
-                    data['overnight'] = is_truthy(node[1]['overnight'])
+                    data['overnight'] = is_truthy(node['overnight'])
                 else:
-                    data[key] = node[1][key]
+                    data[key] = node[key]
 
             nodes.append(data)
 
         # aggregate path data - from routes, because these are directed
-        for path in self.context.graph.edges(data=True, keys=True):
+        for path in self.context.graph.es:
             paths.append({
-                'id': path[2],
-                'from': path[3]["hubaid"],
-                'to': path[3]["hubbid"],
-                'type': path[3]["type"],
-                'length_m': path[3]['length_m'],
-                'geom': mapping(path[3]['geom']),
+                'id': path['name'],
+                "from": self.context.graph.vs[path.source]['name'],
+                "to": self.context.graph.vs[path.target]['name'],
+                'type': path["type"],
+                'length_m': path['length_m'],
+                'geom': mapping(path['geom']),
             })
 
         return nodes, paths
