@@ -65,30 +65,9 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         context.routes = g
 
-        # # TODO: https://github.com/guilhermemm/k-shortest-path
-        # # Besser ist Eppstein?
-        # # Siehe auch igraph-Packet
-        # # Networkx slow: https://www.timlrx.com/blog/benchmark-of-popular-graph-network-packages-v2
-        # # k-shortest paths using Yen's or Eppstein's algorithm
-        # # Yen for networkx/igraph:
-        # # https://stackoverflow.com/questions/15878204/k-shortest-paths-implementation-in-igraph-networkx-yens-algorithm
-        # print("TODO")
-        # exit()
-        # for p in nx.all_simple_edge_paths(context.graph, config.simulation_start, config.simulation_end):
-        #     r = SortableRoute()
-        #     r.length = 0.
-        #     r.legs = p
-        #
-        #     # get total length
-        #     for leg in p:
-        #         r.length += context.graph[leg[0]][leg[1]][leg[2]]['length_m']
-        #
-        #     insort(sorted_routes, r)
-        #
-        # for p in all_routes:
-        #     for leg in p:
-        #         if not context.routes.has_edge(leg[0], leg[1], leg[2]):
-        #             context.routes.add_edge(leg[0], leg[1], leg[2])
+        # might be an option?
+        # Yen for networkx/igraph:
+        # https://stackoverflow.com/questions/15878204/k-shortest-paths-implementation-in-igraph-networkx-yens-algorithm
 
         if logger.level <= logging.INFO:
             logger.info("PreparationInterface CreateRoutes: finished creating routes and checking lengths - "
