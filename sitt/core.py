@@ -16,7 +16,6 @@ import os.path
 from typing import Dict, List
 
 import geopandas as gpd
-import networkx as nx
 import pandas as pd
 
 from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
@@ -188,9 +187,9 @@ class Simulation(BaseClass):
         :param context: context object
         """
         super().__init__(config)
-        self.context = context
+        self.context: Context = context
 
-        self.current_day = 1
+        self.current_day: int = 1
         """Current day of simulation"""
 
     def check(self) -> bool:
@@ -211,7 +210,6 @@ class Simulation(BaseClass):
         if logger.level <= logging.INFO:
             logger.info("start:  " + self.config.simulation_start)
             logger.info("end:    " + self.config.simulation_end)
-            logger.info("routes: " + str(self.context.routes))
 
         return ok
 
@@ -229,18 +227,23 @@ class Simulation(BaseClass):
         """
         agents: List[Agent] = []
 
+        # create new agent if none is defined
         if agent_to_clone is None:
             agent_to_clone = Agent(hub, '', '', current_time=current_time, max_time=max_time)
 
-        for target in self.context.routes[hub]:
-            for route_key in self.context.routes[hub][target]:
-                # create new agent for each option
-                new_agent = copy.deepcopy(agent_to_clone)
-                new_agent.this_hub = hub
-                new_agent.next_hub = target
-                new_agent.route_key = route_key
+        # create new agent for each outbound edge
+        for edge in self.context.routes.incident(hub):
+            e = self.context.routes.es[edge]
+            target_id = e.target
+            target = self.context.routes.vs[target_id]['name']
 
-                agents.append(new_agent)
+            # create new agent for each option
+            new_agent = copy.deepcopy(agent_to_clone)
+            new_agent.this_hub = hub
+            new_agent.next_hub = target
+            new_agent.route_key = e['name']  # name of edge
+
+            agents.append(new_agent)
 
         # create new uids, if agents have split
         if len(agents) > 1:
@@ -272,27 +275,31 @@ class Simulation(BaseClass):
                 # merge graphs - we want to have all possible graphs at the end
 
                 # we start with copying/merging hub data
-                for hub in agent.route_data.nodes(data=True):
-                    if 'agents' in hub[1]:
-                        if hashed_agents[hash_id].route_data.has_node(hub[0]):
-                            data = hashed_agents[hash_id].route_data.nodes[hub[0]]
-                            if 'agents' not in data:
+                for hub in agent.route_data.vs:
+                    if 'agents' in hub.attribute_names():
+                        try:
+                            data = hashed_agents[hash_id].route_data.vs.find(name=hub['name'])
+                            if 'agents' not in data.attribute_names():
                                 data['agents'] = {}
-                            for uid in hub[1]['agents']:
+                            for uid in hub['agents']:
                                 if uid not in data['agents']:
-                                    data['agents'][uid] = hub[1]['agents'][uid]
-                        else:
-                            hashed_agents[hash_id].route_data.add_node(hub[0], agents=hub[1]['agents'])
+                                    data['agents'][uid] = hub['agents'][uid]
+                        except:
+                            hashed_agents[hash_id].route_data.add_vertices(1, attributes=hub.attributes())
 
                 # now connect edges
-                for leg in agent.route_data.edges(data=True, keys=True):
-                    if hashed_agents[hash_id].route_data.has_edge(leg[0], leg[1], leg[2]):
-                        data = hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]
-                        for uid in leg[3]['agents']:
+                for edge in agent.route_data.es:
+                    try:
+                        data = hashed_agents[hash_id].route_data.es.find(name=edge['key'])
+                        if 'agents' not in data.attribute_names():
+                            data['agents'] = {}
+                        for uid in edge['agents']:
                             if uid not in data['agents']:
-                                data['agents'][uid] = leg[3]['agents'][uid]
-                    else:
-                        hashed_agents[hash_id].route_data.add_edge(leg[0], leg[1], leg[2], agents=leg[3]['agents'])
+                                data['agents'][uid] = edge['agents'][uid]
+                    except:
+                        from_id = hashed_agents[hash_id].route_data.vs[edge.source]['name']
+                        to_id = hashed_agents[hash_id].route_data.vs[edge.target]['name']
+                        hashed_agents[hash_id].route_data.add_edge(from_id, to_id, agents=edge['agents'], key=edge['key'])
 
         return list(hashed_agents.values())
 
@@ -391,8 +398,8 @@ class Simulation(BaseClass):
         # proceed or stop here?
         if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
             # add hub history
-            hub = agent.route_data.nodes[agent.this_hub]
-            if 'agents' not in hub:
+            hub = agent.route_data.vs.find(name=agent.this_hub)
+            if 'agents' not in hub.attribute_names():
                 hub['agents'] = {}
             # add stop-over if not added already
             if agent.uid not in hub['agents']:
@@ -411,19 +418,25 @@ class Simulation(BaseClass):
             start_time = agent.current_time
             agent.current_time += agent.state.time_taken
 
+            # add next vertex, if needed
+            try:
+                agent.route_data.vs.find(name=agent.next_hub)
+            except:
+                agent.route_data.add_vertex(name=agent.next_hub, agents={})
             # add route data
-            agent.route_data.add_edge(agent.this_hub, agent.next_hub, key=agent.route_key,
-                                      agents={agent.uid: {
-                                          'start': {
-                                              'day': self.current_day,
-                                              'time': start_time,
-                                          },
-                                          'end': {
-                                              'day': self.current_day,
-                                              'time': agent.current_time,
-                                          },
-                                          'leg_times': agent.state.time_for_legs
-                                      }})
+            attrs = {'key': agent.route_key,
+                     'agents': {agent.uid: {
+                         'start': {
+                             'day': self.current_day,
+                             'time': start_time,
+                         },
+                         'end': {
+                             'day': self.current_day,
+                             'time': agent.current_time,
+                         },
+                         'leg_times': agent.state.time_for_legs
+                     }}}
+            agent.route_data.add_edge(agent.this_hub, agent.next_hub, **attrs)
 
             # finished?
             if agent.next_hub == self.config.simulation_end:
@@ -432,7 +445,7 @@ class Simulation(BaseClass):
                 agent.route_key = ''
                 agent.day_finished = self.current_day
                 results.agents_finished.append(agent)
-            elif self.context.graph.nodes[agent.next_hub]['overnight'] == 'y':
+            elif self.context.graph.vs.find(name=agent.next_hub)['overnight'] == 'y':
                 # proceed to new hub -> it is an overnight stay
                 agent.last_possible_resting_place = agent.next_hub
                 agent.last_possible_resting_time = agent.current_time
@@ -464,6 +477,7 @@ class Simulation(BaseClass):
         :param results: set of results to fill into (mutated)
         :param agents_finished_for_today:  list of agents that have finished for today (mutated)
         """
+
         # break if tries are exceeded
         agent.tries += 1
         if agent.tries > self.config.break_simulation_after:
@@ -471,20 +485,16 @@ class Simulation(BaseClass):
             results.agents_cancelled.append(agent)
         else:
             # traceback to last possible resting place, if needed
-            if self.context.graph.nodes[agent.this_hub]['overnight'] == 'n':
+            if self.context.graph.vs.find(name=agent.this_hub)['overnight'] == 'n':
                 # compile entries to delete from graph
-                hubs_to_delete = []
-                edges_to_delete = []
+                hubs_to_delete: set[int] = set()
 
-                for path in nx.all_simple_edge_paths(agent.route_data,
-                                                     agent.last_possible_resting_place, agent.this_hub):
-                    for leg in path:
-                        hubs_to_delete.append(leg[
-                                                  1])  # add the second node, because first is either last_possible_resting_place or has been added already
-                        edges_to_delete.append(leg[2])  # add vertex id
+                # gather vertex ids to delete
+                for path in agent.route_data.get_all_simple_paths(agent.last_possible_resting_place, agent.this_hub):
+                    hubs_to_delete.update(path[1:])
 
-                agent.route_data.remove_edges_from(edges_to_delete)
-                agent.route_data.remove_nodes_from(hubs_to_delete)
+                # actually delete hubs from graph
+                agent.route_data.delete_vertices(list(hubs_to_delete))
 
                 agents_finished_for_today.extend(
                     self.create_agents_on_node(agent.last_possible_resting_place, agent))
@@ -513,7 +523,7 @@ class Simulation(BaseClass):
 
         # add stay over at end
         for agent in results.agents_finished:
-            agent.route_data.add_node(agent.this_hub, agents={agent.uid: {
+            agent.route_data.add_vertex(agent.this_hub, agents={agent.uid: {
                 'start': {
                     'day': agent.current_day,
                     'time': agent.current_time,

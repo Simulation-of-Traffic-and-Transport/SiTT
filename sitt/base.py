@@ -17,9 +17,9 @@ from enum import Enum
 from typing import Dict, List
 
 import geopandas as gpd
+import igraph as ig
 import nanoid
 import netCDF4 as nc
-import networkx as nx
 import numpy as np
 import yaml
 
@@ -288,38 +288,27 @@ class Context(object):
         self.raw_rivers: gpd.geodataframe.GeoDataFrame | None = None
         self.raw_hubs: gpd.geodataframe.GeoDataFrame | None = None
 
-        self.graph: nx.MultiGraph | None = None
-        """Full graph data for roads, rivers and other paths (undirected)"""
-        self.routes: nx.MultiDiGraph | None = None
+        self.graph: ig.Graph | None = None
+        """Full (multi-)graph data for roads, rivers and other paths (undirected)"""
+        self.routes: ig.Graph | None = None
         """
         Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to
-        find the correct route.
+        find the correct route. It is a multidigraph containing possible routes (normally determined by k-shortest
+        paths in preparation.create_routes).
         """
         self.space_time_data: Dict[str, SpaceTimeData] = {}
 
-    def get_path_by_id(self, path_id) -> Dict | None:
+    def get_path_by_id(self, path_id: str) -> ig.Edge | None:
         """Get path by id"""
         if self.graph:
-            return self.graph[path_id[0]][path_id[1]][path_id[2]]
+            return self.routes.es.find(name=path_id)
         return None
 
-    def get_hub_by_id(self, hub_id) -> Dict | None:
+    def get_hub_by_id(self, hub_id) -> ig.Vertex | None:
         """Get hub by id"""
         if self.graph:
-            return self.graph.nodes()[hub_id]
+            return self.routes.vs.find(name=hub_id)
         return None
-
-    def get_directed_path_by_id(self, path_id, start_hub) -> Dict | None:
-        """Get path by id and set `is_reversed` attribute, if start_hub is not hubaid of path"""
-        path = self.get_path_by_id(path_id)
-
-        if not path:
-            return None
-
-        path = path.copy()
-        path['is_reversed'] = start_hub != path['hubaid']
-
-        return path
 
 
 ########################################################################################################################
@@ -379,7 +368,7 @@ class Agent(object):
         self.next_hub: str = next_hub
         """Destination hub"""
         self.route_key: str = route_key
-        """Key/vertex id of route between hubs"""
+        """Key id of route between hubs ("name" attribute of edge)"""
 
         self.current_day: int = 1
         """Current day of agent - copied from simulation"""
@@ -395,8 +384,8 @@ class Agent(object):
         self.tries: int = 0
         """internal value for tries at this hub - will break at 100"""
 
-        self.route_data: nx.MultiDiGraph = nx.MultiDiGraph()
-        """keeps route taken"""
+        self.route_data: ig.Graph = ig.Graph(directed=True)
+        """keeps route taken (multidigrapjh)"""
         self.last_possible_resting_place: str = this_hub
         """keeps last possible resting place"""
         self.last_possible_resting_time: float = current_time
@@ -420,17 +409,17 @@ class Agent(object):
         self.state = self.state.reset()
 
         # add overnight stays
-        if self.route_data.number_of_nodes():
-            data = self.route_data.nodes[self.this_hub]
+        if len(self.route_data.vs):
+            vertex = self.route_data.vs.find(self.this_hub)
 
-            if 'agents' not in data:
-                data['agents'] = {}
+            if 'agents' not in vertex.attribute_names():
+                vertex['agents'] = {}
 
-            for edge in self.route_data.in_edges(self.this_hub, data=True):
-                for uid in edge[2]['agents']:
-                    ag = edge[2]['agents'][uid]
+            for edge in vertex.in_edges():
+                for uid in edge['agents']:
+                    ag = edge['agents'][uid]
 
-                    data['agents'][uid] = {
+                    vertex['agents'][uid] = {
                         "start": {
                             "day": ag['end']['day'],
                             "time": ag['end']['time'],
@@ -452,7 +441,7 @@ class Agent(object):
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
     def hash(self) -> str:
-        return self.this_hub + self.next_hub + self.route_key + "_" + str(self.current_day) + "_" + str(
+        return self.this_hub + self.next_hub + str(self.route_key) + "_" + str(self.current_day) + "_" + str(
             self.current_time)
 
     def generate_uid(self) -> str:
@@ -461,7 +450,7 @@ class Agent(object):
         return self.uid
 
     def add_first_route_data_entry(self):
-        self.route_data.add_node(self.this_hub, agents={self.uid: {
+        self.route_data.add_vertex(name=self.this_hub, agents={self.uid: {
             'start': {
                 'day': self.current_day,
                 'time': self.current_time,
@@ -471,6 +460,7 @@ class Agent(object):
                 'time': self.current_time,
             }
         }})
+
 
 ########################################################################################################################
 # Set of Results

@@ -33,9 +33,9 @@ class SimpleWithEnvironment(SimulationStepInterface):
         self.speed: float = speed
         """kph of this agent"""
         self.ascend_slowdown_factor: float = ascend_slowdown_factor
-        """time taken is modified by slope in degrees multiplied by this number when ascending"""
+        """time taken is modified by slope in percents multiplied by this number when ascending"""
         self.descend_slowdown_factor: float = descend_slowdown_factor
-        """time taken is modified by slope in degrees multiplied by this number when descending"""
+        """time taken is modified by slope in percents multiplied by this number when descending"""
         self.rainfall_slowdown_factor: float = rainfall_slowdown_factor
         """slowdown factor for rainfall"""
         self.snowfall_slowdown_factor: float = snowfall_slowdown_factor
@@ -51,20 +51,16 @@ class SimpleWithEnvironment(SimulationStepInterface):
         state = agent.state
 
         # precalculate next hub
-        path_id = (agent.this_hub, agent.next_hub, agent.route_key)
-        leg = context.get_directed_path_by_id(path_id, agent.this_hub)
+        path_id = agent.route_key
+        leg = context.get_path_by_id(path_id)
         if not leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return state
 
         # create range to traverse
-        if leg['is_reversed']:
-            r = range(len(leg['legs']) - 1, -1, -1)
-            p_offset_start = 1  # offset in legs for start point
-        else:
-            r = range(len(leg['legs']))
-            p_offset_start = 0
+        r = range(len(leg['legs']))
+        p_offset_start = 0
 
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
@@ -74,8 +70,6 @@ class SimpleWithEnvironment(SimulationStepInterface):
         for i in r:
             length = leg['legs'][i]
             slope = leg['slopes'][i]
-            if leg['is_reversed']:
-                slope *= -1
 
             if slope < 0:
                 slope_factor = slope * self.descend_slowdown_factor * -1

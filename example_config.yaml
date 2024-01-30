@@ -174,7 +174,7 @@ preparation:
 # graph of all possible routes. "crs_from" is the original geographic projection (should be EPSG:4326 in most cases).
 # "crs_to" defines the target projection which should be one having meters as unit attribute (if unsure, check e.g.
 # https://epsg.io/32633). "length_including_heights" can be set to true to calculate the length of the legs more
-# accurately, including slopes degrees in the calculation. While this is more accurate, it seldom plays a major role
+# accurately, including slopes percents in the calculation. While this is more accurate, it seldom plays a major role
 # in the total length of the route.
 #
 # GraphSave is the counterpart of GraphLoad. It saves the graph to disk. Not the condition "not_file_must_exist" -
@@ -281,8 +281,8 @@ preparation:
 
 # Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
 # maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)
-# maximum_difference_from_shortest: if greater than 0, this is the maximum difference of a route from the shortest one
-# (in length) to be retained in the list.
+# maximum_difference_from_shortest: if greater than 1, this is the maximum difference of a route from the shortest one
+# (in factor) to be retained in the list.
 #  - class: CreateRoutes
 #    module: modules.preparation
 #    args:
@@ -331,9 +331,9 @@ simulation_step:
     args:
       # kph of this agent
       speed: 5.0
-      # time taken is modified by slope in degrees multiplied by this number when ascending
+      # time taken is modified by slope in percents multiplied by this number when ascending
       ascend_slowdown_factor: 0.05
-      # time taken is modified by slope in degrees multiplied by this number when descending
+      # time taken is modified by slope in percents multiplied by this number when descending
       descend_slowdown_factor: 0.025
 
 ########################################################################################################################

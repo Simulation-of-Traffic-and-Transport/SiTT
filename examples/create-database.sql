@@ -3,6 +3,7 @@ CREATE DATABASE sitt;
 \c sitt
 
 CREATE EXTENSION postgis;
+CREATE EXTENSION postgis_sfcgal;
 
 CREATE SCHEMA topology;
 
