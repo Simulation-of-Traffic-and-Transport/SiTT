@@ -251,8 +251,12 @@ class CreateRoutes(BaseClass, PreparationInterface):
         :param g: graph
         :return: None
         """
+        name = edge['name']
+        if flip:
+            name += '_rev'  # add new name - should be very unlikely, but just in case
+
         try:
-            g.es.find(name=edge['name'])
+            g.es.find(name=name)
         except:
             # add new edge
             attr = edge.attributes().copy()
@@ -264,7 +268,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
                 attr['legs'] = np.flip(attr['legs'])
                 attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop degrees, too
                 attr['geom'] = reverse(attr['geom'])
-                attr['name'] = attr['name'] + '_rev'  # add new name - should be very unlikely, but just in case
+                attr['name'] = name
 
             g.add_edge(from_name, to_name, **attr)
 
