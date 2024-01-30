@@ -309,6 +309,19 @@ def networks():
                 except:
                     tg.add_edge(source, target, geom=line, name=edge_name, length=length, min_width=min_width)
 
+            # TODO: this would be the place where the A* weeding should take place
+            # tg is the target graph containing all the vertices and edges
+            # Your current implementation of the A* weeding algorithm needs graph ids from & to, so we would need a list
+            # of harbors first. You could implement a query for the harbors, basically
+            # SELECT * FROM topology.rechubs WHERE harbor = 'y'
+            # You might need to query closest harbors, or you can check which harbors are in the tg.graph (might be
+            # easier). To make this work, you have to change your code a bit:
+            # start_id: int, end_id: int must be str, search for the vertices using g.vs.find(name=start) or the like.
+            # Makes the graph more robust, since ids are likely to change.
+            # Then check all variants of harbors and create paths.
+            # Finally, merge all parts into a single (new) target path, should be possible via
+            # https://igraph.org/python/doc/api/igraph.operators.html#union
+
             for v in tg.vs:
                 stmt = insert(nodes_table).values(
                     id=v['name'],

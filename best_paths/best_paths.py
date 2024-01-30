@@ -28,6 +28,7 @@ class BestPathsResult:
     """
 
     def __init__(self, graph: ig.Graph, start_id: int, end_id: int):
+        # TODO: change start_id: int, end_id: int to str and search vertices using self.graph.vs.find(name=start_id)
         self.graph = graph
         self.start = start_id
         self.end = end_id
