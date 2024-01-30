@@ -274,31 +274,32 @@ class Simulation(BaseClass):
             else:
                 # merge graphs - we want to have all possible graphs at the end
 
-                # TODO: continue
-                exit('TODO - not finished 4x')
-
                 # we start with copying/merging hub data
-                for hub in agent.route_data.nodes(data=True):
-                    if 'agents' in hub[1]:
-                        if hashed_agents[hash_id].route_data.has_node(hub[0]):
-                            data = hashed_agents[hash_id].route_data.nodes[hub[0]]
-                            if 'agents' not in data:
+                for hub in agent.route_data.vs:
+                    if 'agents' in hub.attribute_names():
+                        try:
+                            data = hashed_agents[hash_id].route_data.vs.find(name=hub['name'])
+                            if 'agents' not in data.attribute_names():
                                 data['agents'] = {}
-                            for uid in hub[1]['agents']:
+                            for uid in hub['agents']:
                                 if uid not in data['agents']:
-                                    data['agents'][uid] = hub[1]['agents'][uid]
-                        else:
-                            hashed_agents[hash_id].route_data.add_node(hub[0], agents=hub[1]['agents'])
+                                    data['agents'][uid] = hub['agents'][uid]
+                        except:
+                            hashed_agents[hash_id].route_data.add_vertices(1, attributes=hub.attributes())
 
                 # now connect edges
-                for leg in agent.route_data.edges(data=True, keys=True):
-                    if hashed_agents[hash_id].route_data.has_edge(leg[0], leg[1], leg[2]):
-                        data = hashed_agents[hash_id].route_data[leg[0]][leg[1]][leg[2]]
-                        for uid in leg[3]['agents']:
+                for edge in agent.route_data.es:
+                    try:
+                        data = hashed_agents[hash_id].route_data.es.find(name=edge['key'])
+                        if 'agents' not in data.attribute_names():
+                            data['agents'] = {}
+                        for uid in edge['agents']:
                             if uid not in data['agents']:
-                                data['agents'][uid] = leg[3]['agents'][uid]
-                    else:
-                        hashed_agents[hash_id].route_data.add_edge(leg[0], leg[1], leg[2], agents=leg[3]['agents'])
+                                data['agents'][uid] = edge['agents'][uid]
+                    except:
+                        from_id = hashed_agents[hash_id].route_data.vs[edge.source]['name']
+                        to_id = hashed_agents[hash_id].route_data.vs[edge.target]['name']
+                        hashed_agents[hash_id].route_data.add_edge(from_id, to_id, agents=edge['agents'], key=edge['key'])
 
         return list(hashed_agents.values())
 
@@ -325,9 +326,6 @@ class Simulation(BaseClass):
         # it will run until there are no agents left
         while len(agents):
             agents = self._run_single_day(agents, results)
-
-        # TODO: continue
-        exit('1')
 
         # end simulation - do some history and statistics
         self._end_simulation(results)
@@ -525,7 +523,7 @@ class Simulation(BaseClass):
 
         # add stay over at end
         for agent in results.agents_finished:
-            agent.route_data.add_node(agent.this_hub, agents={agent.uid: {
+            agent.route_data.add_vertex(agent.this_hub, agents={agent.uid: {
                 'start': {
                     'day': agent.current_day,
                     'time': agent.current_time,
