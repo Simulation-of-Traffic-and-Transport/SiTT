@@ -174,7 +174,7 @@ preparation:
 # graph of all possible routes. "crs_from" is the original geographic projection (should be EPSG:4326 in most cases).
 # "crs_to" defines the target projection which should be one having meters as unit attribute (if unsure, check e.g.
 # https://epsg.io/32633). "length_including_heights" can be set to true to calculate the length of the legs more
-# accurately, including slopes degrees in the calculation. While this is more accurate, it seldom plays a major role
+# accurately, including slopes percents in the calculation. While this is more accurate, it seldom plays a major role
 # in the total length of the route.
 #
 # GraphSave is the counterpart of GraphLoad. It saves the graph to disk. Not the condition "not_file_must_exist" -
@@ -331,9 +331,9 @@ simulation_step:
     args:
       # kph of this agent
       speed: 5.0
-      # time taken is modified by slope in degrees multiplied by this number when ascending
+      # time taken is modified by slope in percents multiplied by this number when ascending
       ascend_slowdown_factor: 0.05
-      # time taken is modified by slope in degrees multiplied by this number when descending
+      # time taken is modified by slope in percents multiplied by this number when descending
       descend_slowdown_factor: 0.025
 
 ########################################################################################################################

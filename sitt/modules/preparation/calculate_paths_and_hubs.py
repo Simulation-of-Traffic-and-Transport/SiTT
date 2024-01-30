@@ -95,7 +95,7 @@ class CalculatePathsAndHubs(PreparationInterface):
                 # Calculate single legs
                 length = 0.0
                 legs = []  # in m
-                slopes = []  # in degrees
+                slopes = []  # in percent
 
                 last_coord = None
                 for coord in line.coords:
@@ -113,7 +113,7 @@ class CalculatePathsAndHubs(PreparationInterface):
 
                         # logger.info("%f, %f", diff, leg_length)
                         if leg_length > 0:
-                            slope = np.degrees(np.arctan(diff / leg_length))
+                            slope = diff / leg_length  # slope is in percent (0.00-1.00)
                         else:
                             slope = 0.0
 

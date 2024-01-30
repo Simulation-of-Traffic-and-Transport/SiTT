@@ -33,9 +33,9 @@ class SimpleWithEnvironment(SimulationStepInterface):
         self.speed: float = speed
         """kph of this agent"""
         self.ascend_slowdown_factor: float = ascend_slowdown_factor
-        """time taken is modified by slope in degrees multiplied by this number when ascending"""
+        """time taken is modified by slope in percents multiplied by this number when ascending"""
         self.descend_slowdown_factor: float = descend_slowdown_factor
-        """time taken is modified by slope in degrees multiplied by this number when descending"""
+        """time taken is modified by slope in percents multiplied by this number when descending"""
         self.rainfall_slowdown_factor: float = rainfall_slowdown_factor
         """slowdown factor for rainfall"""
         self.snowfall_slowdown_factor: float = snowfall_slowdown_factor

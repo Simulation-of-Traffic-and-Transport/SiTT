@@ -28,9 +28,9 @@ class Simple(SimulationStepInterface):
         self.speed: float = speed
         """kph of this agent"""
         self.ascend_slowdown_factor: float = ascend_slowdown_factor
-        """time taken is modified by slope in degrees multiplied by this number when ascending"""
+        """time taken is modified by slope in percents multiplied by this number when ascending"""
         self.descend_slowdown_factor: float = descend_slowdown_factor
-        """time taken is modified by slope in degrees multiplied by this number when descending"""
+        """time taken is modified by slope in percents multiplied by this number when descending"""
 
     def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
         state = agent.state

@@ -245,7 +245,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
             if flip:
                 # flip data
                 attr['legs'] = np.flip(attr['legs'])
-                attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop degrees, too
+                attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop percents, too
                 attr['geom'] = reverse(attr['geom'])
                 attr['name'] = name
 
