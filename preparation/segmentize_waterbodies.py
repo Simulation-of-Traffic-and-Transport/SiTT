@@ -21,7 +21,7 @@ from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, MultiPolygon, Point, \
     relate_pattern, centroid, shortest_line
 from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
-    Integer, Boolean, String, Float, select, text, func
+    Integer, Boolean, String, Float, select, text, func, delete
 
 
 def init():
@@ -43,6 +43,7 @@ def init():
     # ensure tables
     _get_water_body_table()
     _get_parts_table()
+    _get_water_depths()
     metadata_obj.create_all(bind=conn, checkfirst=True)
     conn.commit()
 
@@ -399,6 +400,54 @@ def networks():
 
                 conn.commit()
 
+
+def prepare_depths():
+    print("Preparing water depths...")
+
+    # database stuff
+    conn = create_engine(
+        _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
+    water_depths_table = _get_water_depths()
+    parts_table = _get_parts_table()
+
+    # truncate
+    conn.execute(text("TRUNCATE TABLE " + args.topology_schema + "." + args.water_depths_table))
+    conn.commit()
+
+    # now get centroids for all parts
+    c = 0
+    for part in conn.execute(select(func.st_astext(func.st_centroid(parts_table.c.geom)), parts_table.c.water_body_id).select_from(parts_table).where(parts_table.c.is_river == 'y')):
+        stmt = insert(water_depths_table).values(
+            geom=literal_column("'SRID=" + str(args.crs_no) + ";" + part[0] + "'"), water_body_id=part[1])
+        conn.execute(stmt)
+        c += 1
+        if c % 10000 == 0:
+            print(f"{c}... done")
+
+    conn.commit()
+    print(f"Added {c} water depths into table as first step")
+
+    # now we take the minimum point and delete all points that are too close (with 500m)
+    done = False
+    min_id = -1
+
+    while not done:
+        result = conn.execute(select(water_depths_table.c.id, water_depths_table.c.geom, water_depths_table.c.water_body_id).select_from(water_depths_table).where(water_depths_table.c.id > min_id).limit(1).order_by(water_depths_table.c.id)).fetchone()
+        if result:
+            print(f"Deleting around point {result[0]} of water body {result[2]}...")
+            # find points around this one
+            dist_q = func.st_distancespheroid(water_depths_table.c.geom, result[1])
+            conn.execute(delete(water_depths_table).where(dist_q < 500, water_depths_table.c.water_body_id == result[2], water_depths_table.c.id != result[0]))
+            conn.commit()
+
+            # set min_id to the next id
+            min_id = result[0]
+        else:
+            done = True
+
+    print("Done.")
+
+
 def _get_water_body_ids_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
     """
     Narrow down water bodies to list of ids that are connected to harbor hubs + their hubs.
@@ -536,6 +585,14 @@ def _get_hubs_table() -> Table:
                  Column("harbor", String),  # contains y/n
                  schema=args.topology_schema)
 
+def _get_water_depths() -> Table:
+    return Table(args.water_depths_table, metadata_obj,
+                 Column("id", Integer, primary_key=True, autoincrement=True),
+                 Column("geom", Geometry('POINT')),
+                 Column("water_body_id", Integer, index=True),
+                 Column("depth_m", Float),
+                 schema=args.topology_schema)
+
 
 if __name__ == "__main__":
     """Segment rivers and water bodies - this is stuff that may take a (very) long time."""
@@ -544,7 +601,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Segment rivers and water bodies - this is stuff that will take a (very) long time to complete, so it should be done in advance.",
         exit_on_error=False)
-    parser.add_argument('action', default='help', choices=['help', 'init', 'segment', 'segment_no_geos', 'networks'],
+    parser.add_argument('action', default='help', choices=['help', 'init', 'segment', 'segment_no_geos',
+                                                           'networks', 'prepare_depths'],
                         help='action to perform')
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
@@ -557,6 +615,7 @@ if __name__ == "__main__":
                         help='topology schema name')
     parser.add_argument('--wip-schema', dest='wip_schema', default='water_wip', type=str, help='water_wip schema name')
     parser.add_argument('--parts-table', dest='parts_table', default='parts', type=str, help='name of parts table')
+    parser.add_argument('--water-depths-table', dest='water_depths_table', default='water_depths', type=str, help='name of water depths table')
     parser.add_argument('--water-body-table', dest='water_body_table', default='water_body', type=str,
                         help='name of water_body table')
     parser.add_argument('--original-hubs-table', dest='hubs_table', default='rechubs', type=str,
@@ -588,6 +647,7 @@ if __name__ == "__main__":
         print("\nsegment - segment rivers and water bodies")
         print("\nsegment_no_geos - segment rivers and water bodies not using newer geos version (very slow!)")
         print("\nnetworks - create networks for water bodies from the triangles created in the segmentation")
+        print("\nprepare_depths - prepare water depths table - populate with data from segments")
     elif args.action == 'init':
         init()
     elif args.action == 'segment':
@@ -596,3 +656,5 @@ if __name__ == "__main__":
         segment_rivers_and_water_bodies_no_geos()
     elif args.action == 'networks':
         networks()
+    elif args.action == 'prepare_depths':
+        prepare_depths()
