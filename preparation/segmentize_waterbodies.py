@@ -408,15 +408,25 @@ def prepare_depths():
     conn = create_engine(
         _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
     water_depths_table = _get_water_depths()
-    parts_table = _get_parts_table()
+    parts_line_table = Table('parts_lines', metadata_obj,
+                 Column("geom", Geometry('POLYGON')),
+                 Column("water_body_id", Integer, index=True),
+                 schema=args.wip_schema)
 
-    # truncate
+    # truncate and drop
     conn.execute(text("TRUNCATE TABLE " + args.topology_schema + "." + args.water_depths_table))
+    conn.execute(text("DROP TABLE " + args.wip_schema + ".parts_lines"))
     conn.commit()
+
+    print("Creating parts_line table...")
+
+    conn.execute(text("SELECT geom, water_body_id INTO " + args.wip_schema + ".parts_lines FROM (SELECT st_intersection(a.geom, b.geom) as geom, a.water_body_id FROM water_wip.parts as a, water_wip.parts as b WHERE a.is_river = 'y' AND b.is_river = 'y' AND st_touches(a.geom, b.geom)) as results WHERE st_geometrytype(geom) = 'ST_LineString'"))
+
+    print("Getting centroids from parts_line table...")
 
     # now get centroids for all parts
     c = 0
-    for part in conn.execute(select(func.st_astext(func.st_centroid(parts_table.c.geom)), parts_table.c.water_body_id).select_from(parts_table).where(parts_table.c.is_river == 'y')):
+    for part in conn.execute(select(func.st_astext(func.st_centroid(parts_line_table.c.geom)), parts_line_table.c.water_body_id).select_from(parts_line_table)):
         stmt = insert(water_depths_table).values(
             geom=literal_column("'SRID=" + str(args.crs_no) + ";" + part[0] + "'"), water_body_id=part[1])
         conn.execute(stmt)
