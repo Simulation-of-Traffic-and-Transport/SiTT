@@ -314,12 +314,12 @@ def networks():
                     tg.vs.find(name=source)
                 except:
                     source_node = g.vs.find(name=source)
-                    tg.add_vertex(name=source_node['name'], geom=source_node['geom'], center=source_node['center'])
+                    tg.add_vertices(1, attributes=source_node.attributes())
                 try:
                     tg.vs.find(name=target)
                 except:
                     target_node = g.vs.find(name=target)
-                    tg.add_vertex(name=target_node['name'], geom=target_node['geom'], center=target_node['center'])
+                    tg.add_vertices(1, attributes=target_node.attributes())
 
                 # construct new edge from path
                 [line, min_width] = _merge_path(g, source, target, transformer)
@@ -495,7 +495,6 @@ def _get_minimum_distance_in_polygon(polygon: Polygon, center: Point, transforme
     """Get the minimum distance between a point and a polygon boundary."""
     pts = sp_ops.nearest_points(polygon.boundary, center)
     return sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length
-
 
 def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
     """Add a vertex to the graph. if it does not exist yet. Returns the index of the vertex."""

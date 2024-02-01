@@ -90,6 +90,6 @@ class PathWeeder:
             for edge in path:
                 self.graph.es[edge]["length"] *= 1.1
 
-        self.graph.es["length"] = self.base_graph["length"]
+        self.graph.es["length"] = self.base_graph.es["length"]
         self.distance_cache = {}
         return result
