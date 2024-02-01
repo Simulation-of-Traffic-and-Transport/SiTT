@@ -195,11 +195,28 @@ def networks():
                 to_consider.add(0)  # we will always consider the first entry
 
                 # efficient tree tester for fast geometry functions
-                tree = STRtree(tree)
+                tree: STRtree = STRtree(tree)
 
                 # graph
                 g = ig.Graph()
                 counter = 0
+
+                # connect harbors to the closest parts - these are the starting points of our graph
+                for harbor in water_bodies[body[0]]:
+                    # normalize, remove z
+                    p = Point(harbor[1].x, harbor[1].y)
+
+                    # create harbor vertex
+                    g.add_vertex(harbor[0], geom=p, center=p)
+
+                    # get nearest neighbor and add vertex to the graph
+                    id = tree.nearest(p)
+                    str_id = _add_vertex(g, body[0], id, tree.geometries.take(id))
+
+                    # add edge
+                    g.add_edge(harbor[0], str_id)
+
+                print("Added", len(water_bodies[body[0]]), "harbors to graph")
 
                 while len(to_consider) > 0:
                     idx = to_consider.pop()
@@ -487,9 +504,13 @@ def _merge_path(g: ig.Graph, source: str, target: str, transformer: pyproj.Trans
 
     # min width of first and last end points added...
     v2 = g.vs[shortest_path[-1]]
-    min_width = min(_get_minimum_distance_in_polygon(vertex['geom'], vertex['center'], transformer),
-                    _get_minimum_distance_in_polygon(v2['geom'], v2['center'], transformer)) * 2
-    # *2, because we need minimum to both sides
+    if type(vertex['geom']) is Point or type(v2['geom']) is Point:
+        # do not consider harbors
+        min_width = 0
+    else:
+        min_width = min(_get_minimum_distance_in_polygon(vertex['geom'], vertex['center'], transformer),
+                        _get_minimum_distance_in_polygon(v2['geom'], v2['center'], transformer)) * 2
+        # *2, because we need minimum to both sides
 
     for id in shortest_path:
         vertex = g.vs[id]
@@ -501,7 +522,11 @@ def _merge_path(g: ig.Graph, source: str, target: str, transformer: pyproj.Trans
             length = sp_ops.transform(transformer.transform, common_line).length
             if length < min_width:
                 min_width = length
-            points.append(centroid(common_line))
+            center: Point = centroid(common_line)
+            if center.is_empty:
+                points.append(vertex['center'])
+            else:
+                points.append(center)
 
         last_shape = vertex['geom']
 
