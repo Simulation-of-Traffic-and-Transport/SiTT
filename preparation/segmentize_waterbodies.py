@@ -22,6 +22,7 @@ from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     relate_pattern, centroid, shortest_line
 from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, Float, select, text, func
+from path_weeder import PathWeeder, BestPathsResult
 
 
 def init():
@@ -260,6 +261,7 @@ def networks():
 
             # create a copy of our graph - add connectors and dangling endpoints first
             tg = g.subgraph(connectors)
+            # TODO(Fabi): uncomment when finished
             for e in tg.es:
                 # direct connection
                 source = tg.vs[e.source]
@@ -340,6 +342,23 @@ def networks():
             # Then check all variants of harbors and create paths.
             # Finally, merge all parts into a single (new) target path, should be possible via
             # https://igraph.org/python/doc/api/igraph.operators.html#union
+
+            # TODO(Fabi): remove when finished just to speed up the process
+            # commented out to stop crash
+            #with open('graph_dump_11.pickle', 'rb') as f:
+            #     tg = pickle.load(f)
+            print(tg.summary())
+
+            path_weeder: PathWeeder = PathWeeder(tg)
+            path_weeder.init(4326, 32633)
+
+            harbors = tg.vs.select(harbor=True)
+            for start_harbor_index in range(0, len(harbors)):
+                for end_harbor_index in range(start_harbor_index + 1, len(harbors)):
+                    start_name = harbors[start_harbor_index]["name"]
+                    end_name = harbors[end_harbor_index]["name"]
+                    weeded_paths = path_weeder.get_k_paths(start_name, end_name, 5)
+                    print(weeded_paths.summary())
 
             for v in tg.vs:
                 stmt = insert(nodes_table).values(
