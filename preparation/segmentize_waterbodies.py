@@ -207,7 +207,7 @@ def networks():
                     p = Point(harbor[1].x, harbor[1].y)
 
                     # create harbor vertex
-                    g.add_vertex(harbor[0], geom=p, center=p)
+                    g.add_vertex(harbor[0], geom=p, center=p, harbor=True)
 
                     # get nearest neighbor and add vertex to the graph
                     id = tree.nearest(p)
