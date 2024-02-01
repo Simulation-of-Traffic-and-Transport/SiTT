@@ -167,15 +167,17 @@ def networks():
     transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
 
     # get ids of water bodies that are connected to hubs
-    water_body_ids = _get_water_body_ids_to_consider(conn, water_body_table)
+    water_bodies = _get_water_bodies_to_consider(conn, water_body_table)
 
     # read water body entries
-    for body in conn.execute(water_body_table.select().where(water_body_table.c.id.in_(water_body_ids.keys()))):
+    for body in conn.execute(water_body_table.select().where(water_body_table.c.id.in_(water_bodies.keys()))):
         print("Networking water body", body[0], "- river:", body[2])
 
         # river?
         if body[2]:  # col 2 is bool true or false, true is river
             if exists('graph_dump_' + str(body[0]) + '.pickle'):
+                print("Loading graph from pickle file graph_dump_" + str(body[0]) + ".pickle")
+
                 with open('graph_dump_' + str(body[0]) + '.pickle', 'rb') as f:
                     g = pickle.load(f)
             else:
@@ -227,7 +229,7 @@ def networks():
 
                 print("Graph saved to 'graph_dump_" + str(body[0]) + ".pickle'")
 
-            print("Neighbors tested, compacting graph.")
+            print("Neighbors created/loaded, compacting graph.")
 
             # compact graph
             # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
@@ -373,7 +375,7 @@ def networks():
                 harbor_lines: list[tuple[str, Point]] = []
                 points_for_navigation: list[list[Point]] = []
 
-                for hub_geom in water_body_ids[body[0]]:
+                for hub_geom in water_bodies[body[0]]:
                     nearest_points = sp_ops.nearest_points(hub_geom[1], ring_shape)
                     harbor_lines.append((hub_geom[0], hub_geom[1],))
                     points_for_navigation.append(nearest_points[1])
@@ -412,7 +414,7 @@ def networks():
 
                 conn.commit()
 
-def _get_water_body_ids_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
+def _get_water_bodies_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
     """
     Narrow down water bodies to list of ids that are connected to harbor hubs + their hubs.
     :return: dict[int, list[str]]
