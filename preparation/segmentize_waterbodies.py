@@ -260,8 +260,7 @@ def networks():
             connectors = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
 
             # create a copy of our graph - add connectors and dangling endpoints first
-            tg = g.subgraph(connectors)
-            # TODO(Fabi): uncomment when finished
+            tg: ig.Graph = g.subgraph(connectors)
             for e in tg.es:
                 # direct connection
                 source = tg.vs[e.source]
@@ -330,35 +329,24 @@ def networks():
                 except:
                     tg.add_edge(source, target, geom=line, name=edge_name, length=length, min_width=min_width)
 
-            # TODO: this would be the place where the A* weeding should take place
-            # tg is the target graph containing all the vertices and edges
-            # Your current implementation of the A* weeding algorithm needs graph ids from & to, so we would need a list
-            # of harbors first. You could implement a query for the harbors, basically
-            # SELECT * FROM topology.rechubs WHERE harbor = 'y'
-            # You might need to query closest harbors, or you can check which harbors are in the tg.graph (might be
-            # easier). To make this work, you have to change your code a bit:
-            # start_id: int, end_id: int must be str, search for the vertices using g.vs.find(name=start) or the like.
-            # Makes the graph more robust, since ids are likely to change.
-            # Then check all variants of harbors and create paths.
-            # Finally, merge all parts into a single (new) target path, should be possible via
-            # https://igraph.org/python/doc/api/igraph.operators.html#union
-
-            # TODO(Fabi): remove when finished just to speed up the process
-            # commented out to stop crash
-            #with open('graph_dump_11.pickle', 'rb') as f:
-            #     tg = pickle.load(f)
-            print(tg.summary())
-
+            # Compact the graph by only storing the edges necessary to travel from each to each harbor
+            # on the 5 best routes to do so
             path_weeder: PathWeeder = PathWeeder(tg)
-            path_weeder.init(4326, 32633)
+            path_weeder.init(args.crs_no, args.crs_to)
 
             harbors = tg.vs.select(harbor=True)
+            graphs = []
             for start_harbor_index in range(0, len(harbors)):
                 for end_harbor_index in range(start_harbor_index + 1, len(harbors)):
                     start_name = harbors[start_harbor_index]["name"]
                     end_name = harbors[end_harbor_index]["name"]
                     weeded_paths = path_weeder.get_k_paths(start_name, end_name, 5)
-                    print(weeded_paths.summary())
+                    for path in weeded_paths.paths:
+                        subgraph: ig.Graph = weeded_paths.graph.subgraph_edges(path[1])
+                        graphs.append(subgraph)
+
+            base_graph = graphs[0]
+            tg = base_graph.union(graphs[1:], byname=True)
 
             for v in tg.vs:
                 stmt = insert(nodes_table).values(
