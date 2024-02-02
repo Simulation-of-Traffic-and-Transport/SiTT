@@ -22,7 +22,9 @@ from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     relate_pattern, centroid, shortest_line
 from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, Float, select, text, func, delete
-from path_weeder import PathWeeder, BestPathsResult
+
+from path_weeder import PathWeeder
+
 
 def init():
     """Initialize database."""
