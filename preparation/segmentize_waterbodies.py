@@ -22,7 +22,7 @@ from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
     relate_pattern, centroid, shortest_line
 from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
     Integer, Boolean, String, Float, select, text, func, delete
-
+from path_weeder import PathWeeder, BestPathsResult
 
 def init():
     """Initialize database."""
@@ -168,15 +168,17 @@ def networks():
     transformer = Transformer.from_crs(args.crs_no, args.crs_to, always_xy=True)
 
     # get ids of water bodies that are connected to hubs
-    water_body_ids = _get_water_body_ids_to_consider(conn, water_body_table)
+    water_bodies = _get_water_bodies_to_consider(conn, water_body_table)
 
     # read water body entries
-    for body in conn.execute(water_body_table.select().where(water_body_table.c.id.in_(water_body_ids.keys()))):
+    for body in conn.execute(water_body_table.select().where(water_body_table.c.id.in_(water_bodies.keys()))):
         print("Networking water body", body[0], "- river:", body[2])
 
         # river?
         if body[2]:  # col 2 is bool true or false, true is river
             if exists('graph_dump_' + str(body[0]) + '.pickle'):
+                print("Loading graph from pickle file graph_dump_" + str(body[0]) + ".pickle")
+
                 with open('graph_dump_' + str(body[0]) + '.pickle', 'rb') as f:
                     g = pickle.load(f)
             else:
@@ -194,11 +196,28 @@ def networks():
                 to_consider.add(0)  # we will always consider the first entry
 
                 # efficient tree tester for fast geometry functions
-                tree = STRtree(tree)
+                tree: STRtree = STRtree(tree)
 
                 # graph
                 g = ig.Graph()
                 counter = 0
+
+                # connect harbors to the closest parts - these are the starting points of our graph
+                for harbor in water_bodies[body[0]]:
+                    # normalize, remove z
+                    p = Point(harbor[1].x, harbor[1].y)
+
+                    # create harbor vertex
+                    g.add_vertex(harbor[0], geom=p, center=p, harbor=True)
+
+                    # get nearest neighbor and add vertex to the graph
+                    id = tree.nearest(p)
+                    str_id = _add_vertex(g, body[0], id, tree.geometries.take(id))
+
+                    # add edge
+                    g.add_edge(harbor[0], str_id)
+
+                print("Added", len(water_bodies[body[0]]), "harbors to graph")
 
                 while len(to_consider) > 0:
                     idx = to_consider.pop()
@@ -228,7 +247,7 @@ def networks():
 
                 print("Graph saved to 'graph_dump_" + str(body[0]) + ".pickle'")
 
-            print("Neighbors tested, compacting graph.")
+            print("Neighbors created/loaded, compacting graph.")
 
             # compact graph
             # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
@@ -241,7 +260,7 @@ def networks():
             connectors = [vertex['name'] for vertex in g.vs if vertex.degree() > 2]
 
             # create a copy of our graph - add connectors and dangling endpoints first
-            tg = g.subgraph(connectors)
+            tg: ig.Graph = g.subgraph(connectors)
             for e in tg.es:
                 # direct connection
                 source = tg.vs[e.source]
@@ -294,12 +313,12 @@ def networks():
                     tg.vs.find(name=source)
                 except:
                     source_node = g.vs.find(name=source)
-                    tg.add_vertex(name=source_node['name'], geom=source_node['geom'], center=source_node['center'])
+                    tg.add_vertices(1, attributes=source_node.attributes())
                 try:
                     tg.vs.find(name=target)
                 except:
                     target_node = g.vs.find(name=target)
-                    tg.add_vertex(name=target_node['name'], geom=target_node['geom'], center=target_node['center'])
+                    tg.add_vertices(1, attributes=target_node.attributes())
 
                 # construct new edge from path
                 [line, min_width] = _merge_path(g, source, target, transformer)
@@ -309,6 +328,25 @@ def networks():
                     tg.es.find(name=edge_name)
                 except:
                     tg.add_edge(source, target, geom=line, name=edge_name, length=length, min_width=min_width)
+
+            # Compact the graph by only storing the edges necessary to travel from each to each harbor
+            # on the 5 best routes to do so
+            path_weeder: PathWeeder = PathWeeder(tg)
+            path_weeder.init(args.crs_no, args.crs_to)
+
+            harbors = tg.vs.select(harbor=True)
+            graphs = []
+            for start_harbor_index in range(0, len(harbors)):
+                for end_harbor_index in range(start_harbor_index + 1, len(harbors)):
+                    start_name = harbors[start_harbor_index]["name"]
+                    end_name = harbors[end_harbor_index]["name"]
+                    weeded_paths = path_weeder.get_k_paths(start_name, end_name, 5)
+                    for path in weeded_paths.paths:
+                        subgraph: ig.Graph = weeded_paths.graph.subgraph_edges(path[1])
+                        graphs.append(subgraph)
+
+            base_graph = graphs[0]
+            tg = base_graph.union(graphs[1:], byname=True)
 
             for v in tg.vs:
                 stmt = insert(nodes_table).values(
@@ -361,7 +399,7 @@ def networks():
                 harbor_lines: list[tuple[str, Point]] = []
                 points_for_navigation: list[list[Point]] = []
 
-                for hub_geom in water_body_ids[body[0]]:
+                for hub_geom in water_bodies[body[0]]:
                     nearest_points = sp_ops.nearest_points(hub_geom[1], ring_shape)
                     harbor_lines.append((hub_geom[0], hub_geom[1],))
                     points_for_navigation.append(nearest_points[1])
@@ -458,7 +496,7 @@ def prepare_depths():
     print("Done.")
 
 
-def _get_water_body_ids_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
+def _get_water_bodies_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
     """
     Narrow down water bodies to list of ids that are connected to harbor hubs + their hubs.
     :return: dict[int, list[str]]
@@ -504,7 +542,6 @@ def _get_minimum_distance_in_polygon(polygon: Polygon, center: Point, transforme
     pts = sp_ops.nearest_points(polygon.boundary, center)
     return sp_ops.transform(transformer.transform, shortest_line(pts[0], pts[1])).length
 
-
 def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
     """Add a vertex to the graph. if it does not exist yet. Returns the index of the vertex."""
     str_idx = str(water_body_id) + '-' + str(idx)
@@ -531,9 +568,13 @@ def _merge_path(g: ig.Graph, source: str, target: str, transformer: pyproj.Trans
 
     # min width of first and last end points added...
     v2 = g.vs[shortest_path[-1]]
-    min_width = min(_get_minimum_distance_in_polygon(vertex['geom'], vertex['center'], transformer),
-                    _get_minimum_distance_in_polygon(v2['geom'], v2['center'], transformer)) * 2
-    # *2, because we need minimum to both sides
+    if type(vertex['geom']) is Point or type(v2['geom']) is Point:
+        # do not consider harbors
+        min_width = 0
+    else:
+        min_width = min(_get_minimum_distance_in_polygon(vertex['geom'], vertex['center'], transformer),
+                        _get_minimum_distance_in_polygon(v2['geom'], v2['center'], transformer)) * 2
+        # *2, because we need minimum to both sides
 
     for id in shortest_path:
         vertex = g.vs[id]
@@ -545,7 +586,11 @@ def _merge_path(g: ig.Graph, source: str, target: str, transformer: pyproj.Trans
             length = sp_ops.transform(transformer.transform, common_line).length
             if length < min_width:
                 min_width = length
-            points.append(centroid(common_line))
+            center: Point = centroid(common_line)
+            if center.is_empty:
+                points.append(vertex['center'])
+            else:
+                points.append(center)
 
         last_shape = vertex['geom']
 
