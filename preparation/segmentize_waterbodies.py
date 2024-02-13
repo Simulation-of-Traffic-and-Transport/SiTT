@@ -144,22 +144,8 @@ def networks():
         _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
     water_body_table = _get_water_body_table()
     parts_table = _get_parts_table()
-
-    nodes_table = Table("water_nodes", metadata_obj,
-                        Column("id", String(length=16), primary_key=True),
-                        Column("geom", Geometry('POINT')),
-                        Column("water_body_id", Integer, index=True),
-                        Column("is_river", Boolean),
-                        schema=args.wip_schema)
-
-    edges_table = Table("water_edges", metadata_obj,
-                        Column("id", String(length=32), primary_key=True),
-                        Column("geom", Geometry('LINESTRING')),
-                        Column("water_body_id", Integer, index=True),
-                        Column("is_river", Boolean),
-                        Column("length", Float, default=0.),
-                        Column("min_width", Float, default=0.),
-                        schema=args.wip_schema)
+    nodes_table = _get_water_nodes_table()
+    edges_table = _get_water_edges_table()
 
     metadata_obj.create_all(bind=conn, checkfirst=True)
 
@@ -623,6 +609,33 @@ def _get_water_body_table() -> Table:
                  Column("is_river", Boolean),
                  schema=args.topology_schema)
 
+def _get_water_nodes_table() -> Table:
+    """
+    Returns table containing calculated water nodes
+    :return: table
+    """
+    return Table(args.water_nodes_table, metadata_obj,
+                        Column("id", String(length=16), primary_key=True),
+                        Column("geom", Geometry('POINT')),
+                        Column("water_body_id", Integer, index=True),
+                        Column("is_river", Boolean),
+                        schema=args.wip_schema)
+
+def _get_water_edges_table() -> Table:
+    """
+    Returns table containing calculated water edges
+    :return: table
+    """
+    return Table(args.water_edges_table, metadata_obj,
+                 Column("id", String(length=32), primary_key=True),
+                 Column("geom", Geometry('LINESTRING')),
+                 Column("water_body_id", Integer, index=True),
+                 Column("is_river", Boolean),
+                 Column("length", Float, default=0.),
+                 Column("min_width", Float, default=0.),  # minimum width of water
+                 Column("incline", Float, default=0.),  # incline angle of water
+                 Column("medium_velocity", Float, default=0.),  # base velocity of this edge path
+                 schema=args.wip_schema)
 
 def _get_parts_table() -> Table:
     return Table(args.parts_table, metadata_obj,
@@ -673,6 +686,8 @@ if __name__ == "__main__":
     parser.add_argument('--wip-schema', dest='wip_schema', default='water_wip', type=str, help='water_wip schema name')
     parser.add_argument('--parts-table', dest='parts_table', default='parts', type=str, help='name of parts table')
     parser.add_argument('--water-depths-table', dest='water_depths_table', default='water_depths', type=str, help='name of water depths table')
+    parser.add_argument('--water-nodes-table', dest='water_nodes_table', default='water_nodes', type=str, help='name of water nodes table')
+    parser.add_argument('--water-edges-table', dest='water_edges_table', default='water_edges', type=str, help='name of water edges table')
     parser.add_argument('--water-body-table', dest='water_body_table', default='water_body', type=str,
                         help='name of water_body table')
     parser.add_argument('--original-hubs-table', dest='hubs_table', default='rechubs', type=str,
