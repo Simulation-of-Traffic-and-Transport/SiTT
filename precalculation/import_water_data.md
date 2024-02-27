@@ -13,6 +13,8 @@ schema `water_wip` in your PostgreSQL/PostGIS database:
 CREATE SCHEMA IF NOT EXISTS water_wip;
 ```
 
+This will be our temporary schema to hold some tables we can delete after we have finished our import.
+
 Import data:
 
 ```shell
@@ -50,13 +52,15 @@ select w.id, ST_CollectionExtract(st_difference(w.geom, (SELECT i.geom FROM wate
 Finally, create separate water body entities in the normalized table:
 
 ```postgresql
-SELECT (wb.dump).path[1] as id, (wb.dump).geom as geom, true as is_river INTO topology.water_body FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_river_body) as wb;
+DROP TABLE IF EXISTS sitt.water_bodies;
+SELECT (wb.dump).path[1] as id, (wb.dump).geom as geom, true as is_river INTO sitt.water_bodies FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_river_body) as wb;
 -- now from lakes
-SELECT (wb.dump).path[1] + (SELECT MAX(id) FROM topology.water_body) as id, (wb.dump).geom as geom, false as is_river INTO water_wip.lakes_for_import FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_lake_body) as wb;
-INSERT INTO topology.water_body SELECT * FROM water_wip.lakes_for_import;
+SELECT (wb.dump).path[1] + (SELECT MAX(id) FROM sitt.water_bodies) as id, (wb.dump).geom as geom, false as is_river INTO water_wip.lakes_for_import FROM (SELECT ST_DUMP(geom) as dump FROM water_wip.all_lake_body) as wb;
+INSERT INTO sitt.water_bodies SELECT * FROM water_wip.lakes_for_import;
 DROP TABLE water_wip.lakes_for_import;
--- finally, create index
-CREATE INDEX sidx_water_body_geom ON topology.water_body USING gist (geom);
+-- finally, create indexes
+alter table sitt.water_bodies add constraint water_bodies_pk primary key (id);
+create index water_bodies_geom_index on sitt.water_bodies using GIST (geom);
 ```
 
 ## Check for Touching Rings
@@ -81,7 +85,7 @@ $$
         CREATE INDEX sidx_touches_geom ON water_wip.touches USING gist (geom);
 
         FOR wb_iter IN
-            SELECT id FROM topology.water_body where st_numinteriorrings(geom) > 0
+            SELECT id FROM sitt.water_bodies where st_numinteriorrings(geom) > 0
             LOOP
                 RAISE NOTICE 'Checking water body id: %', wb_iter.id;
                 -- create rings table
@@ -95,7 +99,7 @@ $$
                 -- fill rings table
                 FOR iter IN
                     SELECT (ST_DumpRings(geom)).path[1] as id, ST_ExteriorRing((ST_DumpRings(geom)).geom) as geom
-                    FROM topology.water_body
+                    FROM sitt.water_bodies
                     where id = wb_iter.id
                     LOOP
                         INSERT INTO water_wip.rings (id, geom) VALUES (iter.id, iter.geom);
@@ -144,7 +148,7 @@ $$
         CREATE INDEX sidx_touches_geom ON water_wip.touches USING gist (geom);
 
         FOR wb_iter IN
-            SELECT id FROM topology.water_body where st_numinteriorrings(geom) > 0
+            SELECT id FROM sitt.water_bodies where st_numinteriorrings(geom) > 0
             LOOP
                 RAISE NOTICE 'Checking water body id: %', wb_iter.id;
                 -- create rings table
@@ -158,7 +162,7 @@ $$
                 -- fill rings table
                 FOR iter IN
                     SELECT (ST_DumpRings(geom)).path[1] as id, ST_ExteriorRing((ST_DumpRings(geom)).geom) as geom
-                    FROM topology.water_body
+                    FROM sitt.water_bodies
                     where id = wb_iter.id
                     LOOP
                         INSERT INTO water_wip.rings (id, geom) VALUES (iter.id, iter.geom);
@@ -187,8 +191,8 @@ $$
                     FROM water_wip.touches
                     WHERE water_body_id = wb_iter.id
                     LOOP
-                        UPDATE topology.water_body
-                        SET geom = ST_Union(water_body.geom, ST_Buffer(iter.geom, 0.00005, 'quad_segs=8'))
+                        UPDATE sitt.water_bodies
+                        SET geom = ST_Union(water_bodies.geom, ST_Buffer(iter.geom, 0.00005, 'quad_segs=8'))
                         WHERE id = iter.water_body_id;
                     END LOOP;
             END LOOP;
@@ -201,6 +205,7 @@ $$
 ## Create lines from water body
 
 ```postgresql
-SELECT (d.dump_set).path[1] as id, (d.dump_set).geom as geom into topology.water_lines FROM (SELECT ST_Dump(ST_Boundary(geom)::geometry) as dump_set from topology.water_body) as d;
-CREATE INDEX sidx_water_lines_geom ON topology.water_lines USING gist (geom);
+DROP TABLE IF EXISTS sitt.water_lines;
+SELECT (d.dump_set).path[1] as id, (d.dump_set).geom as geom into sitt.water_lines FROM (SELECT ST_Dump(ST_Boundary(geom)::geometry) as dump_set from sitt.water_bodies) as d;
+CREATE INDEX sidx_water_lines_geom ON sitt.water_lines USING gist (geom);
 ```

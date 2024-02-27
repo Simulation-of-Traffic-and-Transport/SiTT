@@ -2,7 +2,9 @@
 
 Si.T.T. is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
 approach to model the simulation. An agent can be thought of as a batch of cargo transported through the network
-(rather than an individual person travelling it).
+(rather than an individual person travelling it). A transport can be conducted on land (e.g. roads), on rivers, and
+lakes. Si.T.T. has a very modular design, so elements can be exchanged in order to test out different scientific
+methods.
 
 The following sections explain the basic concepts of the Si.T.T. application. The content is subject to change.
 
@@ -17,7 +19,8 @@ or web sources. Modules are plain Python classes, and it is easy to create new c
 The main simulation program code is called *Si.T.T. Core*. The core takes arguments defined by some *configuration*.
 After running, it returns data in a format that can be read and presented by other applications. Si.T.T. Core is designed
 to be run as part of other applications, e.g. as part of a website (e.g. in a Django application), as a command line
-programm or within one that presents a nice GUI (graphical user interface).
+programm or within one that presents a nice GUI (graphical user interface). Presently, only the command line version
+has been implemented.
 
 ```mermaid
 flowchart TB
@@ -35,24 +38,32 @@ subgraph GUI
 end
 ```
 
-The core consists of three components:
+The core consists of three components. The components can be preceded by a precalculation phase for long-running
+operations.
 
 ```mermaid
-flowchart TB
-subgraph "Si.T.T. Core"
-    IN["Preparation Component"]
-    SIM["Simulation Component"]
-    OUT["Output Component"]
-    
-    IN --> SIM --> OUT
+flowchart LR
+PRE["Precalculation"]
+
+PRE --> IN
+
+subgraph CORE ["St.T.T Core"]
+  IN["Preparation Component"]
+  SIM["Simulation Component"]
+  OUT["Output Component"]
+  
+  IN ==> SIM ==> OUT
 end
 
 classDef module fill:#f9f,stroke:#333,color:#333;
 class IN,SIM,OUT module;
 ```
 
-* The **Preparation Component** consists of modules that read data from data sources and convert them into a
-  format that can be read by the simulation.
+* **Precalculation** can be done before starting the simulation. Precalculation steps are not really a part of the
+  core, but rather a collection of scripts that format the data, so it can be read more easily. Most importantly, it
+  contains log-running operations that should only run once before the simulation.
+* The **Preparation Component** consists of modules that read data from the database and other sources and convert them 
+  into a format that can be read by the simulation.
     * The output of this component is called the *Context*. The context will contain static data like
       possible routes including height profiles, route type (road, stream, etc.), weather data, data on fatigue and
       whatever additional information makes sense). Some data will also exist as dynamic web endpoints.
@@ -77,10 +88,13 @@ The following diagram shows the basic constituents of the software:
 ```mermaid
 flowchart TB
 APP([Application])
+PRE["Precalculation"]
 
 CONF["Configuration"]
 SRC[("Data Source(s)")]
 OUTPUT[Output]
+
+PRE --> SRC
 
 subgraph CORE [Si.T.T. Core]
     IN["Preparation Component"]
@@ -122,8 +136,14 @@ The configuration can be defined using any of these methods:
 * from command line parameters
 
 Consequently, the configuration can be defined by another program, or running a wrapper on the command line or within
-a Jupyter notebook. Core of the configuration will be config loader, probably based on either
-[jsonargparse](https://jsonargparse.readthedocs.io/en/latest/) or [Click](https://click.palletsprojects.com/en/8.1.x/).
+a Jupyter notebook.
+
+
+## Precalculation
+
+Precalculation is a phase used to prepare complex data for the simulation. This includes precalculating long-running
+formulas as well as putting the data into a database that can be used in the simulation. More information on this
+database can be found on the [Database Reference](database.md) page.
 
 
 ## Preparation Component

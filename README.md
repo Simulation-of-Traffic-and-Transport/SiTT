@@ -23,7 +23,11 @@ Public mirror: https://github.com/Simulation-of-Traffic-and-Transport/SiTT
 
 ## Installation
 
-You need Python 3.10 or later to run Si.T.T.
+You need Python 3.10 or later to run Si.T.T. Moreover, the principal components of the simulation are contained in a
+PostgreSQL database, more specifically one with the [PostGIS](https://www.postgis.net/) extension. PostGis should
+be pretty recent and should have Geos >= 3.11.0 included, otherwise we will have to implement certain things in Python
+which will be pretty slow. Si.T.T. also makes use of JSONB in PostgreSQL, but since this has been introduced in
+version 9.4, it is likely, your database server will support this feature anyway.
 
 ```console
 pip install sitt
@@ -65,8 +69,7 @@ pytest -v .
 You can read some documentation on the following pages:
 
 * [Si.T.T.'S General Concept](readmes/concept.md) (with figures)
-* [Postgres Schemata](readmes/postgres_schemata.md)
-* [Water Data](readmes/water_data.md) - information on water bodies, rivers, etc.
+* [Database Reference](readmes/database.md)
 
 ## Examples
 
