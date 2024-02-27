@@ -32,10 +32,10 @@ create table sitt.roads
             primary key,
     geom public.geometry(LineStringZ,4326) not null,
     hub_id_a  text not null
-        constraint roads_roads_id_fk
-            references sitt.roads,
+        constraint roads_hubs_a_id_fk
+            references sitt.hubs,
     hub_id_b  text not null
-        constraint roads_hubs_id_fk
+        constraint roads_hubs_b_id_fk
             references sitt.hubs,
     roughness double precision default 1
 );
