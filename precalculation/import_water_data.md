@@ -209,3 +209,12 @@ DROP TABLE IF EXISTS sitt.water_lines;
 SELECT (d.dump_set).path[1] as id, (d.dump_set).geom as geom into sitt.water_lines FROM (SELECT ST_Dump(ST_Boundary(geom)::geometry) as dump_set from sitt.water_bodies) as d;
 CREATE INDEX sidx_water_lines_geom ON sitt.water_lines USING gist (geom);
 ```
+
+## Clean data
+
+```postgresql
+DROP SCHEMA water_wip;
+
+-- recommended by postgis https://postgis.net/workshops/postgis-intro/indexing.html#vacuuming
+VACUUM;
+```
