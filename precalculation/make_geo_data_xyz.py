@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument('--xy', dest='always_xy', default=True, type=bool, help='use the traditional GIS order')
     parser.add_argument('-i', '--input-file', dest='file', required=True, type=str, help='input file (GeoTIFF)')
     parser.add_argument('-b', '--band', dest='band', default=1, type=int, help='band to use from GeoTIFF')
-    parser.add_argument('-k', '--keep', dest='keep_existing', default=False, type=bool,
+    parser.add_argument('-k', '--keep', dest='keep_existing', default=True, type=bool,
                         help='keep existing coordinates (overwrite otherwise)')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
