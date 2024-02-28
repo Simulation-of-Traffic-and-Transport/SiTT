@@ -51,6 +51,7 @@ body tables.
 The base data consists of two tables:
 
 `water_bodies` fields:
+* `id` - ID of the water body, just an integer
 * `geom` - generic geometry, should contain polygons and multipolygons only.
 * `is_river` - True if the waterbody is a river and not a lake.
 
@@ -58,13 +59,19 @@ The base data consists of two tables:
 * `geom` - generic geometry, should contain line strings only. Keeps the borders of all water bodies, so we can check
   what lines are shores and what lines are within the river.
 
-TODO:
+Water lines do not need to have an id, we just need this to identify shores.
 
-Rivers:
-* segments?
+### Graph Entries (Edges)
 
-Lakes:
-* Shape?
+Roads and Water bodies are abstracted to graph data, namely edges connecting hubs. Thus, when running the simulation,
+the path projection does not need to know in advance, if a particular route is a road, a lake or a river.
 
-
-Graph system?
+`edges` fields:
+* `id` - ID of the edge, must be unique, text field
+* `geom` - geometry of the edge, can be a lines string or a polygon
+* `hub_id_a` - ID of "from hub", order or hubs is not important, but geometry should be capable of handling this.
+* `hub_id_b` - ID of "to hub", order or hubs is not important, but geometry should be capable of handling this.
+* `type` - type of the edge, can be one of "road", "river", or "lake".
+* `cost_a_b` - basic cost variable of this edge from a to b, used for route selection as base cost
+* `cost_b_a` - basic cost variable of this edge from b to a, used for route selection as base cost
+* `data` - JSON data containing any relevant data about the edge

@@ -82,3 +82,33 @@ alter table sitt.water_lines
 create index sidx_water_lines_geom
     on sitt.water_lines using gist (geom);
 
+
+CREATE TYPE sitt.edge_type AS ENUM ('road', 'river', 'lake');
+
+create table sitt.edges
+(
+    id       text                       not null
+        constraint edges_pk
+            primary key,
+    geom     geometry                   not null,
+    hub_id_a text                       not null
+        constraint roads_hubs_a_id_fk
+            references sitt.hubs,
+    hub_id_b text                       not null
+        constraint roads_hubs_b_id_fk
+            references sitt.hubs,
+    type     sitt.edge_type,
+    cost_a_b double precision default 1 not null,
+    cost_b_a double precision default 1 not null,
+    data     jsonb
+);
+
+alter table sitt.edges
+    owner to postgres;
+
+create index edges_hub_id_a_index
+    on sitt.edges (hub_id_a);
+
+create index edges_hub_id_b_index
+    on sitt.edges (hub_id_b);
+
