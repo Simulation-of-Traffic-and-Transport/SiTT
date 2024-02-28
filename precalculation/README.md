@@ -13,12 +13,15 @@ flowchart TD
     hubs_roads["`import_hubs_roads.py *or*
     import_hubs_roads_with_geotiff.py`"]
     geo_data["make_geo_data_xyz.py"]
+    convert_roads["convert_roads_to_edges.py"]
     
     schema --> water
     schema --> hubs_roads
     
     water --> geo_data
     hubs_roads --> geo_data
+    
+    geo_data --> convert_roads
 ```
 
 
@@ -35,3 +38,4 @@ Short explanations:
   start).
 * [make_geo_data_xyz.py](make_geo_data_xyz.py) - converter that loads a GeoTiFF file and puts heights onto all points in
   shapes created. Will keep created heights, unless you set some command line arguments.
+* [convert_roads_to_edges.py](convert_roads_to_edges.py) - converter that will convert road data into proper edges

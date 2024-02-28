@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 """Take a GeoTIFF and create heights for all coordinates in the database."""
+
 import argparse
 import os
-import sys
 from urllib import parse
 
 import geopandas as gpd

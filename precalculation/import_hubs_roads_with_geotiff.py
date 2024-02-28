@@ -90,6 +90,17 @@ def parse_yes_no_entry(s: str) -> bool:
     return False
 
 
+def clean_coords(coords: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Clean coordinates by weeding out duplicate values (zero length legs)."""
+    new_coords = []
+    last_coord = None
+    for coord in coords:
+        if last_coord is None or last_coord != coord:
+            new_coords.append(coord)
+        last_coord = coord
+    return new_coords
+
+
 # load GeoTIFF
 rds: rasterio.io.DatasetReader = rasterio.open(os.path.abspath(geo_tiff_path))
 transformer = Transformer.from_crs(crs_no, rds.crs, always_xy=True)
@@ -109,7 +120,7 @@ for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM t
     overnight = parse_yes_no_entry(result[3])
     market = False  # just take fixed value for now
     # we have only one coordinate for hubs
-    coord = wkb.loads(geom).coord[0]
+    coord = wkb.loads(geom).coords[0]
 
     point = "SRID=" + str(crs_no) + ";" + str(Point(coord[0], coord[1], get_height_for_coordinate(coord)))
 
@@ -125,7 +136,7 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
     hubaid = result[1]
     hubbid = result[2]
     geom = result[3]
-    coords = wkb.loads(geom).coords
+    coords = clean_coords(wkb.loads(geom).coords)
 
     if segment_paths:
         coords = create_segments(coords)

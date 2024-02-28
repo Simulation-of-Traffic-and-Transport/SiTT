@@ -11,7 +11,7 @@ create table sitt.hubs
     id        text                   not null
         constraint hubs_pk
             primary key,
-    geom      geometry(PointZ, 4326) not null,
+    geom      geography(PointZ, 4326) not null,
     overnight boolean default false  not null,
     harbor    boolean default false  not null,
     market    boolean default false  not null
@@ -30,7 +30,7 @@ create table sitt.roads
     id        text not null
         constraint roads_pk
             primary key,
-    geom public.geometry(LineStringZ,4326) not null,
+    geom geography(LineStringZ,4326) not null,
     hub_id_a  text not null
         constraint roads_hubs_a_id_fk
             references sitt.hubs,
@@ -90,7 +90,7 @@ create table sitt.edges
     id       text                       not null
         constraint edges_pk
             primary key,
-    geom     geometry                   not null,
+    geom     geography(GeometryZ, 4326) not null,
     hub_id_a text                       not null
         constraint roads_hubs_a_id_fk
             references sitt.hubs,
@@ -111,4 +111,5 @@ create index edges_hub_id_a_index
 
 create index edges_hub_id_b_index
     on sitt.edges (hub_id_b);
+
 
