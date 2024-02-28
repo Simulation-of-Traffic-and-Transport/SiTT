@@ -8,8 +8,6 @@ from .conditional_module import ConditionalModule
 from .create_routes import CreateRoutes
 from .debug_display_paths_and_hubs import DebugDisplayPathsAndHubs
 from .dummy import Dummy
-from .geotiff_create_segmented_paths import GeoTIFFCreateSegmentedPaths
-from .geotiff_height_for_paths_and_hubs import GeoTIFFHeightForPathsAndHubs
 from .graph_load import GraphLoad
 from .graph_save import GraphSave
 from .load_data_from_netcdf import LoadDataFromNETCDF
@@ -26,8 +24,6 @@ __all__ = [
     'CreateRoutes',
     'DebugDisplayPathsAndHubs',
     'Dummy',
-    'GeoTIFFCreateSegmentedPaths',
-    'GeoTIFFHeightForPathsAndHubs',
     'GraphLoad',
     'GraphSave',
     'LoadDataFromNETCDF',

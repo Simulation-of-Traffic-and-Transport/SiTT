@@ -163,10 +163,6 @@ preparation:
 # PsqlCalculateRiverWidths on the other hand will calculate the widths of river sections based on the data in raw rivers
 # and raw hubs. It also takes some time - you need to have a water_lines table prepared, see documentation.
 #
-# GeoTIFFHeightForPathsAndHubs will set the heights of paths and hubs using a GeoTIFF image. "crs_from" defines the
-# geometric projection, "always_xy" will define the order of x and y, and "overwrite" can be set to true to overwrite
-# height data, if it exists already.
-#
 # PsqlSavePathsAndHubs will save the changed data back into the database. This is handy in our example, because the
 # calculation of heights from GEoTIFF is relatively expensive. So we speed up our preparation a tiny bit.
 #
@@ -228,13 +224,6 @@ preparation:
 #          not_data_must_exist:
 #            class: context
 #            key: raw_rivers
-#      - class: GeoTIFFHeightForPathsAndHubs
-#        module: modules.preparation
-#        args:
-#          file: ./data/DTM Austria 10m v2 by Sonny.tif
-#          crs_from: "EPSG:4326"
-#          always_xy: true
-#          overwrite: false
 #      - class: PsqlSavePathsAndHubs
 #        module: modules.preparation
 #        args:
