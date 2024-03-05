@@ -69,6 +69,20 @@ create index water_bodies_geom_index
     on sitt.water_bodies using gist (geom);
 
 
+create table sitt.water_parts
+(
+    id            serial,
+    geom          geography(Polygon, 4326),
+    water_body_id integer
+        constraint water_parts_water_bodies_id_fk
+            references sitt.water_bodies,
+    is_river      boolean default false
+);
+
+create index water_parts_geom_index
+    on sitt.water_parts using gist (geom);
+
+
 
 create table sitt.water_lines
 (
