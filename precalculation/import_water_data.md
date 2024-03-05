@@ -5,15 +5,15 @@ to work properly.
 
 ## Importing from Shapefiles
 
-If you have shapefiles, you can import the data using `ogr2ogr`. Like this - we assume that you have created a
-schema `water_wip` in your PostgreSQL/PostGIS database:
+If you have shapefiles, you can import the data using `ogr2ogr` (see below). We assume that you have created a
+temporary schema `water_wip` in your PostgreSQL/PostGIS database:
 
 ```postgresql
 -- create a schema to work with the data
 CREATE SCHEMA IF NOT EXISTS water_wip;
 ```
 
-This will be our temporary schema to hold some tables we can delete after we have finished our import.
+This will be our schema to hold some tables we can delete after we have finished our import.
 
 Import data:
 
