@@ -4,19 +4,14 @@
 """Convert roads to edges."""
 
 import argparse
-import os
-import sys
 from urllib import parse
 
-import geopandas as gpd
-import rasterio
+import numpy as np
+from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
 from shapely import wkb, ops, LineString
-from shapely.geometry import shape
 from sqlalchemy import create_engine, Table, Column, MetaData, \
-    String, Float, JSON, select, text, update, insert, literal_column
-from geoalchemy2 import Geometry, WKTElement
-import numpy as np
+    String, Float, JSON, text, insert
 
 if __name__ == "__main__":
     # parse arguments
