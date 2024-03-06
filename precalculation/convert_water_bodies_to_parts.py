@@ -58,6 +58,11 @@ if __name__ == "__main__":
 
     # read water body entries
     for body_id in water_body_geoms:
+        # skip lakes for now
+        if not water_body_rivers[body_id]:
+            print("Skipping non-river water body", body_id)
+            continue
+
         print("Segmenting water body", body_id)
 
         geom = water_body_geoms[body_id]
