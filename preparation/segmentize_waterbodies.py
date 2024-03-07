@@ -50,16 +50,6 @@ def init():
     conn.commit()
 
 
-def segment_rivers_and_water_bodies():
-    # DONE
-    pass
-
-
-def segment_rivers_and_water_bodies_no_geos():
-    # DONE
-    pass
-
-
 def networks():
     """Create networks from water body triangles. This is the most complex of the process."""
     print("Create networks from water body triangles. This is the most complex part of the process.")
@@ -352,11 +342,6 @@ def networks():
                 conn.commit()
 
 
-def prepare_depths():
-    # DONE
-    pass
-
-
 def _get_water_bodies_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
     """
     Narrow down water bodies to list of ids that are connected to harbor hubs + their hubs.
@@ -544,8 +529,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Segment rivers and water bodies - this is stuff that will take a (very) long time to complete, so it should be done in advance.",
         exit_on_error=False)
-    parser.add_argument('action', default='help', choices=['help', 'init', 'segment', 'segment_no_geos',
-                                                           'networks', 'prepare_depths'],
+    parser.add_argument('action', default='help', choices=['help', 'init', 'networks'],
                         help='action to perform')
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
@@ -589,17 +573,8 @@ if __name__ == "__main__":
         parser.print_help()
         print("\nActions:")
         print("\ninit - initialize the database (create schemas/tables)")
-        print("\nsegment - segment rivers and water bodies")
-        print("\nsegment_no_geos - segment rivers and water bodies not using newer geos version (very slow!)")
         print("\nnetworks - create networks for water bodies from the triangles created in the segmentation")
-        print("\nprepare_depths - prepare water depths table - populate with data from segments")
     elif args.action == 'init':
         init()
-    elif args.action == 'segment':
-        segment_rivers_and_water_bodies()
-    elif args.action == 'segment_no_geos':
-        segment_rivers_and_water_bodies_no_geos()
     elif args.action == 'networks':
         networks()
-    elif args.action == 'prepare_depths':
-        prepare_depths()
