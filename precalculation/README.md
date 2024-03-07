@@ -4,18 +4,20 @@ This folder contains precalculation scripts (see [concept](../readmes/concept.md
 application, but can be run before starting the simulation, depending on your data. The scripts are examples only and
 should be adjusted to your needs.
 
-Order of script execution:
+Order of (script) execution:
 
 ```mermaid
 flowchart TD
-    schema["DB Schema"]
-    water["import_water_data.md"]
+    schema(["Create DB schemas"])
+    water(["Import water data"])
     hubs_roads["`import_hubs_roads.py *or*
     import_hubs_roads_with_geotiff.py`"]
     geo_data["make_geo_data_xyz.py"]
     convert_roads["convert_roads_to_edges.py"]
     convert_lakes["connect_lake_harbors.py"]
     convert_wb["`convert_water_bodies_to_parts.py *or* convert_water_bodies_to_parts_nogeos.py`"]
+    prepare_water_depths["prepare_water_depths.py"]
+    enter_depths(["Enter water depths"])
     
     schema --> water
     schema --> hubs_roads
@@ -25,7 +27,7 @@ flowchart TD
     
     geo_data --> convert_roads
     geo_data --> convert_lakes
-    geo_data --> convert_wb
+    geo_data --> convert_wb --> prepare_water_depths --> enter_depths
 ```
 
 
@@ -48,3 +50,4 @@ Short explanations:
   to polygon shapes using Geos. Much faster than the Python-only version.
 * [convert_water_bodies_to_parts_nogeos.py](convert_water_bodies_to_parts_nogeos.py) - converter that will convert 
   water body data to polygon shapes using plain Python. This will be *very* slow for large water bodies.
+* [prepare_water_depths](prepare_water_depths.py) - prepares the water depths table to be filled manually.

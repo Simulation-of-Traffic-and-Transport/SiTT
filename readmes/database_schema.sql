@@ -72,7 +72,7 @@ create index water_bodies_geom_index
 create table sitt.water_parts
 (
     id            serial,
-    geom          geography(Polygon, 4326),
+    geom          geometry(Polygon, 4326),
     water_body_id integer
         constraint water_parts_water_bodies_id_fk
             references sitt.water_bodies,
@@ -81,6 +81,23 @@ create table sitt.water_parts
 
 create index water_parts_geom_index
     on sitt.water_parts using gist (geom);
+
+
+create table sitt.water_depths
+(
+    id            serial
+        constraint water_depths_pk
+            primary key,
+    geom          geometry(Point, 4326),
+    water_body_id integer,
+    depth_m       double precision not null default 0
+);
+
+create index water_depths_geom_index
+    on sitt.water_depths using gist (geom);
+
+create index water_depths_water_body_id_index
+    on sitt.water_depths (water_body_id);
 
 
 

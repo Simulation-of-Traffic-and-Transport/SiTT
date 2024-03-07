@@ -51,88 +51,13 @@ def init():
 
 
 def segment_rivers_and_water_bodies():
-    """Segment rivers and water bodies - actual segmentation, this uses Postgis and Geos >= 3.11.0."""
-    print("Segment rivers and water bodies - actual segmentation, this uses Postgis and Geos >= 3.11.0.")
-
-    # database stuff
-    conn = create_engine(
-        _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
-    water_body_table = _get_water_body_table()
-    parts_table = _get_parts_table()
-
-    # truncate
-    conn.execute(text("TRUNCATE TABLE " + args.wip_schema + "." + args.parts_table))
-    conn.commit()
-
-    # read water body entries
-    # TODO: only segment relevant water bodies
-    for body in conn.execute(water_body_table.select()):
-        print("Segmenting water body", body[0])
-
-        # split the water body into triangles
-        parts = conn.execute(text("SELECT (ST_dump(ST_TriangulatePolygon('" + body[1].desc + "'))).geom"))
-        count = 0
-        for part in parts:
-            stmt = insert(parts_table).values(
-                geom=literal_column("'SRID=" + str(args.crs_no) + ";" + part[0] + "'"), water_body_id=body[0],
-                is_river=body[2])
-            conn.execute(stmt)
-            count += 1
-
-        conn.commit()
-        print("Wrote", count, "parts for body", body[0])
+    # DONE
+    pass
 
 
 def segment_rivers_and_water_bodies_no_geos():
-    """Segment rivers and water bodies - actual segmentation, this does not use Geos and is very slow."""
-    print("Segment rivers and water bodies - actual segmentation, this does not use Geos and is very slow.")
-
-    # database stuff
-    conn = create_engine(
-        _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
-    water_body_table = _get_water_body_table()
-    parts_table = _get_parts_table()
-
-    # truncate
-    conn.execute(text("TRUNCATE TABLE " + args.wip_schema + "." + args.parts_table))
-    conn.commit()
-
-    # read water body entries
-    # TODO: only segment relevant water bodies
-    for body in conn.execute(water_body_table.select()):
-        print("Segmenting water body", body[0])
-
-        geom = wkb.loads(body[1].desc)
-        prepare(geom)
-
-        # split the water body into triangles
-        parts = get_parts(delaunay_triangles(geom))
-        total = len(parts)
-        c = 0
-        for part in parts:
-            c += 1
-            if contains(geom, part):
-                stmt = insert(parts_table).values(
-                    geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(part) + "'"), water_body_id=body[0],
-                    is_river=body[2])
-                compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
-                conn.execute(stmt)
-                print(c / total, compiled_stmt)
-                conn.commit()
-            elif overlaps(geom, part):
-                pass
-                sub_parts = get_parts(intersection(geom, part))
-                for p in sub_parts:
-                    if p.geom_type == 'Polygon':
-                        stmt = insert(parts_table).values(
-                            geom=literal_column("'SRID=" + str(args.crs_no) + ";" + str(p) + "'"),
-                            water_body_id=body[0], is_river=body[2])
-                        compiled_stmt = stmt.compile(compile_kwargs={'literal_binds': True})
-                        conn.execute(stmt)
-                        print(c / total, compiled_stmt)
-                        conn.commit()
-
-        destroy_prepared(geom)
+    # DONE
+    pass
 
 
 def networks():
@@ -428,60 +353,8 @@ def networks():
 
 
 def prepare_depths():
-    print("Preparing water depths...")
-
-    # database stuff
-    conn = create_engine(
-        _create_connection_string(args.server, args.database, args.user, args.password, args.port)).connect()
-    water_depths_table = _get_water_depths()
-    parts_line_table = Table('parts_lines', metadata_obj,
-                 Column("geom", Geometry('POLYGON')),
-                 Column("water_body_id", Integer, index=True),
-                 schema=args.wip_schema)
-
-    # truncate and drop
-    conn.execute(text("TRUNCATE TABLE " + args.topology_schema + "." + args.water_depths_table))
-    conn.execute(text("DROP TABLE " + args.wip_schema + ".parts_lines"))
-    conn.commit()
-
-    print("Creating parts_line table...")
-
-    conn.execute(text("SELECT geom, water_body_id INTO " + args.wip_schema + ".parts_lines FROM (SELECT st_intersection(a.geom, b.geom) as geom, a.water_body_id FROM water_wip.parts as a, water_wip.parts as b WHERE a.is_river = 'y' AND b.is_river = 'y' AND st_touches(a.geom, b.geom)) as results WHERE st_geometrytype(geom) = 'ST_LineString'"))
-
-    print("Getting centroids from parts_line table...")
-
-    # now get centroids for all parts
-    c = 0
-    for part in conn.execute(select(func.st_astext(func.st_centroid(parts_line_table.c.geom)), parts_line_table.c.water_body_id).select_from(parts_line_table)):
-        stmt = insert(water_depths_table).values(
-            geom=literal_column("'SRID=" + str(args.crs_no) + ";" + part[0] + "'"), water_body_id=part[1])
-        conn.execute(stmt)
-        c += 1
-        if c % 10000 == 0:
-            print(f"{c}... done")
-
-    conn.commit()
-    print(f"Added {c} water depths into table as first step")
-
-    # now we take the minimum point and delete all points that are too close (with 500m)
-    done = False
-    min_id = -1
-
-    while not done:
-        result = conn.execute(select(water_depths_table.c.id, water_depths_table.c.geom, water_depths_table.c.water_body_id).select_from(water_depths_table).where(water_depths_table.c.id > min_id).limit(1).order_by(water_depths_table.c.id)).fetchone()
-        if result:
-            print(f"Deleting around point {result[0]} of water body {result[2]}...")
-            # find points around this one
-            dist_q = func.st_distancespheroid(water_depths_table.c.geom, result[1])
-            conn.execute(delete(water_depths_table).where(dist_q < 500, water_depths_table.c.water_body_id == result[2], water_depths_table.c.id != result[0]))
-            conn.commit()
-
-            # set min_id to the next id
-            min_id = result[0]
-        else:
-            done = True
-
-    print("Done.")
+    # DONE
+    pass
 
 
 def _get_water_bodies_to_consider(conn: Connection, water_body_table: Table) -> dict[int, list[tuple[str, Point]]]:
