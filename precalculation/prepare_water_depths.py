@@ -38,16 +38,16 @@ if __name__ == "__main__":
     conn = create_engine('postgresql://' + args.user + ':' + parse.quote_plus(args.password) + '@' + args.server + ':' +
                          str(args.port) + '/' + args.database).connect()
 
-    # print("Preparing water depths...")
-    #
-    # # truncate
-    # conn.execute(text("DROP TABLE IF EXISTS sitt.temp_water_lines"))
-    # conn.commit()
-    #
-    # print("Creating temp_water_lines table...")
-    #
-    # conn.execute(text("SELECT geom, water_body_id INTO sitt.temp_water_lines FROM (SELECT st_intersection(a.geom, b.geom) as geom, a.water_body_id FROM sitt.water_parts as a, sitt.water_parts as b WHERE a.is_river = 'y' AND b.is_river = 'y' AND ST_Touches(a.geom, b.geom)) as results WHERE st_geometrytype(geom) = 'ST_LineString'"))
-    # conn.commit()
+    print("Preparing water depths...")
+
+    # delete temp table
+    conn.execute(text("DROP TABLE IF EXISTS sitt.temp_water_lines"))
+    conn.commit()
+
+    print("Creating temp_water_lines table...")
+
+    conn.execute(text("SELECT geom, water_body_id INTO sitt.temp_water_lines FROM (SELECT st_intersection(a.geom, b.geom) as geom, a.water_body_id FROM sitt.water_parts as a, sitt.water_parts as b WHERE a.is_river = 'y' AND b.is_river = 'y' AND ST_Touches(a.geom, b.geom)) as results WHERE st_geometrytype(geom) = 'ST_LineString'"))
+    conn.commit()
 
     print("Getting centroids from parts_line table...")
 
@@ -80,5 +80,9 @@ if __name__ == "__main__":
             min_id = result[0]
         else:
             done = True
+
+    # delete temp table
+    conn.execute(text("DROP TABLE IF EXISTS sitt.temp_water_lines"))
+    conn.commit()
 
     print("Done.")
