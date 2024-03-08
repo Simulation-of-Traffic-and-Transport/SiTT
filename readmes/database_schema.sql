@@ -76,7 +76,8 @@ create table sitt.water_parts
     water_body_id integer
         constraint water_parts_water_bodies_id_fk
             references sitt.water_bodies,
-    is_river      boolean default false
+    is_river      boolean          default false,
+    depth_m       double precision default 0 not null
 );
 
 create index water_parts_geom_index

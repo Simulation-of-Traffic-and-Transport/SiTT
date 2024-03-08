@@ -18,6 +18,8 @@ flowchart TD
     convert_wb["`convert_water_bodies_to_parts.py *or* convert_water_bodies_to_parts_nogeos.py`"]
     prepare_water_depths["prepare_water_depths.py"]
     enter_depths(["Enter water depths"])
+    base_river["create_base_river_networks.py"]
+    river_edges["convert_base_river_networks_to_edges.py"]
     
     schema --> water
     schema --> hubs_roads
@@ -27,7 +29,7 @@ flowchart TD
     
     geo_data --> convert_roads
     geo_data --> convert_lakes
-    geo_data --> convert_wb --> prepare_water_depths --> enter_depths
+    geo_data --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges
 ```
 
 
@@ -51,3 +53,7 @@ Short explanations:
 * [convert_water_bodies_to_parts_nogeos.py](convert_water_bodies_to_parts_nogeos.py) - converter that will convert 
   water body data to polygon shapes using plain Python. This will be *very* slow for large water bodies.
 * [prepare_water_depths](prepare_water_depths.py) - prepares the water depths table to be filled manually.
+* [create_base_river_networks.py](create_base_river_networks.py) - creates basic igraphs for river networks and saves
+  them to pickle files in the same directory. Takes quite some time in complex river systems.
+* [convert_base_river_networks_to_edges.py](convert_base_river_networks_to_edges.py) - converter to transform water
+  information into actual edges.
