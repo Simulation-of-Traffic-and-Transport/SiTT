@@ -12,7 +12,7 @@ import sys
 from urllib import parse
 
 import igraph as ig
-from shapely import wkb, STRtree, relate_pattern, centroid, shortest_line
+from shapely import wkb, STRtree, relate_pattern, centroid, shortest_line, union_all, line_merge, simplify, LineString
 from shapely.ops import transform
 from sqlalchemy import create_engine, text
 from pyproj import Transformer
@@ -41,15 +41,28 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
         # calculate width of the water body in m
         max_width = 0.
         min_width = sys.float_info.max
-        for i in range(len(shores)):
-            for j in range(i + 1, len(shores)):
+        shore_length = len(shores)
+        is_bump = False
+        for i in range(shore_length):
+            for j in range(i + 1, shore_length):
                 m_w = transform(transformer.transform, shortest_line(shores[i], shores[j])).length
                 if m_w < min_width:
                     min_width = m_w
                 if m_w > max_width:
                     max_width = m_w
 
-        g.add_vertex(str_idx, geom=geom, center=center, depth_m=depth_m, min_width=min_width, max_width=max_width, shores=shores)
+        # if we have a single shore line or a length of 0, we probably have a "bump" in our river - calculate width a
+        # bit differently
+        if min_width < 0.1:
+            # combine shores into a single line
+            shore = simplify(line_merge(union_all(shores)), 0.000001)
+            shores = [shore]
+            # max width is points of farthest lines in this "bump"
+            max_width = transform(transformer.transform, LineString([shore.coords[0], shore.coords[-1]])).length
+            is_bump = True
+
+        g.add_vertex(str_idx, geom=geom, center=center, depth_m=depth_m, min_width=min_width, max_width=max_width,
+                     shores=shores, is_bump=is_bump)
 
     return str_idx
 
