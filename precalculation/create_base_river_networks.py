@@ -38,8 +38,7 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
         for shore_entries in conn.execute(text(f"SELECT DISTINCT (ST_Dump(ST_Intersection(st_force2d(geom), {geom_data}))).geom FROM sitt.water_lines WHERE st_touches(st_force2d(geom), {geom_data})")):
             shores.append(wkb.loads(shore_entries[0]))
 
-        # calculate width of the water body in m
-        max_width = 0.
+        # calculate width
         min_width = sys.float_info.max
         shore_length = len(shores)
         is_bump = False
@@ -48,8 +47,6 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
                 m_w = transform(transformer.transform, shortest_line(shores[i], shores[j])).length
                 if m_w < min_width:
                     min_width = m_w
-                if m_w > max_width:
-                    max_width = m_w
 
         # if we have a single shore line or a length of 0, we probably have a "bump" in our river - calculate width a
         # bit differently
@@ -60,8 +57,7 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
             max_width = transform(transformer.transform, LineString([shore.coords[0], shore.coords[-1]])).length
             is_bump = True
 
-        g.add_vertex(str_idx, geom=geom, center=center, depth_m=depth_m, min_width=min_width, max_width=max_width,
-                     is_bump=is_bump)
+        g.add_vertex(str_idx, geom=geom, center=center, depth_m=depth_m, is_bump=is_bump)
 
     return str_idx
 
