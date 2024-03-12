@@ -56,13 +56,12 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
         if min_width < 0.1:
             # combine shores into a single line
             shore = simplify(line_merge(union_all(shores)), 0.000001)
-            shores = [shore]
             # max width is points of farthest lines in this "bump"
             max_width = transform(transformer.transform, LineString([shore.coords[0], shore.coords[-1]])).length
             is_bump = True
 
         g.add_vertex(str_idx, geom=geom, center=center, depth_m=depth_m, min_width=min_width, max_width=max_width,
-                     shores=shores, is_bump=is_bump)
+                     is_bump=is_bump)
 
     return str_idx
 
