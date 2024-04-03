@@ -142,7 +142,8 @@ if __name__ == "__main__":
         stmt = insert(edges_table).values(id=road_id, geom=geo_stmt, hub_id_a=hub_id_a,
                                           hub_id_b=hub_id_b, type='road', cost_a_b=cost_a_b, cost_b_a=cost_b_a,
                                           data={"length_m": length, "legs": legs, "slopes": slopes,
-                                                "flat_length_m": base_length, "up_m": up_abs, "down_m": down_abs})
+                                                "flat_length_m": base_length, "up_m": up_abs, "down_m": down_abs,
+                                                "roughness": roughness})
         conn.execute(stmt)
 
     conn.commit()
