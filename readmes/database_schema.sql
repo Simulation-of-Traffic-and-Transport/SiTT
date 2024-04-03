@@ -14,7 +14,8 @@ create table sitt.hubs
     geom      geography(PointZ, 4326) not null,
     overnight boolean default false  not null,
     harbor    boolean default false  not null,
-    market    boolean default false  not null
+    market    boolean default false  not null,
+    data      jsonb
 );
 
 create index hubs_geom_index
@@ -23,7 +24,7 @@ create index hubs_geom_index
 create index hubs_harbor_index
     on sitt.hubs (harbor);
 
-
+create index hubs_data_type_index on sitt.hubs using gin (data);
 
 create table sitt.roads
 (
@@ -144,4 +145,4 @@ create index edges_hub_id_a_index
 create index edges_hub_id_b_index
     on sitt.edges (hub_id_b);
 
-
+create index edges_data_type_index on sitt.edges using gin (data);

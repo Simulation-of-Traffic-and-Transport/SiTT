@@ -4,9 +4,10 @@
 """Find the best paths for a given route through the graph"""
 
 import igraph as ig
+import numpy as np
 from typing import List, Tuple, NewType
 from pyproj import Transformer
-import shapely.ops as sp_ops
+from shapely import ops
 
 EdgeList = NewType('EdgeList', List[int])
 
@@ -47,9 +48,12 @@ class BestPathsResult:
 
 
 class PathWeeder:
-
+    """
+    This class can be used to compact the graph by only storing the edges necessary to travel from each to each harbor
+    based on an A* heuristic.
+    """
     def __init__(self, graph: ig.Graph):
-        self.graph: ig.Graph = graph.copy()
+        self.graph: ig.Graph = graph.copy()  # make a copy of the graph, because we will modify it
         self.base_graph = graph
         self.distance_cache = {}
 
@@ -57,7 +61,7 @@ class PathWeeder:
         transformer = Transformer.from_crs(crs_from, crs_to, always_xy=True)
         world_positions = []
         for vertex in self.graph.vs:
-            position = sp_ops.transform(transformer.transform, vertex["center"])
+            position = ops.transform(transformer.transform, vertex["center"])
             world_positions.append(position)
         self.graph.vs["world_position"] = world_positions
 
@@ -70,6 +74,17 @@ class PathWeeder:
                 start_position = graph.vs[a]["world_position"]
                 end_position = graph.vs[b]["world_position"]
                 distance = start_position.distance(end_position)
+                # if distance > 0:
+                #     # calculate slope
+                #     diff_h = (end_position.z - start_position.z) / distance
+                #     if diff_h > 0:
+                #         # use exponential function to increase the cost of higher slopes
+                #         distance = ((diff_h + 1) ** 5) * distance
+                #     if diff_h < 0:
+                #         distance = 1.01 * distance
+                #         # use exponential function to reduce the cost of higher slopes - not as much as increasing
+                #         # slopes
+                #         distance = ((diff_h + 1) ** 3) * distance
                 self.distance_cache[(a, b)] = distance
                 return distance
 
@@ -82,7 +97,7 @@ class PathWeeder:
 
             path = self.graph.get_shortest_path_astar(start_id, end_id, _heuristic,
                                                       weights=self.graph.es["length"],
-                                                      output="epath")
+                                                      output="epath", mode="all")
 
             result.paths.append(("a*-igraph", path))
 

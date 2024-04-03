@@ -17,13 +17,13 @@ import shapely.ops as sp_ops
 from extremitypathfinder import PolygonEnvironment
 from geoalchemy2 import Geometry
 from pyproj import Transformer
-from shapely import wkb, get_parts, prepare, destroy_prepared, is_ccw, \
-    delaunay_triangles, contains, overlaps, intersection, STRtree, LineString, Polygon, MultiPolygon, Point, \
+from shapely import wkb, is_ccw, \
+    intersection, STRtree, LineString, Polygon, MultiPolygon, Point, \
     relate_pattern, centroid, shortest_line
 from sqlalchemy import Connection, create_engine, Table, Column, literal_column, insert, schema, MetaData, \
-    Integer, Boolean, String, Float, select, text, func, delete
+    Integer, Boolean, String, Float, select, text, func
 
-from path_weeder import PathWeeder
+from precalculation.path_weeder import PathWeeder
 
 
 def init():
