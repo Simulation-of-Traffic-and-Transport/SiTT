@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 """
-TODO
+Convert a pickled graph file created by create_base_river_networks.py, set harbors, create river sections and weed out
+sections, so we connect all the harbors to each other.
 """
 
 import argparse
@@ -211,11 +212,15 @@ def _get_hubs_table() -> Table:
 
 
 if __name__ == "__main__":
-    """TODO"""
+    """
+    Convert a pickled graph file created by create_base_river_networks.py, set harbors, create river sections and weed
+    out sections, so we connect all the harbors to each other.
+    """
 
     # parse arguments
     parser = argparse.ArgumentParser(
-        description="TODO",  # TODO
+        description="Convert a pickled graph file created by create_base_river_networks.py, set harbors, create river"
+                    "sections and weed  out sections, so we connect all the harbors to each other.",
         exit_on_error=False)
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
