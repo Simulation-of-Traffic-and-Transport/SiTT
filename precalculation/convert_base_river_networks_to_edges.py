@@ -506,10 +506,6 @@ if __name__ == "__main__":
         # create edges
         print("Creating edges...")
         for e in tg.es:
-            geo_stmt = WKTElement(force_3d(e['geom']).wkt, srid=args.crs_no)
-            from_id = tg.vs[e.source]['name']
-            to_id = tg.vs[e.target]['name']
-
             # clean linestring
             coords = _clean_coords(e['geom'].coords)
             if len(coords) != len(e['geom'].coords):
@@ -531,6 +527,10 @@ if __name__ == "__main__":
             # TODO: create a cost formula that makes sense
             cost_a_b = 1.
             cost_b_a = 1.
+
+            geo_stmt = WKTElement(force_3d(e['geom']).wkt, srid=args.crs_no)
+            from_id = tg.vs[e.source]['name']
+            to_id = tg.vs[e.target]['name']
 
             stmt = insert(edges_table).values(id=e['name'], geom=geo_stmt, hub_id_a=from_id,
                                               hub_id_b=to_id, type='river', cost_a_b=cost_a_b, cost_b_a=cost_b_a,

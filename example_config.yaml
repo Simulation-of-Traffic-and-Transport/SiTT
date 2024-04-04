@@ -92,6 +92,7 @@ preparation:
     conditions: {}
 # You can chain modules by adding them to the preparation array. Here is an example using settings from the connection
 # settings defined above:
+
 # GraphLoad will try to load a saved graph file from disk or from database. By convention, we take the .pkl extension
 # for Python Pickle files (because this is what the file contains). By default, the module will try to load a pickled
 # file. If it does not find one, it will get the data from the database. After this, it will save the graph to a
@@ -106,15 +107,6 @@ preparation:
       # save to pickled graph if retrieved from db
       save: true
 
-# The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to
-# repeat the conditions for every single step. In our example the check is not_data_must_exist. This will check if the
-# data does *not* exist (conditions can be negated by prefixing them with "not_"). Here the class instance "context"
-# will be tested for the instance variable "graph". What does this mean? Consider the first entry, GraphLoad. The
-# module will load a saved graph, if a save file exists. If it exists, context.graph will have been populated by the
-# time ConditionalModule is executed. Consequently, all the submodules will be skipped, if the graph was loaded. If not,
-# the ConditionalModule will be run (context.graph will be empty).
-
-
 # DebugDisplayPathsAndHubs is a utility module to check if everything went smoothly during preparation. The options are:
 # "draw_network": Draw or save a network graph. Dependent options are: "save_network": Save graph as file to disk.
 # "show_network": Display network on stdout (depends on platform). If save_network is true, "save_network_name" and
@@ -123,86 +115,30 @@ preparation:
 # "display_routes": Display an example route. You need to define "start" and "end" hub ids. "show_graphs" will plot
 # graphs to stdout (depends on platform). "save_graphs" defines, if graphs should be saved (multiple files are
 # possible). Like above, "save_graphs_names" and "save_graphs_type" define file names and types (same possible values).
+  - class: DebugDisplayPathsAndHubs
+    module: modules.preparation
+    args:
+      draw_network: true
+      show_network: false
+      save_network: true
+      save_network_name: network
+      save_network_type: png
+      display_routes: false
+      start: *simulation_start
+      end: *simulation_end
+      show_graphs: false
+      save_graphs: true
+      save_graphs_names: possible_routes
+      save_graphs_type: png
 
-#  - class: GraphLoad
-#    module: modules.preparation
-#    args:
-#      filename: 'saved_graph.pkl'
-#      skip: false
-#    conditions:
-#      file_must_exist: 'saved_graph.pkl'
-#  - class: ConditionalModule
-#    module: modules.preparation
-#    submodules:
-#      - class: PsqlReadPathsAndHubs
-#        module: modules.preparation
-#        args:
-#          connection: psql_default
-#          strategy: merge
-#      - class: ConditionalModule
-#        module: modules.preparation
-#        submodules:
-#          - class: PsqlConstructRiverPaths
-#            module: modules.preparation
-#            args:
-#              connection: psql_default
-#              water_body_table_name: topology.water_body
-#              water_body_geom: geom
-#              water_lines_table_name: topology.water_lines
-#              water_lines_geom: geom
-#              hubs_harbor: 'harbor'
-#              crs_no: '4326'
-#          - class: PsqlCalculateRiverWidths
-#            module: modules.preparation
-#            args:
-#              connection: psql_default
-#        conditions:
-#          not_data_must_exist:
-#            class: context
-#            key: raw_rivers
-#      - class: PsqlSavePathsAndHubs
-#        module: modules.preparation
-#        args:
-#          connection: psql_default
-#      - class: CalculatePathsAndHubs
-#        module: modules.preparation
-#        args:
-#          crs_from: EPSG:4326
-#          crs_to: EPSG:32633
-#          always_xy: true
-#          length_including_heights: true
-#    conditions:
-#      not_data_must_exist:
-#        class: context
-#        key: graph
-#  - class: GraphSave
-#    module: modules.preparation
-#    args:
-#      filename: 'saved_graph.pkl'
-#      skip: false
-#    conditions:
-#      not_file_must_exist: 'saved_graph.pkl'
-#  - class: PostCleanRawData
-#    module: modules.preparation
-#    args:
-#      hubs_and_paths: true
-#      force_gc: true
-#      skip: false
-#  - class: DebugDisplayPathsAndHubs
-#    module: modules.preparation
-#    args:
-#      draw_network: true
-#      show_network: false
-#      save_network: true
-#      save_network_name: network
-#      save_network_type: png
-#      display_routes: true
-#      start: HUBIDA
-#      end: HUBIDB
-#      show_graphs: false
-#      save_graphs: true
-#      save_graphs_names: possible_routes
-#      save_graphs_type: png
+# The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to
+# repeat the conditions for every single step. In our example the check is not_data_must_exist. This will check if the
+# data does *not* exist (conditions can be negated by prefixing them with "not_"). Here the class instance "context"
+# will be tested for the instance variable "graph". What does this mean? Consider the first entry, GraphLoad. The
+# module will load a saved graph, if a save file exists. If it exists, context.graph will have been populated by the
+# time ConditionalModule is executed. Consequently, all the submodules will be skipped, if the graph was loaded. If not,
+# the ConditionalModule will be run (context.graph will be empty).
+
 
 # Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
 # maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)
