@@ -211,13 +211,13 @@ def _get_hubs_table() -> Table:
                  schema=args.schema)
 
 
-def _clean_coords(coords: list[tuple[float, float]]) -> list[tuple[float, float, float]]:
+def _clean_coords(coords: list[tuple[float, float]]) -> list[tuple[float, float]]:
     """Clean coordinates by weeding out duplicate values (zero length legs)."""
     new_coords = []
     last_coord = None
     for coord in coords:
         if last_coord is None or last_coord != coord:
-            new_coords.append((coord[0], coord[1], 0.))
+            new_coords.append((coord[0], coord[1]))
         last_coord = coord
     return new_coords
 
@@ -507,9 +507,15 @@ if __name__ == "__main__":
         print("Creating edges...")
         for e in tg.es:
             # clean linestring
-            coords = _clean_coords(e['geom'].coords)
-            if len(coords) != len(e['geom'].coords):
-                e['geom'] = LineString(coords)
+            coords = []
+            for coord in _clean_coords(e['geom'].coords):
+                # add heights of coordinates
+                xx, yy = rds_transformer.transform(coord[0], coord[1])
+                x, y = rds.index(xx, yy)
+                coords.append((coord[0], coord[1], band[x, y]))
+
+            # update geometry
+            e['geom'] = LineString(coords)
 
             # calculate legs
             legs = []
