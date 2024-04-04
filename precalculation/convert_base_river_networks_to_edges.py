@@ -211,6 +211,18 @@ def _get_hubs_table() -> Table:
                  schema=args.schema)
 
 
+def _clean_coords(coords: list[tuple[float, float]]) -> list[tuple[float, float, float]]:
+    """Clean coordinates by weeding out duplicate values (zero length legs)."""
+    new_coords = []
+    last_coord = None
+    for coord in coords:
+        if last_coord is None or last_coord != coord:
+            new_coords.append((coord[0], coord[1], 0.))
+        last_coord = coord
+    return new_coords
+
+
+
 if __name__ == "__main__":
     """
     Convert a pickled graph file created by create_base_river_networks.py, set harbors, create river sections and weed
@@ -498,6 +510,22 @@ if __name__ == "__main__":
             from_id = tg.vs[e.source]['name']
             to_id = tg.vs[e.target]['name']
 
+            # clean linestring
+            coords = _clean_coords(e['geom'].coords)
+            if len(coords) != len(e['geom'].coords):
+                e['geom'] = LineString(coords)
+
+            # calculate legs
+            legs = []
+            last_coord = None
+            for coord in coords:
+                if last_coord is not None:
+                    # distance calculation for each leg
+                    leg = transform(transformer.transform, LineString([last_coord, coord]))
+                    legs.append(leg.length)
+
+                last_coord = coord
+
             # calculate cost of edges
             # kph = e['flow_rate'] * 3.6  # km/h from m/s
             # TODO: create a cost formula that makes sense
@@ -509,7 +537,7 @@ if __name__ == "__main__":
                                               data={"length_m": e['length'], "shape": e['shape'].wkt, "slope": e['slope'],
                                                     "flow_rate": e['flow_rate'], "min_width": e['min_width'],
                                                     "depth_m": e['depth_m'], "flow_from": e['flow_from'],
-                                                    "water_body_id": water_body_id})
+                                                    "water_body_id": water_body_id, "legs": legs})
             conn.execute(stmt)
 
         conn.commit()
