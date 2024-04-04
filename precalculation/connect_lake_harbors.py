@@ -166,6 +166,17 @@ if __name__ == "__main__":
                     path.append((harbors[j][1].x, harbors[j][1].y, h2))
                 shortest_path = LineString(path)
 
+                # leg lengths
+                legs = []
+                last_coord = None
+                for coord in path:
+                    if last_coord is not None:
+                        # distance calculation for each leg
+                        leg = transform(transformer.transform, LineString([last_coord, coord]))
+                        legs.append(leg.length)
+
+                    last_coord = coord
+
                 # calculate length in meters
                 base_length = transform(transformer.transform, shortest_path).length
                 cost = base_length * args.cost_factor
@@ -176,7 +187,8 @@ if __name__ == "__main__":
                 # now, enter into edges table
                 stmt = insert(edges_table).values(id=edge_id, geom=geo_stmt, hub_id_a=harbors[i][0],
                                                   hub_id_b=harbors[j][0], type='lake', cost_a_b=cost, cost_b_a=cost,
-                                                  data={"length_m": base_length, "water_body_id": body_id})
+                                                  data={"length_m": base_length, "water_body_id": body_id,
+                                                        "legs": legs})
                 conn.execute(stmt)
 
     conn.commit()
