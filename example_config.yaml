@@ -72,46 +72,8 @@ settings:
       db: !Env "${PSQL_DB}"
       user: !Env "${PSQL_USER}"
       password: !Env "${PSQL_PASSWORD}"
-      # roads table definitions - the table name itself (can contain schema names as seen here)
-      roads_table_name: topology.recroads
-      # roads: column name containing Postgis data
-      roads_geom_col: geom
-      # roads: column name containing index name
-      roads_index_col: recroadid
-      # roads: column names for both start and end hubs (must contain the hub id)
-      roads_hub_a_id: hubaid
-      roads_hub_b_id: hubbid
-      # roads: coerce float conversion when loading Postgis data
-      roads_coerce_float: true
-      # rivers table definitions - the table name itself (can contain schema names as seen here)
-      rivers_table_name: topology.recrivers
-      # rivers: column name containing Postgis data
-      rivers_geom_col: geom
-      # rivers: column name containing index name
-      rivers_index_col: recriverid
-      # rivers: column names for both start and end hubs (must contain the hub id)
-      rivers_hub_a_id: hubaid
-      rivers_hub_b_id: hubbid
-      # rivers: minimum width of river section in m
-      rivers_width_m: width_m
-      # rivers: coerce float conversion when loading Postgis data
-      rivers_coerce_float: true
-      # hub table definitions - table name for hubs (can contain schema names as seen here)
-      hubs_table_name: topology.rechubs
-      # hubs: column name containing Postgis data
-      hubs_geom_col: geom
-      # hubs: column name containing index name
-      hubs_index_col: rechubid
-      # hubs: column name for overnight stay hubs
-      hubs_overnight: overnight
-      # hubs: extra fields that should go into our hub model - can be retrieved as instance variables later on
-      hubs_extra_fields:
-        - hubtypeid
-        - storage
-        - interchange
-        - market
-      # coerce float conversion when loading Postgis data
-      hubs_coerce_float: true
+      # schema name - where are the tables saved in?
+      schema: sitt
 
 ########################################################################################################################
 # preparation steps
@@ -128,22 +90,22 @@ preparation:
       test: Test Argument passed from config.
     # Execution conditions, see below
     conditions: {}
-
 # You can chain modules by adding them to the preparation array. Here is an example using settings from the connection
-# settings defined above. It will load paths and hubs from the database.
-#  - class: PsqlSavePathsAndHubs
-#    module: modules.preparation
-#    args:
-#      connection: psql_default
+# settings defined above:
+# GraphLoad will try to load a saved graph file from disk or from database. By convention, we take the .pkl extension
+# for Python Pickle files (because this is what the file contains). By default, the module will try to load a pickled
+# file. If it does not find one, it will get the data from the database. After this, it will save the graph to a
+# pickled file, so we do not have to get data from db on the next run.
+  - class: GraphLoad
+    module: modules.preparation
+    args:
+      # connection definition set above
+      connection: psql_default
+      # filename of pickled graph
+      filename: 'saved_graph.pkl'
+      # save to pickled graph if retrieved from db
+      save: true
 
-# Here is a full example of a preparation module that reads roads and par from a postgres database. It uses yaml tags
-# to set the connection parameters. Is also uses conditions to check for saved graph entries and either loads a saved
-# graph file from disk or creates a new one.
-#
-# GraphLoad will try to load a saved graph file from disk. By convention, we take the .pkl extension for Python Pickle
-# files (because this is what the file contains). Note the condition "file_must_exist" to only execute loading the
-# graph if the file exists on disk.
-#
 # The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to
 # repeat the conditions for every single step. In our example the check is not_data_must_exist. This will check if the
 # data does *not* exist (conditions can be negated by prefixing them with "not_"). Here the class instance "context"
@@ -151,34 +113,8 @@ preparation:
 # module will load a saved graph, if a save file exists. If it exists, context.graph will have been populated by the
 # time ConditionalModule is executed. Consequently, all the submodules will be skipped, if the graph was loaded. If not,
 # the ConditionalModule will be run (context.graph will be empty).
-#
-# PsqlReadPathsAndHubs will load paths and hubs data from a Postgres database. connection will contain the connection
-# definition set above. There you can see what columns you have to define in order to define the data properly. More
-# on the data structure can be found in the docs.
-#
-# PsqlConstructRiverPaths will calculate river paths within water bodies. This is only needed of you want to calculate
-# river paths automatically. It is quite costly and will take a lot of time when using complex river systems. You also
-# have to prepare the river system, see readmes/water_data.md - you must not have touching rings in your river shapes.
-#
-# PsqlCalculateRiverWidths on the other hand will calculate the widths of river sections based on the data in raw rivers
-# and raw hubs. It also takes some time - you need to have a water_lines table prepared, see documentation.
-#
-# PsqlSavePathsAndHubs will save the changed data back into the database. This is handy in our example, because the
-# calculation of heights from GEoTIFF is relatively expensive. So we speed up our preparation a tiny bit.
-#
-# CalculatePathsAndHubs is an important module. It will take the raw data extracted from the database and create a
-# graph of all possible routes. "crs_from" is the original geographic projection (should be EPSG:4326 in most cases).
-# "crs_to" defines the target projection which should be one having meters as unit attribute (if unsure, check e.g.
-# https://epsg.io/32633). "length_including_heights" can be set to true to calculate the length of the legs more
-# accurately, including slopes percents in the calculation. While this is more accurate, it seldom plays a major role
-# in the total length of the route.
-#
-# GraphSave is the counterpart of GraphLoad. It saves the graph to disk. Not the condition "not_file_must_exist" -
-# otherwise, the file will be overwritten each time the simulation is executed.
-#
-# PostCleanRawData: It is good practice to clean raw data at the end of the preparation run in order to save memory.
-# You can skip this step if you want to retain the raw data for some reason.
-#
+
+
 # DebugDisplayPathsAndHubs is a utility module to check if everything went smoothly during preparation. The options are:
 # "draw_network": Draw or save a network graph. Dependent options are: "save_network": Save graph as file to disk.
 # "show_network": Display network on stdout (depends on platform). If save_network is true, "save_network_name" and

@@ -283,11 +283,6 @@ class Context(object):
     """The context object is a read-only container for simulation threads."""
 
     def __init__(self):
-        # raw data
-        self.raw_roads: gpd.geodataframe.GeoDataFrame | None = None
-        self.raw_rivers: gpd.geodataframe.GeoDataFrame | None = None
-        self.raw_hubs: gpd.geodataframe.GeoDataFrame | None = None
-
         self.graph: ig.Graph | None = None
         """Full (multi-)graph data for roads, rivers and other paths (undirected)"""
         self.routes: ig.Graph | None = None
