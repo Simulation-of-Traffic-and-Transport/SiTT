@@ -103,7 +103,7 @@ class PSQLBase(PreparationInterface, ABC):
             if hub.data is not None:
                 for key, value in hub.data.items():
                     attrs[key] = value
-            g.add_vertices(1, attributes=attrs)
+            g.add_vertex(**attrs)
 
         # load edges into Geopandas dataframe
         edges_data = gpd.GeoDataFrame.from_postgis(self.get_edges_table().select(), conn, index_col='id')
@@ -114,7 +114,7 @@ class PSQLBase(PreparationInterface, ABC):
             if edge.data is not None:
                 for key, value in edge.data.items():
                     attrs[key] = value
-            g.add_edges([(edge.hub_id_a, edge.hub_id_b)], attributes=attrs)
+            g.add_edge(edge.hub_id_a, edge.hub_id_b, **attrs)
 
         # close connection
         conn.close()
