@@ -237,6 +237,14 @@ class Simulation(BaseClass):
             target_id = e.target
             target = self.context.routes.vs[target_id]['name']
 
+            # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
+            try:
+                agent_to_clone.route_data.vs.find(name=target)
+                print("Skipping %s on %s, already visited!" % (agent_to_clone, target))
+                continue
+            except:
+                pass
+
             # create new agent for each option
             new_agent = copy.deepcopy(agent_to_clone)
             new_agent.this_hub = hub
