@@ -131,6 +131,17 @@ preparation:
       save_graphs_names: possible_routes
       save_graphs_type: png
 
+# Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
+# maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)
+# maximum_difference_from_shortest: if greater than 1, this is the maximum difference of a route from the shortest one
+# (in factor) to be retained in the list.
+  - class: CreateRoutes
+    module: modules.preparation
+    args:
+      maximum_routes: 0
+      maximum_difference_from_shortest: 2.0
+
+
 # The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to
 # repeat the conditions for every single step. In our example the check is not_data_must_exist. This will check if the
 # data does *not* exist (conditions can be negated by prefixing them with "not_"). Here the class instance "context"
@@ -139,43 +150,6 @@ preparation:
 # time ConditionalModule is executed. Consequently, all the submodules will be skipped, if the graph was loaded. If not,
 # the ConditionalModule will be run (context.graph will be empty).
 
-
-# Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
-# maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)
-# maximum_difference_from_shortest: if greater than 1, this is the maximum difference of a route from the shortest one
-# (in factor) to be retained in the list.
-#  - class: CreateRoutes
-#    module: modules.preparation
-#    args:
-#      maximum_routes: 0
-#      maximum_difference_from_shortest: 0.0
-
-
-# Load space/time data from a NETCDF (.nc) file. Typically, such a file contains temperature and other weather data.
-# You have to specify the filename and what name latitude, longitude, and time parameters have been given. Moreover,
-# all relevant variables have to be mapped to a name (e.g. below "t2m" in the nc file gets mapped to "temp").
-# Optionally, an offset can be defined. This is handy, if temperature data has been supplied in °K instead of °C, for
-# example. start_date is optional and can be used to set a different start date for this data set (otherwise global one
-# is used).
-# The parsed values are available in the context variable "space_time_data".
-#  - class: LoadDataFromNETCDF
-#    module: modules.preparation
-#    args:
-#      name: temperature
-#      filename: ./data/era5_data.nc
-#      latitude: latitude
-#      longitude: longitude
-#      time: time
-#      variables:
-#        temperature:
-#          variable: t2m
-#          offset: -273.15
-#        rainfall:
-#          variable: crr
-#        snowfall:
-#          variable: csfr
-#        snow_depth:
-#          variable: sd
 
 ########################################################################################################################
 # simulation - is a bit more complicated, because there are several hooks to add modules to
