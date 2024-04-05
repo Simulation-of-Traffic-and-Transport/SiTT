@@ -12,7 +12,7 @@ logger = logging.getLogger()
 
 
 class DummyForTests(SimulationStepInterface):
-    def __init__(self, time_taken_per_node: float = 8., force_stop_at_node: None | str = None):
+    def __init__(self, time_taken_per_node: float = 1., force_stop_at_node: None | str = None):
         super().__init__()
         self.time_taken_per_node: float = time_taken_per_node
         self.force_stop_at_node: float = force_stop_at_node

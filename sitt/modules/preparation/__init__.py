@@ -3,18 +3,18 @@
 # SPDX-License-Identifier: MIT
 """Preparation Modules"""
 
+from .psql_base import PSQLBase
 from .conditional_module import ConditionalModule
 from .create_routes import CreateRoutes
 from .debug_display_paths_and_hubs import DebugDisplayPathsAndHubs
 from .dummy import Dummy
-from .psql_base import PSQLBase
 from .graph_load import GraphLoad
 
 __all__ = [
+    'PSQLBase',
     'ConditionalModule',
     'CreateRoutes',
     'DebugDisplayPathsAndHubs',
     'Dummy',
     'GraphLoad',
-    'PSQLBase',
 ]
