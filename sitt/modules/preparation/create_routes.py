@@ -37,15 +37,16 @@ class CreateRoutes(BaseClass, PreparationInterface):
         """Maximum difference from shortest route (factor, if greater than 1)"""
 
     def run(self, config: Configuration, context: Context) -> Context:
-        if logger.level <= logging.INFO:
-            logger.info("PreparationInterface CreateRoutes: creating routes and checking lengths")
-
         """prepare simulation"""
         # Checking start and stop hubs
         if not config.simulation_start:
             logger.error("simulation_start is empty - simulation failed!")
         if not config.simulation_end:
             logger.error("simulation_end is empty - simulation failed!")
+
+        if logger.level <= logging.INFO:
+            logger.info(
+                f"PreparationInterface CreateRoutes: creating routes from {config.simulation_start} to {config.simulation_end} and checking lengths")
 
         # get raw routes
         all_paths, min_length, max_length = self._get_raw_routes(config.simulation_start, config.simulation_end,
@@ -76,7 +77,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         return context
 
-    def _get_raw_routes(self, simulation_start: str, simulation_end: str, g: ig.Graph)\
+    def _get_raw_routes(self, simulation_start: str, simulation_end: str, g: ig.Graph) \
             -> tuple[list[tuple[float, list[int]]], float, float]:
         """
         Get raw shortest paths from start to end - this will return a list of tuples (distance, path), containing the
@@ -115,7 +116,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
         return shortest_paths, shortest_path_distance, longest_path_distance
 
     def _prune_routes_maximum_difference_from_shortest(self, all_paths: list[tuple[float, list[int]]],
-                                                       min_length: float, max_length: float)\
+                                                       min_length: float, max_length: float) \
             -> list[tuple[float, list[int]]]:
         """
         Remove routes longer than a certain length, if set in config.
