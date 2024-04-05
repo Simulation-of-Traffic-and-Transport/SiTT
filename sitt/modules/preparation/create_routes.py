@@ -239,15 +239,27 @@ class CreateRoutes(BaseClass, PreparationInterface):
             g.es.find(name=name)
         except:
             # add new edge
-            attr = edge.attributes().copy()
-            attr['legs'] = np.copy(attr['legs'])
-            attr['slopes'] = np.copy(attr['slopes'])
+            attr: dict = edge.attributes().copy()
+            if 'legs' in attr:
+                # clean possible empty values
+                if attr['legs'] is None:
+                    del attr['legs']
+                else:
+                    attr['legs'] = np.copy(attr['legs'])
+            if 'slopes' in attr:
+                # clean possible empty values
+                if attr['slopes'] is None:
+                    del attr['slopes']
+                else:
+                    attr['slopes'] = np.copy(attr['slopes'])
 
             if flip:
                 # flip data
-                attr['legs'] = np.flip(attr['legs'])
-                attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop percents, too
-                attr['geom'] = reverse(attr['geom'])
+                if 'legs' in attr:
+                    attr['legs'] = np.flip(attr['legs'])
+                if 'slopes' in attr:
+                    attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop percents, too
+                attr['geom'] = reverse(attr['geom'])  # shapely can reverse geometry, comes handy
                 attr['name'] = name
 
             g.add_edge(from_name, to_name, **attr)
