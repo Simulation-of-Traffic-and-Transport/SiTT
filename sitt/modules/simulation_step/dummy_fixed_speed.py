@@ -18,7 +18,7 @@ class DummyFixedSpeed(SimulationStepInterface):
 
     def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
         # precalculate next hub
-        leg = context.graph[agent.this_hub][agent.next_hub][agent.route_key]
+        leg = context.routes.es.find(name=agent.route_key)
 
         # fixed speed in kph
         agent.state.time_taken = leg['length_m'] / (self.speed * 1000)
