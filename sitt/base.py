@@ -541,10 +541,33 @@ class SimulationStepInterface(abc.ABC):
     def __init__(self):
         # runtime settings
         self.skip: bool = False
-        self.conditions: list[str] = []
+        self.conditions: dict[str, any] = {}
+
+    def check_conditions(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
+        """Checks conditions for this step"""
+        # skip set to true?
+        if self.skip:
+            return False
+
+        # no conditions?
+        if not self.conditions or len(self.conditions) == 0:
+            return True
+
+        # check conditions
+        if 'types' in self.conditions and len(self.conditions['types']) > 0:
+            # check type of route ahead
+            if next_leg['type'] not in self.conditions['types']:
+                return False
+
+        if 'not_types' in self.conditions and len(self.conditions['not_types']) > 0:
+            # check type of route ahead
+            if next_leg['type'] in self.conditions['not_types']:
+                return False
+
+        return True
 
     @abc.abstractmethod
-    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         """
         Run the simulation module - run at the start of each simulation step, should be used as preparation for the
         actual simulation.
@@ -552,6 +575,7 @@ class SimulationStepInterface(abc.ABC):
         :param config: configuration (read-only)
         :param context: context (read-only)
         :param agent: current agent (contains state object)
+        :param next_leg: next leg (Edge)
         :return: updated state object
         """
         pass

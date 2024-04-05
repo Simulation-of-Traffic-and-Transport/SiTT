@@ -16,6 +16,7 @@ import os.path
 from typing import Dict, List
 
 import geopandas as gpd
+import igraph as ig
 import pandas as pd
 
 from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
@@ -400,9 +401,14 @@ class Simulation(BaseClass):
         for def_state in self.config.simulation_define_state:
             agent.state = def_state.define_state(self.config, self.context, agent)
 
+        # get the next leg from context
+        next_leg: ig.Edge = self.context.get_path_by_id(agent.route_key)
+
         # run the actual state update loop
         for sim_step in self.config.simulation_step:
-            agent.state = sim_step.update_state(self.config, self.context, agent)
+            # conditions are met?
+            if sim_step.check_conditions(self.config, self.context, agent, next_leg):
+                agent.state = sim_step.update_state(self.config, self.context, agent, next_leg)
 
         # proceed or stop here?
         if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:

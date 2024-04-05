@@ -8,6 +8,7 @@ Other than that, it does not take into account weather or other factors.
 """
 import logging
 
+import igraph as ig
 import yaml
 
 from sitt import Configuration, Context, SimulationStepInterface, State, Agent
@@ -32,13 +33,12 @@ class Simple(SimulationStepInterface):
         self.descend_slowdown_factor: float = descend_slowdown_factor
         """time taken is modified by slope in percents multiplied by this number when descending"""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         state = agent.state
 
         # precalculate next hub
         path_id = agent.route_key
-        leg = context.get_path_by_id(path_id)
-        if not leg:
+        if not next_leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return state
@@ -47,9 +47,9 @@ class Simple(SimulationStepInterface):
         time_taken = 0.
         time_for_legs: list[float] = []
 
-        for i in range(len(leg['legs'])):
-            length = leg['legs'][i]
-            slope = leg['slopes'][i]
+        for i in range(len(next_leg['legs'])):
+            length = next_leg['legs'][i]
+            slope = next_leg['slopes'][i]
 
             if slope < 0:
                 slope_factor = slope * self.descend_slowdown_factor * -1

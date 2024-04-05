@@ -4,6 +4,7 @@
 """Dummy stepper that runs at a fixed speed. Useful for testing."""
 import logging
 
+import igraph as ig
 import yaml
 
 from sitt import Configuration, Context, Agent, State, SimulationStepInterface
@@ -16,12 +17,9 @@ class DummyFixedSpeed(SimulationStepInterface):
         super().__init__()
         self.speed: float = speed
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
-        # precalculate next hub
-        leg = context.routes.es.find(name=agent.route_key)
-
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         # fixed speed in kph
-        agent.state.time_taken = leg['length_m'] / (self.speed * 1000)
+        agent.state.time_taken = next_leg['length_m'] / (self.speed * 1000)
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(

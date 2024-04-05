@@ -170,6 +170,18 @@ simulation_step:
       ascend_slowdown_factor: 0.05
       # time taken is modified by slope in percents multiplied by this number when descending
       descend_slowdown_factor: 0.025
+      # conditions define conditions that must be true in order to execute this step
+      conditions:
+        # check type of next leg to be a road
+        types: ['road']
+  - class: DummyFixedSpeed
+    module: modules.simulation_step
+    args:
+      # kph of agent in this stepper
+      speed: 4.0
+      conditions:
+        # type must not be a road
+        not_types: ['road']
 
 ########################################################################################################################
 # output steps

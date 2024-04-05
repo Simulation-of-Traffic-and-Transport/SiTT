@@ -7,6 +7,7 @@ It will also take weather and environmental hazards into account, using a linear
 """
 import logging
 
+import igraph as ig
 import yaml
 
 from sitt import Configuration, Context, SimulationStepInterface, State, Agent
@@ -47,19 +48,18 @@ class SimpleWithEnvironment(SimulationStepInterface):
         
         This is a list of minimum temperature keys to use this slowdown. It must be defined in ascending order."""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         state = agent.state
 
         # precalculate next hub
         path_id = agent.route_key
-        leg = context.get_path_by_id(path_id)
-        if not leg:
+        if not next_leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return state
 
         # create range to traverse
-        r = range(len(leg['legs']))
+        r = range(len(next_leg['legs']))
         p_offset_start = 0
 
         # traverse and calculate time taken for this leg of the journey
@@ -68,8 +68,8 @@ class SimpleWithEnvironment(SimulationStepInterface):
         space_time_data_legs: list[dict[str, any]] = []
 
         for i in r:
-            length = leg['legs'][i]
-            slope = leg['slopes'][i]
+            length = next_leg['legs'][i]
+            slope = next_leg['slopes'][i]
 
             if slope < 0:
                 slope_factor = slope * self.descend_slowdown_factor * -1
@@ -77,7 +77,7 @@ class SimpleWithEnvironment(SimulationStepInterface):
                 slope_factor = slope * self.ascend_slowdown_factor
 
             # apply environment
-            coords = leg['geom'].coords[i + p_offset_start]
+            coords = next_leg['geom'].coords[i + p_offset_start]
             space_time_data: dict[str, any] = {}
 
             if len(context.space_time_data):

@@ -18,6 +18,7 @@ Other than that, it does not take into account weather or other factors.
 """
 import logging
 
+import igraph as ig
 import yaml
 
 from sitt import Configuration, Context, SimulationStepInterface, State, Agent
@@ -51,13 +52,12 @@ class SimpleDAV(SimulationStepInterface):
         self.descend_per_hour: float = descend_per_hour
         """m of height per hour while descending"""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         state = agent.state
 
         # precalculate next hub
         path_id = agent.route_key
-        leg = context.get_path_by_id(path_id)
-        if not leg:
+        if not next_leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return state
@@ -66,9 +66,9 @@ class SimpleDAV(SimulationStepInterface):
         time_taken = 0.
         time_for_legs: list[float] = []
 
-        for i in range(len(leg['legs'])):
-            length = leg['legs'][i]  # length is in meters
-            m_asc_desc = leg['slopes'][i] * length  # m asc/desc over this length
+        for i in range(len(next_leg['legs'])):
+            length = next_leg['legs'][i]  # length is in meters
+            m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
 
             if m_asc_desc < 0:
                 up_down_time = (m_asc_desc * -1) / self.descend_per_hour

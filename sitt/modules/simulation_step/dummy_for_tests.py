@@ -4,6 +4,7 @@
 """Dummy stepper that runs at a fixed speed. Useful for testing."""
 import logging
 
+import igraph as ig
 import yaml
 
 from sitt import Configuration, Context, Agent, State, SimulationStepInterface
@@ -17,7 +18,7 @@ class DummyForTests(SimulationStepInterface):
         self.time_taken_per_node: float = time_taken_per_node
         self.force_stop_at_node: float = force_stop_at_node
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         # Signal to stop at this stop
         if self.force_stop_at_node and agent.this_hub == self.force_stop_at_node:
             agent.state.signal_stop_here = True
