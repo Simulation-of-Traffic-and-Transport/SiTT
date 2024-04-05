@@ -240,7 +240,8 @@ class Simulation(BaseClass):
             # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
             try:
                 agent_to_clone.route_data.vs.find(name=target)
-                print("Skipping %s on %s, already visited!" % (agent_to_clone, target))
+                if logger.level <= logging.DEBUG:
+                    logger.debug(f"Skipping {agent_to_clone} on {target}, already visited!")
                 continue
             except:
                 pass
