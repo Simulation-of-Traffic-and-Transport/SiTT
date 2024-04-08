@@ -26,6 +26,8 @@ class DummyForTests(SimulationStepInterface):
             # fixed speed in kph
             agent.state.time_taken = self.time_taken_per_node
 
+        agent.state.time_for_legs = [agent.state.time_taken]
+
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
                 f"SimulationInterface DummyForTests run, from {agent.this_hub} to {agent.next_hub} via {agent.route_key}, time taken = {agent.state.time_taken:.2f}")
