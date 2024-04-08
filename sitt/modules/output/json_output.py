@@ -124,9 +124,13 @@ class JSONOutput(OutputInterface):
         # add edges to history
         for edge in agent.route_data.es:
             if 'agents' in edge.attribute_names():
+                edge_key = edge['key']
+                # remove _rev from edge key
+                if edge_key.endswith('_rev'):
+                    edge_key = edge_key[:-4]
                 history[edge.index] = {
                     "type": "edge",
-                    "id": edge['key'],
+                    "id": edge_key,
                     "from": agent.route_data.vs[edge.source]['name'],
                     "to": agent.route_data.vs[edge.target]['name'],
                     "agents": edge['agents'],
