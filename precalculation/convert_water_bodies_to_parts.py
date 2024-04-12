@@ -72,6 +72,7 @@ if __name__ == "__main__":
         parts = conn.execute(text("SELECT (ST_dump(ST_TriangulatePolygon('" + geom + "'))).geom"))
         count = 0
         for part in parts:
+            # We force 2D, because this will cause less troubles later on. We will recalculate the 3D model later on.
             conn.execute(text(f"INSERT INTO sitt.water_parts (geom, water_body_id, is_river) VALUES (ST_Force2D('{part[0]}'), {body_id}, {is_river})"))
             count += 1
 
