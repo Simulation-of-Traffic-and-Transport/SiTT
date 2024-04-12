@@ -497,7 +497,6 @@ if __name__ == "__main__":
                 stmt = insert(hubs_table).values(id=v['name'], geom=geo_stmt, overnight=False, harbor=is_harbor,
                                                  market=False,
                                                  data={"type": "river", "depth_m": v['depth_m'],
-                                                       "min_width": v['min_width'], "max_width": v['max_width'],
                                                        "is_bump": v['is_bump'], "water_body_id": water_body_id})
                 conn.execute(stmt)
 
