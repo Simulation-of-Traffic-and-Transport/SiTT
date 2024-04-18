@@ -57,7 +57,7 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
             max_width = transform(transformer.transform, LineString([shore.coords[0], shore.coords[-1]])).length
             is_bump = True
 
-        g.add_vertex(str_idx, geom=geom, center=center, depth_m=depth_m, is_bump=is_bump)
+        g.add_vertex(str_idx, geom=geom, center=center, shores=shores, depth_m=depth_m, is_bump=is_bump)
 
     return str_idx
 
