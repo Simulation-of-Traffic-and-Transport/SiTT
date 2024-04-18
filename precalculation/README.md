@@ -24,12 +24,12 @@ flowchart TD
     schema --> water
     schema --> hubs_roads
     
-    water --> geo_data
+
     hubs_roads --> geo_data
     
     geo_data --> convert_roads
     geo_data --> convert_lakes
-    geo_data --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges
+    water --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges
 ```
 
 

@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # which tables should be updated
     tables = args.tables
     if tables == 'all' or 'all' in tables:
-        tables = ['hubs', 'roads', 'water_bodies', 'water_lines']
+        tables = ['hubs', 'roads']  # we skip these for now, because 2D is easier for water: 'water_bodies', 'water_lines'
 
     # connect to database
     conn = create_engine('postgresql://' + args.user + ':' + parse.quote_plus(args.password) + '@' + args.server + ':' +
