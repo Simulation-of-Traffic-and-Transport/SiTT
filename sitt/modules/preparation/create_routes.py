@@ -188,12 +188,12 @@ class CreateRoutes(BaseClass, PreparationInterface):
             target: ig.Vertex | None = None  # keeps next target vertex
             flip: bool = False  # flip direction?
 
-            if last_vertex.index == edge.source:  # edge is in correct order, add it to the target graph as is
+            if last_vertex['name'] == edge['from']:  # edge is in correct order, add it to the target graph as is
                 # set target vertex
-                target = g.vs[edge.target]
-            elif last_vertex.index != edge.source and last_vertex.index == edge.target:  # reverse edge
+                target = g.vs.find(name=edge['to'])
+            elif last_vertex['name'] != edge['from'] and last_vertex['name'] == edge['to']:  # reverse edge
                 # set source vertex
-                target = g.vs[edge.source]
+                target = g.vs.find(name=edge['from'])
                 flip = True
             else:
                 # this case should not happen, but just to be safe...

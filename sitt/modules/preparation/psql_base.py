@@ -110,7 +110,7 @@ class PSQLBase(PreparationInterface, ABC):
         # iterate frame and add edges to graph
         for edge in edges_data.itertuples():
             attrs = {"name": edge.Index, "geom": edge.geom, "type": edge.type, "cost_a_b": edge.cost_a_b,
-                     "cost_b_a": edge.cost_b_a}
+                     "cost_b_a": edge.cost_b_a, "from": edge.hub_id_a, "to": edge.hub_id_b}
             if edge.data is not None:
                 for key, value in edge.data.items():
                     attrs[key] = value
