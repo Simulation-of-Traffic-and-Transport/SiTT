@@ -76,9 +76,9 @@ class SimpleDAV(SimulationStepInterface):
                 up_down_time = m_asc_desc / self.ascend_per_hour
 
             # calculate time taken in units (hours) for this part
-            calculated_time = length / self.speed / 1000
+            calculated_time = length / self.speed / 1000 + up_down_time
 
-            time_for_legs.append(calculated_time + up_down_time)
+            time_for_legs.append(calculated_time)
             time_taken += calculated_time
 
         # save things in state
