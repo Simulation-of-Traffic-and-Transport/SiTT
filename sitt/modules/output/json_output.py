@@ -76,7 +76,7 @@ class JSONOutput(OutputInterface):
         # merge full list
         history = self._merge_history_lists(history, merge_history)
 
-        nodes, paths = self._graph_to_data()
+        nodes, paths = self._graph_to_data(set_of_results.agents_finished + set_of_results.agents_cancelled)
 
         # TODO add more data from configuration and context
         return {
@@ -125,14 +125,18 @@ class JSONOutput(OutputInterface):
         for edge in agent.route_data.es:
             if 'agents' in edge.attribute_names():
                 edge_key = edge['key']
+                from_key = agent.route_data.vs[edge.source]['name']
+                from_to = agent.route_data.vs[edge.target]['name']
                 # remove _rev from edge key
                 if edge_key.endswith('_rev'):
                     edge_key = edge_key[:-4]
-                history[edge.index] = {
+                    from_key = from_to
+                    from_to = agent.route_data.vs[edge.source]['name']
+                history[edge_key] = {
                     "type": "edge",
                     "id": edge_key,
-                    "from": agent.route_data.vs[edge.source]['name'],
-                    "to": agent.route_data.vs[edge.target]['name'],
+                    "from": from_key,
+                    "to": from_to,
                     "agents": edge['agents'],
                 }
 
@@ -175,12 +179,29 @@ class JSONOutput(OutputInterface):
 
         return list1
 
-    def _graph_to_data(self) -> Tuple[List[dict], List[dict]]:
+    def _graph_to_data(self, agents: list[Agent]) -> Tuple[List[dict], List[dict]]:
+        # only the paths taken by agents
+        nodes_to_add: set[str] = set()
+        paths_to_add: set[str] = set()
+
+        for agent in agents:
+            for edge in agent.route_data.es:
+                edge_key = edge['key']
+                if edge_key.endswith('_rev'):
+                    edge_key = edge_key[:-4]
+                paths_to_add.add(edge_key)
+
+            for hub in agent.route_data.vs:
+                nodes_to_add.add(hub['name'])
+
         nodes: List[dict] = []
         paths: List[dict] = []
 
         # aggregate node data
         for node in self.context.graph.vs:
+            if node['name'] not in nodes_to_add:
+                continue
+
             data = {'id': node['name']}
 
             for key in node.attribute_names():
@@ -195,6 +216,9 @@ class JSONOutput(OutputInterface):
 
         # aggregate path data - from routes, because these are directed
         for path in self.context.graph.es:
+            if path['name'] not in paths_to_add:
+                continue
+
             paths.append({
                 'id': path['name'],
                 "from": self.context.graph.vs[path.source]['name'],
