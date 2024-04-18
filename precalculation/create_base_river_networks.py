@@ -35,7 +35,7 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
 
         # get shore lines
         shores = []
-        for shore_entries in conn.execute(text(f"SELECT DISTINCT (ST_Dump(ST_Intersection(st_force2d(geom), {geom_data}))).geom FROM sitt.water_lines WHERE st_touches(st_force2d(geom), {geom_data})")):
+        for shore_entries in conn.execute(text(f"SELECT DISTINCT (ST_Dump(ST_Intersection(geom, {geom_data}))).geom FROM sitt.water_lines WHERE st_touches(geom, {geom_data})")):
             shores.append(wkb.loads(shore_entries[0]))
 
         # calculate width
@@ -53,11 +53,12 @@ def _add_vertex(g: ig.Graph, water_body_id: int, idx: int, geom: object) -> str:
         if min_width < 0.1:
             # combine shores into a single line
             shore = simplify(line_merge(union_all(shores)), 0.000001)
-            # max width is points of farthest lines in this "bump"
-            max_width = transform(transformer.transform, LineString([shore.coords[0], shore.coords[-1]])).length
+            # min width is points of farthest lines in this "bump"
+            # TODO: does this make sense? probably yes, but we might also create a triangle and calculate triangle
+            #  median lengths
+            min_width = transform(transformer.transform, LineString([shore.coords[0], shore.coords[-1]])).length
             is_bump = True
-
-        g.add_vertex(str_idx, geom=geom, center=center, shores=shores, depth_m=depth_m, is_bump=is_bump)
+        g.add_vertex(str_idx, geom=geom, center=center, shores=shores, min_width=min_width, depth_m=depth_m, is_bump=is_bump)
 
     return str_idx
 
