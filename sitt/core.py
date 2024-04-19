@@ -297,7 +297,7 @@ class Simulation(BaseClass):
                 # now connect edges
                 for edge in agent.route_data.es:
                     try:
-                        data = hashed_agents[hash_id].route_data.es.find(name=edge['key'])
+                        data = hashed_agents[hash_id].route_data.es.find(key=edge['key'])
                         if 'agents' not in data.attribute_names():
                             data['agents'] = {}
                         for uid in edge['agents']:
