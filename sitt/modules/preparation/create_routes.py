@@ -59,12 +59,12 @@ class CreateRoutes(BaseClass, PreparationInterface):
         # Now create the set of simple edge paths and then construct a directed graph from this. The directed graph will
         # contain all possible paths from source to target, so we can efficiently traverse it.
         edges_considered: set[int] = set()
-        g = ig.Graph(directed=True)
+        tg = ig.Graph(directed=True)
 
         for p in all_paths:
-            g = self._add_directed_graph(p[1], config.simulation_start, context.graph, g)
+            tg = self._add_directed_graph(p[1], config.simulation_start, context.graph, tg)
 
-        context.routes = g
+        context.routes = tg
 
         # might be an option?
         # Yen for networkx/igraph:
@@ -72,8 +72,8 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         if logger.level <= logging.INFO:
             logger.info("PreparationInterface CreateRoutes: finished creating routes and checking lengths - "
-                        f"considered {len(all_paths)} routes. Created directed graph with {len(g.vs)} "
-                        f"vertices and {len(g.es)} edges.")
+                        f"considered {len(all_paths)} routes. Created directed graph with {len(tg.vs)} "
+                        f"vertices and {len(tg.es)} edges.")
 
         return context
 
@@ -167,34 +167,32 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         return all_paths
 
-    def _add_directed_graph(self, edges: list[int], start: str, g: ig.Graph, tg: ig.Graph) -> ig.Graph:
+    def _add_directed_graph(self, edges: list[int], start: str, sg: ig.Graph, tg: ig.Graph) -> ig.Graph:
         """
         Will add a directed graph to target graph from data of the source graph.
 
         :param edges: edge list to add from source graph to target graph
         :param start: start none name
-        :param g: source graph
+        :param sg: source graph
         :param tg: target graph
         :return: None
         """
 
         # add start vertex, last vertex will keep last vertex to start from, so we know how to direct the edges
-        last_vertex = g.vs.find(name=start)
+        last_vertex = sg.vs.find(name=start)
         self._add_vertex_to_graph(last_vertex.attributes(), tg)
 
         # traverse edges and check their direction
         for e in edges:
-            edge = g.es[e]  # current edge to consider
+            edge = sg.es[e]  # current edge to consider
             target: ig.Vertex | None = None  # keeps next target vertex
-            flip: bool = False  # flip direction?
 
             if last_vertex['name'] == edge['from']:  # edge is in correct order, add it to the target graph as is
                 # set target vertex
-                target = g.vs.find(name=edge['to'])
+                target = sg.vs.find(name=edge['to'])
             elif last_vertex['name'] != edge['from'] and last_vertex['name'] == edge['to']:  # reverse edge
                 # set source vertex
-                target = g.vs.find(name=edge['from'])
-                flip = True
+                target = sg.vs.find(name=edge['from'])
             else:
                 # this case should not happen, but just to be safe...
                 logger.fatal("PreparationInterface CreateRoutes: graph error - not consecutive vertices!")
@@ -203,7 +201,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
             self._add_vertex_to_graph(target.attributes(), tg)
 
             # add edge
-            self._add_edge_to_graph(last_vertex['name'], target['name'], edge, flip, tg)
+            self._add_edge_to_graph(last_vertex['name'], target['name'], edge, tg)
 
             last_vertex = target
 
@@ -222,24 +220,24 @@ class CreateRoutes(BaseClass, PreparationInterface):
         except:
             g.add_vertex(**attributes)
 
-    def _add_edge_to_graph(self, from_name: str, to_name: str, edge: ig.Edge, flip: bool, g: ig.Graph) -> None:
+    def _add_edge_to_graph(self, from_name: str, to_name: str, edge: ig.Edge, g: ig.Graph) -> None:
         """
         Will add an edge to a graph, if it does not exist yet (name = unique id)
 
         :param edge: edge to copy
-        :param flip: flip direction?
-        :param g: graph
+        :param g: graph (the directed graph)
         :return: None
         """
         name = edge['name']
-        if flip:
-            name += '_rev'  # add new name - should be very unlikely, but just in case
 
         try:
             g.es.find(name=name)
         except:
             # add new edge
             attr: dict = edge.attributes().copy()
+            # delete "none" types
+            attr = {k: v for k, v in attr.items() if v is not None}
+
             if 'legs' in attr:
                 # clean possible empty values
                 if attr['legs'] is None:
@@ -252,15 +250,9 @@ class CreateRoutes(BaseClass, PreparationInterface):
                     del attr['slopes']
                 else:
                     attr['slopes'] = np.copy(attr['slopes'])
-
-            if flip:
-                # flip data
-                if 'legs' in attr:
-                    attr['legs'] = np.flip(attr['legs'])
-                if 'slopes' in attr:
-                    attr['slopes'] = np.flip(attr['slopes']) * -1  # reverse slop percents, too
-                attr['geom'] = reverse(attr['geom'])  # shapely can reverse geometry, comes handy
-                attr['name'] = name
+            # delete "to" attribute, if it exists - we only need the "from" attribute
+            if 'to' in attr:
+                del attr['to']
 
             g.add_edge(from_name, to_name, **attr)
 

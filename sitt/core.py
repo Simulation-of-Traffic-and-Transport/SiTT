@@ -235,8 +235,7 @@ class Simulation(BaseClass):
         # create new agent for each outbound edge
         for edge in self.context.routes.incident(hub):
             e = self.context.routes.es[edge]
-            target_id = e.target
-            target = self.context.routes.vs[target_id]['name']
+            target = e.target_vertex['name']
 
             # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
             try:
@@ -245,15 +244,13 @@ class Simulation(BaseClass):
                     logger.debug(f"Skipping {agent_to_clone} on {target}, already visited!")
                 continue
             except:
-                pass
+                # create new agent for each option
+                new_agent = copy.deepcopy(agent_to_clone)
+                new_agent.this_hub = hub
+                new_agent.next_hub = target
+                new_agent.route_key = e['name']  # name of edge
 
-            # create new agent for each option
-            new_agent = copy.deepcopy(agent_to_clone)
-            new_agent.this_hub = hub
-            new_agent.next_hub = target
-            new_agent.route_key = e['name']  # name of edge
-
-            agents.append(new_agent)
+                agents.append(new_agent)
 
         # create new uids, if agents have split
         if len(agents) > 1:
@@ -408,7 +405,15 @@ class Simulation(BaseClass):
         for sim_step in self.config.simulation_step:
             # conditions are met?
             if sim_step.check_conditions(self.config, self.context, agent, next_leg):
-                agent.state = sim_step.update_state(self.config, self.context, agent, next_leg)
+                # traverse in reversed order?
+                is_reversed = False
+                if agent.this_hub != next_leg['from']:
+                    is_reversed = True
+                    if agent.next_hub != next_leg['from']:
+                        print("error!")
+
+                # run state update
+                agent.state = sim_step.update_state(self.config, self.context, agent, next_leg, is_reversed)
 
         # proceed or stop here?
         if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:

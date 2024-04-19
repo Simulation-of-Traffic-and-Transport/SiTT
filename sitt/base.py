@@ -363,7 +363,9 @@ class Agent(object):
         self.next_hub: str = next_hub
         """Destination hub"""
         self.route_key: str = route_key
-        """Key id of route between hubs ("name" attribute of edge)"""
+        """Key id of next/current route between hubs ("name" attribute of edge)"""
+        self.last_route: str | None = None
+        """Key if of last route taken"""
 
         self.current_day: int = 1
         """Current day of agent - copied from simulation"""
@@ -567,7 +569,8 @@ class SimulationStepInterface(abc.ABC):
         return True
 
     @abc.abstractmethod
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
+                     is_reversed: bool) -> State:
         """
         Run the simulation module - run at the start of each simulation step, should be used as preparation for the
         actual simulation.
@@ -576,6 +579,7 @@ class SimulationStepInterface(abc.ABC):
         :param context: context (read-only)
         :param agent: current agent (contains state object)
         :param next_leg: next leg (Edge)
+        :param is_reversed: true if the leg is reversed
         :return: updated state object
         """
         pass

@@ -33,7 +33,8 @@ class Simple(SimulationStepInterface):
         self.descend_slowdown_factor: float = descend_slowdown_factor
         """time taken is modified by slope in percents multiplied by this number when descending"""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
+                     is_reversed: bool) -> State:
         state = agent.state
 
         # precalculate next hub
@@ -47,7 +48,12 @@ class Simple(SimulationStepInterface):
         time_taken = 0.
         time_for_legs: list[float] = []
 
-        for i in range(len(next_leg['legs'])):
+        # create range to traverse - might be reversed
+        r = range(len(next_leg['legs']))
+        if is_reversed:
+            r = reversed(r)
+
+        for i in r:
             length = next_leg['legs'][i]
             slope = next_leg['slopes'][i]
 

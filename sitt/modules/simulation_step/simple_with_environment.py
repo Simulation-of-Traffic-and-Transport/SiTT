@@ -48,7 +48,8 @@ class SimpleWithEnvironment(SimulationStepInterface):
         
         This is a list of minimum temperature keys to use this slowdown. It must be defined in ascending order."""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
+                     is_reversed: bool) -> State:
         state = agent.state
 
         # precalculate next hub
@@ -58,14 +59,15 @@ class SimpleWithEnvironment(SimulationStepInterface):
             # state.status = Status.CANCELLED
             return state
 
-        # create range to traverse
-        r = range(len(next_leg['legs']))
-        p_offset_start = 0
-
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
         time_for_legs: list[float] = []
         space_time_data_legs: list[dict[str, any]] = []
+
+        # create range to traverse - might be reversed
+        r = range(len(next_leg['legs']))
+        if is_reversed:
+            r = reversed(r)
 
         for i in r:
             length = next_leg['legs'][i]
@@ -77,7 +79,7 @@ class SimpleWithEnvironment(SimulationStepInterface):
                 slope_factor = slope * self.ascend_slowdown_factor
 
             # apply environment
-            coords = next_leg['geom'].coords[i + p_offset_start]
+            coords = next_leg['geom'].coords[i]
             space_time_data: dict[str, any] = {}
 
             if len(context.space_time_data):

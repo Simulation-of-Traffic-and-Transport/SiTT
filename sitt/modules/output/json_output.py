@@ -125,18 +125,11 @@ class JSONOutput(OutputInterface):
         for edge in agent.route_data.es:
             if 'agents' in edge.attribute_names():
                 edge_key = edge['key']
-                from_key = agent.route_data.vs[edge.source]['name']
-                from_to = agent.route_data.vs[edge.target]['name']
-                # remove _rev from edge key
-                if edge_key.endswith('_rev'):
-                    edge_key = edge_key[:-4]
-                    from_key = from_to
-                    from_to = agent.route_data.vs[edge.source]['name']
                 history[edge_key] = {
                     "type": "edge",
                     "id": edge_key,
-                    "from": from_key,
-                    "to": from_to,
+                    "from": agent.route_data.vs[edge.source]['name'],
+                    "to": agent.route_data.vs[edge.target]['name'],
                     "agents": edge['agents'],
                 }
 
@@ -186,10 +179,7 @@ class JSONOutput(OutputInterface):
 
         for agent in agents:
             for edge in agent.route_data.es:
-                edge_key = edge['key']
-                if edge_key.endswith('_rev'):
-                    edge_key = edge_key[:-4]
-                paths_to_add.add(edge_key)
+                paths_to_add.add(edge['key'])
 
             for hub in agent.route_data.vs:
                 nodes_to_add.add(hub['name'])
@@ -221,8 +211,8 @@ class JSONOutput(OutputInterface):
 
             paths.append({
                 'id': path['name'],
-                "from": self.context.graph.vs[path.source]['name'],
-                "to": self.context.graph.vs[path.target]['name'],
+                "from": path['from'],
+                "to": path['to'],
                 'type': path["type"],
                 'length_m': path['length_m'],
                 'geom': mapping(path['geom']),

@@ -52,7 +52,8 @@ class SimpleDAV(SimulationStepInterface):
         self.descend_per_hour: float = descend_per_hour
         """m of height per hour while descending"""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
+                     is_reversed: bool) -> State:
         state = agent.state
 
         # precalculate next hub
@@ -66,7 +67,12 @@ class SimpleDAV(SimulationStepInterface):
         time_taken = 0.
         time_for_legs: list[float] = []
 
-        for i in range(len(next_leg['legs'])):
+        # create range to traverse - might be reversed
+        r = range(len(next_leg['legs']))
+        if is_reversed:
+            r = reversed(r)
+
+        for i in r:
             length = next_leg['legs'][i]  # length is in meters
             m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
 
