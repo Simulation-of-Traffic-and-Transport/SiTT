@@ -134,12 +134,6 @@ def _create_compacted_line_data(og: ig.Graph, tg: ig.Graph, source: str, target:
     min_width = sys.float_info.max
     complete_shape: Polygon = vertex['geom']
 
-    # TODO: check
-    # min width of first and last end points added...
-    # min_width = min(_get_minimum_distance_in_vertex(vertex, transformer) * 2,
-    #                 _get_minimum_distance_in_vertex(g.vs[shortest_path[-1]], transformer)) * 2
-    # # *2, because we need minimum to both sides
-
     for id in shortest_path:
         vertex = og.vs[id]
 
