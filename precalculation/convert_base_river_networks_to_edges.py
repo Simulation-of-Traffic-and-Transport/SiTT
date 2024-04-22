@@ -17,7 +17,7 @@ import igraph as ig
 import rasterio
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import Polygon, Point, LineString, shortest_line, intersection, centroid, union, force_2d, force_3d, wkb
+from shapely import Polygon, Point, MultiPoint, LineString, shortest_line, intersection, centroid, force_2d, force_3d, union_all, wkb
 from shapely.ops import transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, Float, Boolean, JSON, text, insert
@@ -116,7 +116,7 @@ def _update_edge_attributes_of_direct_neighbors(tg: ig.Graph, transformer: Trans
         e['min_width'] = transform(transformer.transform, common_line).length
         e['length'] = transform(transformer.transform, e['geom']).length
         e['depth_m'] = (source['depth_m'] + target['depth_m']) / 2
-        e['shape'] = union(source['geom'], target['geom'])
+        e['shapes'] = [source['geom'], target['geom']]
 
 
 def _create_compacted_line_data(og: ig.Graph, tg: ig.Graph, source: str, target: str, transformer: Transformer):
@@ -132,7 +132,7 @@ def _create_compacted_line_data(og: ig.Graph, tg: ig.Graph, source: str, target:
     depth_m = vertex['depth_m']  # depth is same for all vertices along this line
     points.append(vertex['center'])
     min_width = sys.float_info.max
-    complete_shape: Polygon = vertex['geom']
+    all_shapes: list[Polygon] = []
 
     for id in shortest_path:
         vertex = og.vs[id]
@@ -150,7 +150,7 @@ def _create_compacted_line_data(og: ig.Graph, tg: ig.Graph, source: str, target:
             else:
                 points.append(center)
 
-            complete_shape = union(complete_shape, vertex['geom'])
+            all_shapes.append(vertex['geom'])
 
         last_shape = vertex['geom']
 
@@ -161,7 +161,7 @@ def _create_compacted_line_data(og: ig.Graph, tg: ig.Graph, source: str, target:
 
     # create edge
     tg.add_edge(source, target, name=source + '=' + target + '-' + hex(crc32(geom.wkb)), geom=geom, min_width=min_width,
-                length=transform(transformer.transform, geom).length, depth_m=depth_m, shape=complete_shape)
+                length=transform(transformer.transform, geom).length, depth_m=depth_m, shapes=all_shapes)
 
 
 def _get_harbor_groups() -> dict[str, list[tuple[str, Point, float]]]:
@@ -318,6 +318,7 @@ if __name__ == "__main__":
 
             g.add_edge(v1, v2, name=harbor[0] + '-' + v2['name'])
 
+        ##############################################################################################
         print("Compacting graph - creating river segments")
 
         # compact graph
@@ -467,6 +468,32 @@ if __name__ == "__main__":
         base_graph = graphs[0]
         tg = base_graph.union(graphs[1:], byname=True)
 
+        ##############################################################################################
+        print("Smoothening edges.")
+
+        # Smoothen the edges to iron out some artifacts
+        for e in tg.es:
+            if len(e['geom'].coords) > 2:
+                # aggregate intersection points
+                points_ok = []
+                for shape in e['shapes']:
+                    intersec = shape.boundary.intersection(e['geom'])
+                    if type(intersec) is MultiPoint:
+                        for point in intersec.geoms:
+                            points_ok.append(point.coords[0])
+                    elif type(intersec) is Point:  # single point
+                        points_ok.append(intersec.coords[0])
+
+                # check against existing geom, construct new linestring
+                new_line = [e['geom'].coords[0]]
+                for i in range(1, len(e['geom'].coords) - 1):
+                    if e['geom'].coords[i] in points_ok:
+                        new_line.append(e['geom'].coords[i])
+                new_line.append(e['geom'].coords[-1])
+
+                e['geom'] = LineString(new_line)
+
+        ##############################################################################################
         # create riversTruncate edges?
         if args.empty_edges:
             print("Truncating edges database...")
@@ -533,10 +560,11 @@ if __name__ == "__main__":
 
             stmt = insert(edges_table).values(id=e['name'], geom=geo_stmt, hub_id_a=from_id,
                                               hub_id_b=to_id, type='river', cost_a_b=cost_a_b, cost_b_a=cost_b_a,
-                                              data={"length_m": e['length'], "shape": e['shape'].wkt, "slope": e['slope'],
-                                                    "flow_rate": e['flow_rate'], "min_width": e['min_width'],
-                                                    "depth_m": e['depth_m'], "flow_from": e['flow_from'],
-                                                    "water_body_id": water_body_id, "legs": legs})
+                                              data={"length_m": e['length'], "shape": union_all(e['shapes']).wkt,
+                                                    "slope": e['slope'], "flow_rate": e['flow_rate'],
+                                                    "min_width": e['min_width'], "depth_m": e['depth_m'],
+                                                    "flow_from": e['flow_from'], "water_body_id": water_body_id,
+                                                    "legs": legs})
             conn.execute(stmt)
 
         conn.commit()
