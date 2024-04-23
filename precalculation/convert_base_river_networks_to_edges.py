@@ -213,8 +213,79 @@ def _clean_coords(coords: list[tuple[float, float]]) -> list[tuple[float, float]
         if last_coord is None or last_coord != coord:
             new_coords.append((coord[0], coord[1]))
         last_coord = coord
+    # sanity check for database
+    if len(new_coords) < 2:
+        new_coords.append(new_coords[0])
     return new_coords
 
+
+def _compact_graph(g: ig.Graph) -> ig.Graph:
+    # compact graph
+    # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
+    # need to preserve the geometry
+    # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
+
+    # create a copy of our graph - add connectors first => connectors are all nodes with more than 2 degrees
+    # tg is our target graph
+    tg: ig.Graph = g.subgraph([vertex['name'] for vertex in g.vs if vertex.degree() > 2])
+    # add data to edges in subgraph
+    _update_edge_attributes_of_direct_neighbors(tg, transformer)
+
+    # walk chain components - these all have degree <= 2
+    # if 1 => end points
+    # if 2 => simple connectors between two shapes
+    # walk chains and get endpoints for each component cluster
+    for component in g.subgraph(
+            [vertex for vertex in g.vs if 0 < vertex.degree() <= 2]).connected_components().subgraphs():
+        # Case 1: single endpoint without multiple neighbors
+        if component.vcount() == 1:
+            # find vertex in original graph and look for neighbors
+            source = component.vs[0]
+            neighbors = g.vs.find(name=source['name']).neighbors()
+            # in the original graph, this point might be a single endpoint - or between two connectors
+            if len(neighbors) == 1:
+                # endpoint
+                target = neighbors[0]
+            elif len(neighbors) == 2:
+                # connector
+                source = neighbors[0]
+                target = neighbors[1]
+            else:
+                print("fatal error: too many neighbors", source, neighbors)
+                sys.exit(-1)
+
+            # add vertices
+            _add_vertex(tg, source.attributes())
+            _add_vertex(tg, target.attributes())
+
+            # construct edge
+            _create_compacted_line_data(g, tg, source['name'], target['name'], transformer)
+
+        # Case 2: line of points - two endpoints
+        else:
+            names_to_exclude = [vertex['name'] for vertex in component.vs]
+            endpoints = [vertex['name'] for vertex in component.vs if vertex.degree() == 1]
+            if len(endpoints) != 2:
+                print("fatal error: too many endpoints", endpoints)
+                sys.exit(-1)
+            # source and target are the endpoints of the line
+            source = component.vs.find(name=endpoints[0])['name']
+            target = component.vs.find(name=endpoints[1])['name']
+
+            # expand to connector points, so we can connect to points on the target graph
+            source = _expand_point_list_with_outer_neighbors(g, component, source, excluded_names=names_to_exclude)
+            target = _expand_point_list_with_outer_neighbors(g, component, target, excluded_names=names_to_exclude)
+
+            # get segments of equal depth
+            for segment in _get_segments(component, source, target):
+                # add vertices
+                _add_vertex(tg, component.vs.find(name=segment[0]).attributes())
+                _add_vertex(tg, component.vs.find(name=segment[1]).attributes())
+
+                # construct edge
+                _create_compacted_line_data(component, tg, segment[0], segment[1], transformer)
+
+    return tg
 
 
 if __name__ == "__main__":
@@ -321,69 +392,7 @@ if __name__ == "__main__":
         ##############################################################################################
         print("Compacting graph - creating river segments")
 
-        # compact graph
-        # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
-        # need to preserve the geometry
-        # inspired by https://stackoverflow.com/questions/68499507/reduce-number-of-nodes-edges-of-a-graph-in-nedworkx
-
-        # create a copy of our graph - add connectors first => connectors are all nodes with more than 2 degrees
-        # tg is our target graph
-        tg: ig.Graph = g.subgraph([vertex['name'] for vertex in g.vs if vertex.degree() > 2])
-        # add data to edges in subgraph
-        _update_edge_attributes_of_direct_neighbors(tg, transformer)
-
-        # walk chain components - these all have degree <= 2
-        # if 1 => end points
-        # if 2 => simple connectors between two shapes
-        # walk chains and get endpoints for each component cluster
-        for component in g.subgraph([vertex for vertex in g.vs if 0 < vertex.degree() <= 2]).connected_components().subgraphs():
-            # Case 1: single endpoint without multiple neighbors
-            if component.vcount() == 1:
-                # find vertex in original graph and look for neighbors
-                source = component.vs[0]
-                neighbors = g.vs.find(name=source['name']).neighbors()
-                # in the original graph, this point might be a single endpoint - or between two connectors
-                if len(neighbors) == 1:
-                    # endpoint
-                    target = neighbors[0]
-                elif len(neighbors) == 2:
-                    # connector
-                    source = neighbors[0]
-                    target = neighbors[1]
-                else:
-                    print("fatal error: too many neighbors", source, neighbors)
-                    sys.exit(-1)
-
-                # add vertices
-                _add_vertex(tg, source.attributes())
-                _add_vertex(tg, target.attributes())
-
-                # construct edge
-                _create_compacted_line_data(g, tg, source['name'], target['name'], transformer)
-
-            # Case 2: line of points - two endpoints
-            else:
-                names_to_exclude = [vertex['name'] for vertex in component.vs]
-                endpoints = [vertex['name'] for vertex in component.vs if vertex.degree() == 1]
-                if len(endpoints) != 2:
-                    print("fatal error: too many endpoints", endpoints)
-                    sys.exit(-1)
-                # source and target are the endpoints of the line
-                source = component.vs.find(name=endpoints[0])['name']
-                target = component.vs.find(name=endpoints[1])['name']
-
-                # expand to connector points, so we can connect to points on the target graph
-                source = _expand_point_list_with_outer_neighbors(g, component, source, excluded_names=names_to_exclude)
-                target = _expand_point_list_with_outer_neighbors(g, component, target, excluded_names=names_to_exclude)
-
-                # get segments of equal depth
-                for segment in _get_segments(component, source, target):
-                    # add vertices
-                    _add_vertex(tg, component.vs.find(name=segment[0]).attributes())
-                    _add_vertex(tg, component.vs.find(name=segment[1]).attributes())
-
-                    # construct edge
-                    _create_compacted_line_data(component, tg, segment[0], segment[1], transformer)
+        tg = _compact_graph(g)
 
         print("Compacting finished. Adding heights of vertices in order to calculate slopes.")
 
@@ -413,7 +422,6 @@ if __name__ == "__main__":
             h2 = target['center'].z
             diff = h1 - h2
             # we calculate the length from average of the two endpoints + line length, should be relatively accurate
-            # TODO: find a better solution, like taking the shape and creating a center line between the shore lines
             l1 = transform(transformer.transform, force_2d(LineString([source['center'], target['center']]))).length
             l2 = e['length']
             length = l1 + l2 / 2
@@ -469,29 +477,89 @@ if __name__ == "__main__":
         tg = base_graph.union(graphs[1:], byname=True)
 
         ##############################################################################################
-        print("Smoothening edges.")
+        print("Smoothing edges.")
 
-        # Smoothen the edges to iron out some artifacts
+        # first smoothen part: Smoothen the edges to iron out some artifacts
         for e in tg.es:
             if len(e['geom'].coords) > 2:
-                # aggregate intersection points
+                geom = force_2d(e['geom'])
                 points_ok = []
                 for shape in e['shapes']:
-                    intersec = shape.boundary.intersection(e['geom'])
+                    intersec = force_2d(shape).boundary.intersection(geom)
                     if type(intersec) is MultiPoint:
                         for point in intersec.geoms:
-                            points_ok.append(point.coords[0])
+                            points_ok.append(point.coords)
                     elif type(intersec) is Point:  # single point
-                        points_ok.append(intersec.coords[0])
+                        points_ok.append(intersec.coords)
+
+                point_cloud = MultiPoint(points_ok)
 
                 # check against existing geom, construct new linestring
-                new_line = [e['geom'].coords[0]]
-                for i in range(1, len(e['geom'].coords) - 1):
-                    if e['geom'].coords[i] in points_ok:
-                        new_line.append(e['geom'].coords[i])
-                new_line.append(e['geom'].coords[-1])
+                new_line = [geom.coords[0]]
+                for i in range(1, len(geom.coords) - 1):
+                    # we check the distance to all points in point_cloud - we cannot check exact values due to floating
+                    # point inaccuracies
+                    if Point(geom.coords[i]).distance(point_cloud) < 1e-13:
+                        new_line.append(geom.coords[i])
+                new_line.append(geom.coords[-1])
 
                 e['geom'] = LineString(new_line)
+                e['length'] = transform(transformer.transform, e['geom']).length
+
+        # second smoothen part: smoothen out bumps in intersections
+        for vertex in tg.vs:
+            if vertex.degree() == 2:
+                x = force_2d(vertex['center'])
+
+                # get both edges
+                edges = vertex.all_edges()
+                idx = [1, 1]
+                new_lines: list[list] = [None, None]
+
+                # get direction of lines
+                for i in range(2):
+                    p1 = Point(edges[i]['geom'].coords[0])
+                    p2 = Point(edges[i]['geom'].coords[-1])
+                    dist1 = p1.distance(x)
+                    dist2 = p2.distance(x)
+                    if dist1 > dist2:
+                        idx[i] = -2
+                        new_lines[i] = edges[i]['geom'].coords[:-1]
+                    else:
+                        new_lines[i] = edges[i]['geom'].coords[1:]
+
+                new_line = LineString((edges[0]['geom'].coords[idx[0]], edges[1]['geom'].coords[idx[1]]))
+                intersec = new_line.intersection(vertex['geom'].boundary)
+                if intersec.geom_type == 'Point':  # single point
+                    # append to lines
+                    for i in range(2):
+                        if idx[i] == -2:
+                            new_lines[i].append(intersec.coords[0])
+                        else:
+                            new_lines[i].insert(0, intersec.coords[0])
+                        edges[i]['geom'] = LineString(new_lines[i])
+                        edges[i]['length'] = transform(transformer.transform, edges[i]['geom']).length
+                    # add height
+                    xx, yy = rds_transformer.transform(intersec.x, intersec.y)
+                    x, y = rds.index(xx, yy)
+                    height = band[x, y]
+                    vertex['center'] = Point(intersec.x, intersec.y, height)
+                elif intersec.geom_type == 'MultiPoint' and len(intersec.geoms) == 2:  # multipoints with 2 elements
+                    # get center point of intersection
+                    p = LineString(intersec.geoms).centroid
+                    # append to lines
+                    for i in range(2):
+                        if idx[i] == -2:
+                            new_lines[i].append(p.coords[0])
+                        else:
+                            new_lines[i].insert(0, p.coords[0])
+                        edges[i]['geom'] = LineString(new_lines[i])
+                        edges[i]['length'] = transform(transformer.transform, edges[i]['geom']).length
+                    # add height
+                    xx, yy = rds_transformer.transform(p.x, p.y)
+                    x, y = rds.index(xx, yy)
+                    height = band[x, y]
+                    vertex['center'] = Point(p.x, p.y, height)
 
         ##############################################################################################
         # create riversTruncate edges?
