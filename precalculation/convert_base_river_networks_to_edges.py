@@ -412,7 +412,7 @@ if __name__ == "__main__":
             if source['is_harbor'] or target['is_harbor']:
                 # make shippable
                 e['slope'] = 0.
-                e['flow_rate'] = 0.
+                e['flow_rate'] = 0.  # flow rate is in m/s
                 e['flow_from'] = 'none'
                 e['min_width'] = 1000.
                 e['depth_m'] = 1000.
@@ -447,7 +447,7 @@ if __name__ == "__main__":
 
             # add everything to edge
             e['slope'] = slope
-            e['flow_rate'] = vm
+            e['flow_rate'] = vm  # flow rate is in m/s
             if diff > 0:
                 e['flow_from'] = source['name']
             elif diff < 0:
