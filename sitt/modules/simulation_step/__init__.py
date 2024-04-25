@@ -7,6 +7,7 @@ from .dummy_fixed_speed import DummyFixedSpeed
 from .dummy_for_tests import DummyForTests
 from .simple import Simple
 from .simple_dav import SimpleDAV
+from .simple_lake import SimpleLake
 from .simple_river import SimpleRiver
 from .simple_with_environment import SimpleWithEnvironment
 
@@ -15,6 +16,7 @@ __all__ = [
     "DummyForTests",
     "Simple",
     "SimpleDAV",
+    "SimpleLake",
     "SimpleRiver",
     "SimpleWithEnvironment",
 ]
