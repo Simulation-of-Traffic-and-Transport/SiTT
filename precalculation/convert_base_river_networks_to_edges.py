@@ -318,6 +318,9 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool,
                         help='Assume trapezoid river bed, rectangular otherwise.')
 
+    parser.add_argument('--save-completed-graph', dest='save_completed_graph', default=False, type=bool,
+                        help='Save completed graph as pickle file?')
+
     parser.add_argument('--empty-edges', dest='empty_edges', default=False, type=bool,
                         help='empty edges database before import')
     parser.add_argument('--delete-rivers', dest='delete_rivers', default=True, type=bool,
@@ -454,6 +457,13 @@ if __name__ == "__main__":
                 e['flow_from'] = target['name']
             else:
                 e['flow_from'] = 'none'
+
+        ##############################################################################################
+        # save graph to pickle file for the testing script
+        if args.save_completed_graph:
+            print("Persisting completed graph to graph_dump_" + str(water_body_id) + "_calculated.pickle.")
+            with open('graph_dump_' + str(water_body_id) + '_calculated.pickle', 'wb') as f:
+                pickle.dump(tg, f)
 
         ##############################################################################################
         print("Weeding out graph to edges necessary to travel each harbor.")
