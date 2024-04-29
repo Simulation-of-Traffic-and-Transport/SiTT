@@ -400,10 +400,27 @@ if __name__ == "__main__":
         print("Compacting finished. Adding heights of vertices in order to calculate slopes.")
 
         for v in tg.vs:
-            # add height
-            xx, yy = rds_transformer.transform(v['center'].x, v['center'].y)
-            x, y = rds.index(xx, yy)
-            height = band[x, y]
+            # take the lowest height of the shape by getting the lowest raster value within the triangle
+            # get bounding box of geom
+            bb = v['geom'].bounds
+            # get indexes in raster - min/max
+            ix1, iy1 = rds.index(*rds_transformer.transform(bb[0], bb[1]))
+            ix2, iy2 = rds.index(*rds_transformer.transform(bb[2], bb[3]))
+
+            height = sys.float_info.max
+            # traverse raster points and
+            for x in range(ix2, ix1 + 1):
+                for y in range(iy1, iy2 + 1):
+                    # transform back to coordinates - lower and upper coordinates
+                    x1, y1 = rds_transformer.transform(*rds.xy(x, y, offset="ul"), direction="INVERSE")
+                    x2, y2 = rds_transformer.transform(*rds.xy(x, y, offset="lr"), direction="INVERSE")
+                    # create square from coordinates and check if there is a common area with our triangle/shape
+                    if Polygon.from_bounds(x1, y1, x2, y2).disjoint(v['geom']) is False:
+                        # yes there is: get height from index
+                        b = band[x, y]
+                        if b < height:
+                            height = b
+
             v['center'] = Point(v['center'].x, v['center'].y, height)
 
         for e in tg.es:
