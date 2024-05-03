@@ -435,7 +435,7 @@ if __name__ == "__main__":
             v['shape_height'] = height
 
             # add flow from attribute
-            v['flow_from']: list[int] = []
+            v['flow_from']: list[str] = []
 
             # find the lowest point
             if args.lowest_point == "" and v.degree() == 1 and min_height > v['shape_height'] > -5000:
@@ -451,20 +451,12 @@ if __name__ == "__main__":
         # add flow_from attribute to all vertices
         it = tg.bfsiter(vid=min_node_id, mode="all", advanced=True)
         for (v, distance, parent) in it:
-            if distance > 0:
-                parent['flow_from'].append(v.index)
-
-        # adjust heights - if a predecessor is heigher than the current vertex, set the height of the predecessor to
-        # the height of the current
-        c = 0
-        it = tg.bfsiter(vid=min_node_id, mode="all")
-        for v in it:
-            if len(v['flow_from']) > 0:
-                for idx in v['flow_from']:
-                    predecessor = tg.vs[idx]
-                    if predecessor['shape_height'] < v['shape_height']:
-                        predecessor['shape_height'] = v['shape_height']
-                        c += 1
+            if distance > 0 and v['is_harbor'] is not True:
+                parent['flow_from'].append(v['name'])
+                # adjust heights - if a parent is higher than the current vertex, set the height of the vertex to that
+                # of the parent
+                if parent['shape_height'] > v['shape_height']:
+                    v['shape_height'] = parent['shape_height']
 
         # now calculate flow rates
         for e in tg.es:
@@ -481,6 +473,13 @@ if __name__ == "__main__":
                 e['min_width'] = 1000.
                 e['depth_m'] = 1000.
                 continue
+
+            if source['name'] in target['flow_from']:
+                flow_from = source['name']
+            elif target['name'] in source['flow_from']:
+                flow_from = target['name']
+            else:
+                flow_from = ""  # some rare cases - we will determine this by the difference between the two heights
 
             h1 = source['shape_height']  # shape height is a bit more accurate than center height, so we use this one
             h2 = target['shape_height']
@@ -512,6 +511,15 @@ if __name__ == "__main__":
             # add everything to edge
             e['slope'] = slope
             e['flow_rate'] = vm  # flow rate is in m/s
+            if flow_from == "":
+                if diff > 0:
+                    e['flow_from'] = source['name']
+                elif diff < 0:
+                    e['flow_from'] = target['name']
+                else:
+                    e['flow_from'] = 'none'
+            else:
+                e['flow_from'] = flow_from
 
         ##############################################################################################
         # save graph to pickle file for the testing script
