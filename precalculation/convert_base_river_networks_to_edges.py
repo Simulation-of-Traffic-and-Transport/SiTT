@@ -317,6 +317,8 @@ if __name__ == "__main__":
                         help='Gauckler–Manning-Strickler coefficient')
     parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool,
                         help='Assume trapezoid river bed, rectangular otherwise.')
+    parser.add_argument('--lowest-point', dest='lowest_point', default="", type=str,
+                        help='Lowest point of river (name of vertex) - if empty, algorithm tries to find the lowest point automatically.')
 
     parser.add_argument('--save-completed-graph', dest='save_completed_graph', default=False, type=bool,
                         help='Save completed graph as pickle file?')
@@ -399,6 +401,13 @@ if __name__ == "__main__":
 
         print("Compacting finished. Adding heights of vertices in order to calculate slopes.")
 
+        # Also find the lowest point in whole graph
+        min_height = sys.float_info.max
+        min_node_id = -1
+
+        if args.lowest_point != "":
+            min_node_id = tg.vs.find(name=args.lowest_point).index
+
         for v in tg.vs:
             # take the lowest height of the shape by getting the lowest raster value within the triangle
             # get bounding box of geom
@@ -418,11 +427,46 @@ if __name__ == "__main__":
                     if Polygon.from_bounds(x1, y1, x2, y2).disjoint(v['geom']) is False:
                         # yes there is: get height from index
                         b = band[x, y]
-                        if b < height:
+                        if -5000 < b < height:  # do not allow negative values that are too high (off map values)
                             height = b
 
+            # add center and shape heights
             v['center'] = Point(v['center'].x, v['center'].y, height)
+            v['shape_height'] = height
 
+            # add flow from attribute
+            v['flow_from']: list[int] = []
+
+            # find the lowest point
+            if args.lowest_point == "" and v.degree() == 1 and min_height > v['shape_height'] > -5000:
+                min_height = v['shape_height']
+                min_node_id = v.index
+
+        print("Lowest point is", tg.vs[min_node_id]['name'], "with height", min_height, "m")
+
+        print("Adjusting heights and calculating slopes of edges.")
+
+        # traverse graph from the lowest point to the highest points
+        # TODO: if we have more than one lowest point (like a delta), we need another algorithm
+        # add flow_from attribute to all vertices
+        it = tg.bfsiter(vid=min_node_id, mode="all", advanced=True)
+        for (v, distance, parent) in it:
+            if distance > 0:
+                parent['flow_from'].append(v.index)
+
+        # adjust heights - if a predecessor is heigher than the current vertex, set the height of the predecessor to
+        # the height of the current
+        c = 0
+        it = tg.bfsiter(vid=min_node_id, mode="all")
+        for v in it:
+            if len(v['flow_from']) > 0:
+                for idx in v['flow_from']:
+                    predecessor = tg.vs[idx]
+                    if predecessor['shape_height'] < v['shape_height']:
+                        predecessor['shape_height'] = v['shape_height']
+                        c += 1
+
+        # now calculate flow rates
         for e in tg.es:
             # add slopes
             source = tg.vs[e.source]
@@ -438,8 +482,8 @@ if __name__ == "__main__":
                 e['depth_m'] = 1000.
                 continue
 
-            h1 = source['center'].z
-            h2 = target['center'].z
+            h1 = source['shape_height']  # shape height is a bit more accurate than center height, so we use this one
+            h2 = target['shape_height']
             diff = h1 - h2
             # we calculate the length from average of the two endpoints + line length, should be relatively accurate
             l1 = transform(transformer.transform, force_2d(LineString([source['center'], target['center']]))).length
@@ -468,12 +512,6 @@ if __name__ == "__main__":
             # add everything to edge
             e['slope'] = slope
             e['flow_rate'] = vm  # flow rate is in m/s
-            if diff > 0:
-                e['flow_from'] = source['name']
-            elif diff < 0:
-                e['flow_from'] = target['name']
-            else:
-                e['flow_from'] = 'none'
 
         ##############################################################################################
         # save graph to pickle file for the testing script
