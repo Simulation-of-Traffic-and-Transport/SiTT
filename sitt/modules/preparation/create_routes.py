@@ -7,7 +7,6 @@ import sys
 
 import igraph as ig
 import numpy as np
-from shapely import reverse
 import yaml
 
 from sitt import BaseClass, Configuration, Context, PreparationInterface
@@ -29,12 +28,17 @@ class CreateRoutes(BaseClass, PreparationInterface):
     You need precalculated routes for this, so run CalculatePathsAndHubs before calling this class.
     """
 
-    def __init__(self, maximum_routes: int = 0, maximum_difference_from_shortest: float = 0.):
+    def __init__(self, maximum_routes: int = 0, maximum_difference_from_shortest: float = 0., k_shortest: int = 100):
         super().__init__()
         self.maximum_routes: int = maximum_routes
         """Maximum number of routes to retain (if greater than 0, x shortest routes will be retained)."""
         self.maximum_difference_from_shortest: float = maximum_difference_from_shortest
         """Maximum difference from shortest route (factor, if greater than 1)"""
+        self.k_shortest = k_shortest
+        """
+        Maximum number of shortest routes to retain in the initial k shortest calculation (higher numbers will take a
+        while to calculate).
+        """
 
     def run(self, config: Configuration, context: Context) -> Context:
         """prepare simulation"""
@@ -46,7 +50,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         if logger.level <= logging.INFO:
             logger.info(
-                f"PreparationInterface CreateRoutes: creating routes from {config.simulation_start} to {config.simulation_end} and checking lengths")
+                f"PreparationInterface CreateRoutes: creating a maximum of {self.k_shortest} routes from {config.simulation_start} to {config.simulation_end} and checking lengths")
 
         # get raw routes
         all_paths, min_length, max_length = self._get_raw_routes(config.simulation_start, config.simulation_end,
@@ -92,7 +96,7 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
         # We create a number of shortest paths from the start to the end - this is a set of paths we can choose from.
         # We will reduce the numbers below.
-        raw_shortest_paths = g.get_k_shortest_paths(simulation_start, to=simulation_end, k=100,
+        raw_shortest_paths = g.get_k_shortest_paths(simulation_start, to=simulation_end, k=self.k_shortest,
                                                     weights='length_m', mode='all', output='epath')  # edge path!
 
         longest_path_distance: float = sys.float_info.min
