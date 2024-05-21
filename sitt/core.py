@@ -416,7 +416,7 @@ class Simulation(BaseClass):
                 agent.state = sim_step.update_state(self.config, self.context, agent, next_leg, is_reversed)
 
         # proceed or stop here?
-        if not agent.state.signal_stop_here and agent.state.time_taken > 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
+        if not agent.state.signal_stop_here and agent.state.time_taken >= 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
             # add hub history
             hub = agent.route_data.vs.find(name=agent.this_hub)
             if 'agents' not in hub.attribute_names():
