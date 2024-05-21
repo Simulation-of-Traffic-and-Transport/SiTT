@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2023-present Maximilian Kalus <info@auxnet.de>
+# SPDX-FileCopyrightText: 2023-present Fabian Behrens, Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
 """Find the best paths for a given route through the graph"""
@@ -56,14 +56,16 @@ class PathWeeder:
         self.graph: ig.Graph = graph.copy()  # make a copy of the graph, because we will modify it
         self.base_graph = graph
         self.distance_cache = {}
+        self.weight = "length"
 
-    def init(self, crs_from: int, crs_to: int):
+    def init(self, crs_from: int, crs_to: int, weight: str = "length") -> None:
         transformer = Transformer.from_crs(crs_from, crs_to, always_xy=True)
         world_positions = []
         for vertex in self.graph.vs:
             position = ops.transform(transformer.transform, vertex["center"])
             world_positions.append(position)
         self.graph.vs["world_position"] = world_positions
+        self.weight = weight
 
     def get_k_paths(self, start: str, end: str, k: int) -> BestPathsResult:
 
@@ -96,7 +98,7 @@ class PathWeeder:
             end_id = self.graph.vs.find(name=end)
 
             path = self.graph.get_shortest_path_astar(start_id, end_id, _heuristic,
-                                                      weights=self.graph.es["length"],
+                                                      weights=self.graph.es[self.weight],
                                                       output="epath", mode="all")
 
             result.paths.append(("a*-igraph", path))
@@ -105,6 +107,6 @@ class PathWeeder:
             for edge in path:
                 self.graph.es[edge]["length"] *= 1.1
 
-        self.graph.es["length"] = self.base_graph.es["length"]
+        self.graph.es[self.weight] = self.base_graph.es[self.weight]
         self.distance_cache = {}
         return result
