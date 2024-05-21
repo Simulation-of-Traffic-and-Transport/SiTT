@@ -26,11 +26,12 @@ class BestPathsResult:
 
     """
 
-    def __init__(self, graph: ig.Graph, start: str, end: str):
+    def __init__(self, graph: ig.Graph, start: str, end: str, weight: str = "length"):
         self.graph = graph
         self.start: str = start
         self.end: str = end
         self.paths: List[Tuple[str, EdgeList]] = []
+        self.weight = weight
 
     def summary(self) -> str:
         summary = f"graph:\n{self.graph.summary()}\n"
@@ -41,7 +42,7 @@ class BestPathsResult:
             p = self.paths[path_index]
             d = 0
             for e in p[1]:
-                d += self.graph.es[e]["length"]
+                d += self.graph.es[e][self.weight]
             summary += f"\t[{path_index}]: type={p[0]}, length={d}\n"
 
         return summary
@@ -52,20 +53,20 @@ class PathWeeder:
     This class can be used to compact the graph by only storing the edges necessary to travel from each to each harbor
     based on an A* heuristic.
     """
-    def __init__(self, graph: ig.Graph):
+    def __init__(self, graph: ig.Graph, weight: str = "length", center: str = "center"):
         self.graph: ig.Graph = graph.copy()  # make a copy of the graph, because we will modify it
         self.base_graph = graph
         self.distance_cache = {}
-        self.weight = "length"
+        self.weight = weight
+        self.center = center
 
-    def init(self, crs_from: int, crs_to: int, weight: str = "length") -> None:
+    def init(self, crs_from: int, crs_to: int) -> None:
         transformer = Transformer.from_crs(crs_from, crs_to, always_xy=True)
         world_positions = []
         for vertex in self.graph.vs:
-            position = ops.transform(transformer.transform, vertex["center"])
+            position = ops.transform(transformer.transform, vertex[self.center])
             world_positions.append(position)
         self.graph.vs["world_position"] = world_positions
-        self.weight = weight
 
     def get_k_paths(self, start: str, end: str, k: int) -> BestPathsResult:
 
@@ -90,7 +91,7 @@ class PathWeeder:
                 self.distance_cache[(a, b)] = distance
                 return distance
 
-        result = BestPathsResult(self.base_graph, start, end)
+        result = BestPathsResult(self.base_graph, start, end, self.weight)
 
         for i in range(0, k):
 
@@ -105,7 +106,7 @@ class PathWeeder:
 
             # this makes a visited edge more expensive to take in the next search
             for edge in path:
-                self.graph.es[edge]["length"] *= 1.1
+                self.graph.es[edge][self.weight] *= 1.1
 
         self.graph.es[self.weight] = self.base_graph.es[self.weight]
         self.distance_cache = {}

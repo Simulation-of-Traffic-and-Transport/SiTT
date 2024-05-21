@@ -28,6 +28,7 @@ from sitt.base import (
 )
 from sitt.core import Core, BaseClass, Preparation, Simulation, Output
 from sitt.utils import is_truthy
+from sitt.lib import PathWeeder
 
 import sitt.modules.preparation as preparation
 import sitt.modules.simulation_step as simulation_step
@@ -57,7 +58,8 @@ __all__ = [
     "is_truthy",
     "preparation",
     "simulation_step",
-    "output"
+    "output",
+    "PathWeeder"
 ]
 
 logger: logging.Logger = logging.getLogger()

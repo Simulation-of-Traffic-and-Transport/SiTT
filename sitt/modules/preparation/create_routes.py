@@ -9,7 +9,7 @@ import igraph as ig
 import numpy as np
 import yaml
 
-from sitt import BaseClass, Configuration, Context, PreparationInterface
+from sitt import BaseClass, Configuration, Context, PreparationInterface, PathWeeder
 
 logger = logging.getLogger()
 
@@ -94,17 +94,22 @@ class CreateRoutes(BaseClass, PreparationInterface):
         :return: tuples of paths and their length, shortest and longest distance
         """
 
+        path_weeder: PathWeeder = PathWeeder(g, weight='length_m', center='geom')
+        path_weeder.init(4326, 32633)
+
         # We create a number of shortest paths from the start to the end - this is a set of paths we can choose from.
         # We will reduce the numbers below.
-        raw_shortest_paths = g.get_k_shortest_paths(simulation_start, to=simulation_end, k=self.k_shortest,
-                                                    weights='length_m', mode='all', output='epath')  # edge path!
+        raw_shortest_paths = path_weeder.get_k_paths(simulation_start, simulation_end, self.k_shortest)
+        # raw_shortest_paths = g.get_k_shortest_paths(simulation_start, to=simulation_end, k=self.k_shortest,
+        #                                             weights='length_m', mode='all', output='epath')  # edge path!
 
         longest_path_distance: float = sys.float_info.min
         shortest_path_distance: float = sys.float_info.max
         shortest_paths: list[tuple[float, list[int]]] = []
 
         # determine length of each shortest path
-        for path in raw_shortest_paths:
+        for result in raw_shortest_paths.paths:
+            path = result[1]
             if len(path) > 0:
                 distance = 0.0
                 for e in path:
