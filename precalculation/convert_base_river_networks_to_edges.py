@@ -388,8 +388,8 @@ def _connect_shapes(tg: ig.Graph, sub_graph: ig.Graph, connectors: list, shape1:
                     e['flow_to'] = parent['name']
 
 
-# actually create the river network flows
-def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer):
+# actually create the river network flows - returns min node id
+def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer) -> int:
     # find min/max points
     min_node_id, sortedEndPoints = _find_min_max_points(sub_graph, rds, band, rds_transformer)
     total = len(sortedEndPoints)
@@ -420,6 +420,8 @@ def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetRea
 
                 # set flow direction
                 target_edge['flow_to'] = next_flow_to
+
+    return min_node_id
 
 
 def _recursively_connect_river():
@@ -592,7 +594,7 @@ if __name__ == "__main__":
 
         # initial call
         print("Initial flow call...")
-        _create_flows(g, g, rds, band, rds_transformer)
+        min_node_id = _create_flows(g, g, rds, band, rds_transformer)
 
         print("Working on still unconnected flow parts...")
         _recursively_connect_river()
