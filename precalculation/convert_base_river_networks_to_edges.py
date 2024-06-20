@@ -14,15 +14,16 @@ from urllib import parse
 from zlib import crc32
 
 import igraph as ig
+import numpy as np
 import rasterio
-from geoalchemy2 import Geometry, WKTElement
+from geoalchemy2 import Geometry
 from pyproj import Transformer
-from shapely import Polygon, Point, MultiPoint, LineString, shortest_line, intersection, centroid, force_2d, force_3d, union_all, wkb
+from shapely import Polygon, Point, LineString, shortest_line, intersection, centroid, force_2d, wkb
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
+from sortedcontainers import SortedKeyList
 from sqlalchemy import create_engine, Table, Column, MetaData, \
-    String, Float, Boolean, JSON, text, insert
-
-from path_weeder import PathWeeder
+    String, Float, Boolean, JSON, text
 
 
 def _add_vertex(g: ig.Graph, attributes):
@@ -31,15 +32,15 @@ def _add_vertex(g: ig.Graph, attributes):
     except:
         g.add_vertices(1, attributes=attributes)
 
-def _get_outer_neighbor(g: ig.Graph, name: str, excluded_names: list[str]) -> ig.Vertex | None:
+def _get_outer_neighbor(tg: ig.Graph, name: str, excluded_names: list[str]) -> ig.Vertex | None:
     """
     Get the outer neighbor of a vertex in the graph. Neighbors must not be in the list of excluded_names.
-    :param g: graph
+    :param tg: graph
     :param name: name to look for
     :param excluded_names: list of vertex names to exclude
     :return:
     """
-    neighbors = [vertex for vertex in g.vs.find(name=name).neighbors() if
+    neighbors = [vertex for vertex in tg.vs.find(name=name).neighbors() if
                  vertex['name'] not in excluded_names]
     if len(neighbors) == 1:
         return neighbors[0]
@@ -288,6 +289,179 @@ def _compact_graph(g: ig.Graph) -> ig.Graph:
     return tg
 
 
+def _get_lowest_and_highest_height_of_shape(shape: BaseGeometry, center: Point, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer) -> tuple[float, float, float]:
+    # take the lowest and highest height of the shape by getting the lowest raster value within the triangle
+    # get bounding box of geom
+    bb = shape.bounds
+    # get indexes in raster - min/max
+    ix1, iy1 = rds.index(*rds_transformer.transform(bb[0], bb[1]))
+    ix2, iy2 = rds.index(*rds_transformer.transform(bb[2], bb[3]))
+
+    lowest_height = sys.float_info.max
+    highest_height = sys.float_info.min
+    # traverse raster points and
+    for x in range(ix2, ix1 + 1):
+        for y in range(iy1, iy2 + 1):
+            # transform back to coordinates - lower and upper coordinates
+            x1, y1 = rds_transformer.transform(*rds.xy(x, y, offset="ul"), direction="INVERSE")
+            x2, y2 = rds_transformer.transform(*rds.xy(x, y, offset="lr"), direction="INVERSE")
+            # create square from coordinates and check if there is a common area with our triangle/shape
+            if Polygon.from_bounds(x1, y1, x2, y2).disjoint(shape) is False:
+                # yes there is: get height from index
+                b = band[x, y]
+                if b > -5000:  # do not allow negative values that are too high (off map values)
+                    if b < lowest_height:  # do not allow negative values that are too high (off)
+                        lowest_height = b
+                    if b > highest_height:
+                        highest_height = b
+
+    if lowest_height == sys.float_info.max:
+        lowest_height = -5001
+    if highest_height == sys.float_info.min:
+        highest_height = -5001
+
+    # height of center point
+    xx, yy = transformer.transform(center.x, center.y)
+    x, y = rds.index(xx, yy)
+    center_height = band[x, y]
+    return lowest_height, highest_height, center_height
+
+
+def _find_min_max_points(sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer) -> tuple[int, SortedKeyList]:
+    # list of end nodes sorted by height (descending)
+    skl = SortedKeyList(key=lambda s: -s[1])
+
+    for v in sub_graph.vs:
+        # get height of shape
+        if v['min_height'] is None or v['max_height'] is None or v['shape_height'] is None:
+            l_height, m_height, center_height = _get_lowest_and_highest_height_of_shape(v["geom"], v["center"], rds, band, rds_transformer)
+            v['min_height'] = l_height
+            v['max_height'] = m_height
+            v['shape_height'] = center_height
+        # consider max height only for dead ends (not harbors)
+        if v.degree() == 1 and v['is_harbor'] is not True and -5000 < v['max_height']:
+            skl.add((v.index, v['max_height']))
+
+    # remove minimal node
+    min_node = skl.pop()
+
+    return min_node[0], skl
+
+
+def _order_shapes(shape1: ig.Vertex, shape2: ig.Vertex) -> tuple[ig.Vertex, ig.Vertex]:
+    # counter for shapes
+    shape1lower = 0
+    shape2lower = 0
+    # compare fields
+    for field in ['min_height', 'max_height', 'shape_height']:
+        diff = shape2[field] - shape1[field]
+        if diff > 0:
+            shape1lower += 1
+        elif diff < 0:
+            shape2lower += 1
+    if shape1lower > shape2lower:
+        return shape1, shape2
+    if shape1lower < shape2lower:
+        return shape2, shape1
+    if shape1lower == shape2lower == 0:
+        return shape1, shape2  # could be None, too
+    if shape1['shape_height'] < shape2['shape_height']:
+        return shape1, shape2
+    return shape2, shape1
+
+
+def _connect_shapes(tg: ig.Graph, sub_graph: ig.Graph, connectors: list, shape1: ig.Vertex, shape2: ig.Vertex):
+    # compare shape heights
+    low_shape, high_shape = _order_shapes(shape1, shape2)
+    for entry, _, parent in sub_graph.bfsiter(low_shape.index, high_shape.index, advanced=True):
+        if parent is None:
+            parent = tg.vs.find(name=[x for x in connectors if x[0] == entry['name']][0][1][0])
+            entry = tg.vs.find(name=entry['name'])
+            for e in tg.es.select(_within=[entry.index, parent.index]):
+                if e['flow_to'] is None:
+                    e['flow_to'] = parent['name']
+        else:
+            # get all edges from parent to entry
+            for edge in sub_graph.es.select(_within=[entry.index, parent.index]):
+                e = tg.es.find(name=edge['name'])
+                if e['flow_to'] is None:
+                    e['flow_to'] = parent['name']
+
+
+# actually create the river network flows
+def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer):
+    # find min/max points
+    min_node_id, sortedEndPoints = _find_min_max_points(sub_graph, rds, band, rds_transformer)
+    total = len(sortedEndPoints)
+    c = 0
+
+    # in order to create a valid flow direction, we take each highest point and trace a flow line to the lowest point
+    for max_index, _ in sortedEndPoints:
+        c += 1
+        print(str(c) + "/" + str(total))
+        # traverse paths and set flow direction
+        for path in sub_graph.get_shortest_paths(min_node_id, to=max_index, weights=sub_graph.es['length'], output='epath'):
+            last_id: int = min_node_id
+            for e_index in path:
+                e: ig.Edge = sub_graph.es[e_index]
+                if last_id == e.source:
+                    next_flow_to = e.source_vertex['name']
+                    last_id = e.target
+                elif last_id == e.target:
+                    next_flow_to = e.target_vertex['name']
+                    last_id = e.source
+                else:
+                    raise Exception("Unexpected flow direction")
+
+                # do we have a flow direction already
+                target_edge = tg.es.find(name=e['name'])
+                if target_edge['flow_to'] is not None and next_flow_to != target_edge['flow_to']:
+                    raise Exception(e['name'], "has flow direction", e['flow_to'], "but should be", next_flow_to)
+
+                # set flow direction
+                target_edge['flow_to'] = next_flow_to
+
+
+def _recursively_connect_river():
+    # create a subgraph of unconsidered edges, we create a set of vertices that are part of unconnected edges
+    sg: ig.Graph = g.subgraph(set([x for e in g.es.select(flow_to=None) for x in [e.source, e.target]]))
+    sg.delete_edges(flow_to_ne=None)
+    sg_list = sg.connected_components().subgraphs()
+    if len(sg_list) == 0:
+        print("Done!")
+        return  # nothing more to do
+    print("Connecting", len(sg_list), "part(s) in the river network...")
+
+    # traverse connected components - we create connected components subgraphs for this
+    for component in sg_list:
+        # get connectors to larger graph
+        connectors: list = []
+        for v in component.vs:
+            vtx: ig.Vertex = g.vs.find(name=v['name'])  # vertex in main graph
+            if v.degree() < vtx.degree():
+                flow_tos: list[str] = []
+
+                for e in vtx.all_edges():
+                    if e['flow_to'] is not None and e['flow_to'] != v['name']:
+                        flow_tos.append(e['flow_to'])
+                if len(flow_tos):
+                    connectors.append((v['name'], flow_tos))
+
+        if len(connectors) == 2:
+            _connect_shapes(g, component, connectors, component.vs.find(name=connectors[0][0]),
+                            component.vs.find(name=connectors[1][0]))
+        elif len(connectors) > 2:
+            try:
+                _create_flows(g, component, rds, band, rds_transformer)
+            except Exception as e:
+                # print(e)
+                pass  # fail silently
+
+    # da capo
+    print("Recursing...")
+    _recursively_connect_river()
+
+
 if __name__ == "__main__":
     """
     Convert a pickled graph file created by create_base_river_networks.py, set harbors, create river sections and weed
@@ -397,59 +571,41 @@ if __name__ == "__main__":
         ##############################################################################################
         print("Compacting graph - creating river segments")
 
-        tg = _compact_graph(g)
+        g = _compact_graph(g)
 
-        print("Compacting finished. Adding heights of vertices in order to calculate slopes.")
+        print("Compacting finished. Adding heights of vertices and deriving flow directions in order to calculate"
+              "slopes. This can take a very long time - hold on.")
 
-        # Also find the lowest point in whole graph
-        min_height = sys.float_info.max
-        min_node_id = -1
+        # init flow to and heights
+        g.es['flow_to'] = None
+        g.vs['min_height'] = None
+        g.vs['max_height'] = None
+        g.vs['shape_height'] = None
 
-        if args.lowest_point != "":
-            min_node_id = tg.vs.find(name=args.lowest_point).index
+        # set harbor flows
+        for v in g.vs.select(is_harbor=True):
+            for e in v.all_edges():
+                if e.source == v.index:
+                    e['flow_to'] = e.target_vertex['name']
+                else:
+                    e['flow_to'] = e.source_vertex['name']
 
-        for v in tg.vs:
-            # take the lowest height of the shape by getting the lowest raster value within the triangle
-            # get bounding box of geom
-            bb = v['geom'].bounds
-            # get indexes in raster - min/max
-            ix1, iy1 = rds.index(*rds_transformer.transform(bb[0], bb[1]))
-            ix2, iy2 = rds.index(*rds_transformer.transform(bb[2], bb[3]))
+        # initial call
+        print("Initial flow call...")
+        _create_flows(g, g, rds, band, rds_transformer)
 
-            height = sys.float_info.max
-            # traverse raster points and
-            for x in range(ix2, ix1 + 1):
-                for y in range(iy1, iy2 + 1):
-                    # transform back to coordinates - lower and upper coordinates
-                    x1, y1 = rds_transformer.transform(*rds.xy(x, y, offset="ul"), direction="INVERSE")
-                    x2, y2 = rds_transformer.transform(*rds.xy(x, y, offset="lr"), direction="INVERSE")
-                    # create square from coordinates and check if there is a common area with our triangle/shape
-                    if Polygon.from_bounds(x1, y1, x2, y2).disjoint(v['geom']) is False:
-                        # yes there is: get height from index
-                        b = band[x, y]
-                        if -5000 < b < height:  # do not allow negative values that are too high (off map values)
-                            height = b
+        print("Working on still unconnected flow parts...")
+        _recursively_connect_river()
 
-            # add center and shape heights
-            v['center'] = Point(v['center'].x, v['center'].y, height)
-            v['shape_height'] = height
-
-            # add flow from attribute
-            v['flow_from']: list[str] = []
-
-            # find the lowest point
-            if args.lowest_point == "" and v.degree() == 1 and min_height > v['shape_height'] > -5000:
-                min_height = v['shape_height']
-                min_node_id = v.index
-
-        print("Lowest point is", tg.vs[min_node_id]['name'], "with height", min_height, "m")
+        # TODO: continue here
+        exit(0)
 
         print("Adjusting heights and calculating slopes of edges.")
 
         # traverse graph from the lowest point to the highest points
         # TODO: if we have more than one lowest point (like a delta), we need another algorithm
         # add flow_from attribute to all vertices
-        it = tg.bfsiter(vid=min_node_id, mode="all", advanced=True)
+        it = rbfsiter(vid=min_node_id, mode="all", advanced=True)
         for (v, distance, parent) in it:
             if distance > 0 and v['is_harbor'] is not True:
                 parent['flow_from'].append(v['name'])
@@ -459,10 +615,10 @@ if __name__ == "__main__":
                     v['shape_height'] = parent['shape_height']
 
         # now calculate flow rates
-        for e in tg.es:
+        for e in g.es:
             # add slopes
-            source = tg.vs[e.source]
-            target = tg.vs[e.target]
+            source = g.vs[e.source]
+            target = g.vs[e.target]
 
             # harbor?
             if source['is_harbor'] or target['is_harbor']:
@@ -535,7 +691,7 @@ if __name__ == "__main__":
         path_weeder: PathWeeder = PathWeeder(tg)
         path_weeder.init(args.crs_no, args.crs_to)
 
-        harbors = tg.vs.select(is_harbor=True)
+        harbors = g.vs.select(is_harbor=True)
         graphs = []
         for start_harbor_index in range(0, len(harbors)):
             for end_harbor_index in range(start_harbor_index + 1, len(harbors)):
@@ -547,13 +703,13 @@ if __name__ == "__main__":
                     graphs.append(subgraph)
 
         base_graph = graphs[0]
-        tg = base_graph.union(graphs[1:], byname=True)
+        g = base_graph.union(graphs[1:], byname=True)
 
         ##############################################################################################
         print("Smoothing edges.")
 
         # first smoothen part: Smoothen the edges to iron out some artifacts
-        for e in tg.es:
+        for e in g.es:
             if len(e['geom'].coords) > 2:
                 geom = force_2d(e['geom'])
                 points_ok = []
@@ -580,7 +736,7 @@ if __name__ == "__main__":
                 e['length'] = transform(transformer.transform, e['geom']).length
 
         # second smoothen part: smoothen out bumps in intersections
-        for vertex in tg.vs:
+        for vertex in g.vs:
             if vertex.degree() == 2:
                 x = force_2d(vertex['center'])
 
@@ -648,7 +804,7 @@ if __name__ == "__main__":
 
         # create hubs
         print("Creating hubs...")
-        for v in tg.vs:
+        for v in g.vs:
             # do not insert existing hubs
             result = conn.execute(text("SELECT id FROM " + args.schema + ".hubs WHERE id = '{}'".format(v['name']))).fetchone()
             if result is None:
@@ -666,7 +822,7 @@ if __name__ == "__main__":
 
         # create edges
         print("Creating edges...")
-        for e in tg.es:
+        for e in g.es:
             # clean linestring
             coords = []
             for coord in _clean_coords(e['geom'].coords):
@@ -696,8 +852,8 @@ if __name__ == "__main__":
             cost_b_a = 1.
 
             geo_stmt = WKTElement(force_3d(e['geom']).wkt, srid=args.crs_no)
-            from_id = tg.vs[e.source]['name']
-            to_id = tg.vs[e.target]['name']
+            from_id = g.vs[e.source]['name']
+            to_id = g.vs[e.target]['name']
 
             stmt = insert(edges_table).values(id=e['name'], geom=geo_stmt, hub_id_a=from_id,
                                               hub_id_b=to_id, type='river', cost_a_b=cost_a_b, cost_b_a=cost_b_a,
