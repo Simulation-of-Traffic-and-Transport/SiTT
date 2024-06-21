@@ -331,6 +331,10 @@ def _find_min_max_points(sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, ba
     # list of end nodes sorted by height (descending)
     skl = SortedKeyList(key=lambda s: -s[1])
 
+    # Find the lowest point in the graph
+    min_height = sys.float_info.max
+    min_node_id = -1
+
     for v in sub_graph.vs:
         # get height of shape
         if v['min_height'] is None or v['max_height'] is None or v['shape_height'] is None:
@@ -338,14 +342,16 @@ def _find_min_max_points(sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, ba
             v['min_height'] = l_height
             v['max_height'] = m_height
             v['shape_height'] = center_height
+        if min_height > v['min_height'] > -5000:
+            min_height = v['min_height']
+            min_node_id = v.index
         # consider max height only for dead ends (not harbors)
         if v.degree() == 1 and v['is_harbor'] is not True and -5000 < v['max_height']:
             skl.add((v.index, v['max_height']))
 
-    # remove minimal node
-    min_node = skl.pop()
+    # TODO: delete min node id entry from skl?
 
-    return min_node[0], skl
+    return min_node_id, skl
 
 
 def _order_shapes(shape1: ig.Vertex, shape2: ig.Vertex) -> tuple[ig.Vertex, ig.Vertex]:
