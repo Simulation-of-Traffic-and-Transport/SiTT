@@ -36,11 +36,11 @@ class SimpleRiver(SimulationStepInterface):
         # determine speed
         current_speed = self.speed
         kph = next_leg['flow_rate'] * 3.6
-        if next_leg['flow_from'] == agent.this_hub:
+        if next_leg['flow_to'] == agent.next_hub:
             # originating from this hub - check speed of current
             if kph > current_speed:
                 current_speed = kph
-        elif next_leg['flow_from'] == agent.next_hub:
+        elif next_leg['flow_to'] == agent.this_hub:
             # traversing against the current
             current_speed -= kph
             if current_speed < 0:
