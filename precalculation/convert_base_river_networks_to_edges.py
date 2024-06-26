@@ -16,14 +16,17 @@ from zlib import crc32
 import igraph as ig
 import numpy as np
 import rasterio
-from geoalchemy2 import Geometry
+from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import Polygon, Point, LineString, shortest_line, intersection, centroid, force_2d, wkb
+from shapely import Polygon, Point, MultiPoint, LineString, shortest_line, intersection, centroid, union_all, force_2d, \
+    force_3d, wkb
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 from sortedcontainers import SortedKeyList
 from sqlalchemy import create_engine, Table, Column, MetaData, \
-    String, Float, Boolean, JSON, text
+    String, Float, Boolean, JSON, text, insert
+
+from sitt import PathWeeder
 
 
 def _add_vertex(g: ig.Graph, attributes):
@@ -289,7 +292,7 @@ def _compact_graph(g: ig.Graph) -> ig.Graph:
     return tg
 
 
-def _get_lowest_and_highest_height_of_shape(shape: BaseGeometry, center: Point, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer) -> tuple[float, float, float]:
+def _get_lowest_and_highest_height_of_shape(shape: BaseGeometry, center: Point, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer, transformer: Transformer) -> tuple[float, float, float]:
     # take the lowest and highest height of the shape by getting the lowest raster value within the triangle
     # get bounding box of geom
     bb = shape.bounds
@@ -327,7 +330,7 @@ def _get_lowest_and_highest_height_of_shape(shape: BaseGeometry, center: Point, 
     return lowest_height, highest_height, center_height
 
 
-def _find_min_max_points(sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer) -> tuple[int, SortedKeyList]:
+def _find_min_max_points(sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer, transformer: Transformer) -> tuple[int, SortedKeyList]:
     # list of end nodes sorted by height (descending)
     skl = SortedKeyList(key=lambda s: -s[1])
 
@@ -338,7 +341,7 @@ def _find_min_max_points(sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, ba
     for v in sub_graph.vs:
         # get height of shape
         if v['min_height'] is None or v['max_height'] is None or v['shape_height'] is None:
-            l_height, m_height, center_height = _get_lowest_and_highest_height_of_shape(v["geom"], v["center"], rds, band, rds_transformer)
+            l_height, m_height, center_height = _get_lowest_and_highest_height_of_shape(v["geom"], v["center"], rds, band, rds_transformer, transformer)
             v['min_height'] = l_height
             v['max_height'] = m_height
             v['shape_height'] = center_height
@@ -395,9 +398,9 @@ def _connect_shapes(tg: ig.Graph, sub_graph: ig.Graph, connectors: list, shape1:
 
 
 # actually create the river network flows - returns min node id
-def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer) -> int:
+def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer, transformer: Transformer) -> int:
     # find min/max points
-    min_node_id, sortedEndPoints = _find_min_max_points(sub_graph, rds, band, rds_transformer)
+    min_node_id, sortedEndPoints = _find_min_max_points(sub_graph, rds, band, rds_transformer, transformer)
     total = len(sortedEndPoints)
     c = 0
 
@@ -421,7 +424,7 @@ def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetRea
 
                 # do we have a flow direction already
                 target_edge = tg.es.find(name=e['name'])
-                if target_edge['flow_to'] is not None and next_flow_to != target_edge['flow_to']:
+                if target_edge['flow_to'] is not None and target_edge['flow_to'] != next_flow_to:
                     raise Exception(e['name'], "has flow direction", e['flow_to'], "but should be", next_flow_to)
 
                 # set flow direction
@@ -430,9 +433,10 @@ def _create_flows(tg: ig.Graph, sub_graph: ig.Graph, rds: rasterio.io.DatasetRea
     return min_node_id
 
 
-def _recursively_connect_river():
+# connect rest of river network - tg is replaced in situ
+def _recursively_connect_river(tg: ig.Graph, rds: rasterio.io.DatasetReader, band: np.array, rds_transformer: Transformer, transformer: Transformer):
     # create a subgraph of unconsidered edges, we create a set of vertices that are part of unconnected edges
-    sg: ig.Graph = g.subgraph(set([x for e in g.es.select(flow_to=None) for x in [e.source, e.target]]))
+    sg: ig.Graph = tg.subgraph(set([x for e in tg.es.select(flow_to=None) for x in [e.source, e.target]]))
     sg.delete_edges(flow_to_ne=None)
     sg_list = sg.connected_components().subgraphs()
     if len(sg_list) == 0:
@@ -445,7 +449,7 @@ def _recursively_connect_river():
         # get connectors to larger graph
         connectors: list = []
         for v in component.vs:
-            vtx: ig.Vertex = g.vs.find(name=v['name'])  # vertex in main graph
+            vtx: ig.Vertex = tg.vs.find(name=v['name'])  # vertex in main graph
             if v.degree() < vtx.degree():
                 flow_tos: list[str] = []
 
@@ -456,18 +460,18 @@ def _recursively_connect_river():
                     connectors.append((v['name'], flow_tos))
 
         if len(connectors) == 2:
-            _connect_shapes(g, component, connectors, component.vs.find(name=connectors[0][0]),
+            _connect_shapes(tg, component, connectors, component.vs.find(name=connectors[0][0]),
                             component.vs.find(name=connectors[1][0]))
         elif len(connectors) > 2:
             try:
-                _create_flows(g, component, rds, band, rds_transformer)
-            except Exception as e:
+                _create_flows(tg, component, rds, band, rds_transformer, transformer)
+            except Exception as ex:
                 # print(e)
                 pass  # fail silently
 
     # da capo
     print("Recursing...")
-    _recursively_connect_river()
+    _recursively_connect_river(tg, rds, band, rds_transformer, transformer)
 
 
 if __name__ == "__main__":
@@ -535,6 +539,19 @@ if __name__ == "__main__":
     # get relevant band
     band = rds.read(args.band)
 
+    ##############################################################################################
+    # create riversTruncate edges?
+    if args.empty_edges:
+        print("Truncating edges database...")
+        conn.execute(text("TRUNCATE TABLE " + args.schema + ".edges;"))
+        conn.commit()
+    elif args.delete_rivers:  # delete rivers from edges table?
+        print("Deleting river edges and hubs from database...")
+        conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'river';"))
+        conn.execute(text("DELETE FROM " + args.schema + ".hubs WHERE data @> '{\"type\": \"river\"}';"))
+        conn.commit()
+
+    ##############################################################################################
     print("Loading pickled graphs and working on them...")
 
     # load harbors
@@ -543,160 +560,158 @@ if __name__ == "__main__":
     # consider every water body in water_parts
     for water_body_id in conn.execute(text("SELECT DISTINCT water_body_id FROM sitt.water_parts WHERE is_river = true")):
         water_body_id = water_body_id[0]
-        print("************** Loading network for water body", water_body_id, "**************")
 
-        if not exists('graph_dump_' + str(water_body_id) + '.pickle'):
-            print("Graph file graph_dump_" + str(water_body_id) + ".pickle does not exist, skipping...")
-            continue
+        if not exists('graph_dump_' + str(water_body_id) + '_calculated.pickle'):
+            print("************** Loading network for water body", water_body_id, "**************")
 
-        # check harbors existence for this water body
-        if water_body_id not in harbor_groups:
-            print("No harbors found for water body", water_body_id, " - skipping...")
-            continue
-
-        print("Loading graph from pickle file graph_dump_" + str(water_body_id) + ".pickle")
-
-        g: ig.Graph = pickle.load(open('graph_dump_' + str(water_body_id) + '.pickle', 'rb'))
-
-        # Add harbors to graph
-        print("Adding harbors to graph")
-
-        closest_vertices = {}
-
-        for v in g.vs:
-            for harbor in harbor_groups[water_body_id]:
-                dist = v['center'].distance(harbor[1])
-                if harbor[0] not in closest_vertices or dist < closest_vertices[harbor[0]][0]:
-                    closest_vertices[harbor[0]] = (dist, v)
-
-        # add harbor vertices
-        for harbor in harbor_groups[water_body_id]:
-            v1 = g.add_vertex(name=harbor[0], geom=harbor[1], center=harbor[1], is_harbor=True)
-            v2 = closest_vertices[harbor[0]][1]
-
-            g.add_edge(v1, v2, name=harbor[0] + '-' + v2['name'])
-
-        ##############################################################################################
-        print("Compacting graph - creating river segments")
-
-        g = _compact_graph(g)
-
-        print("Compacting finished. Adding heights of vertices and deriving flow directions in order to calculate"
-              "slopes. This can take a very long time - hold on.")
-
-        # init flow to and heights
-        g.es['flow_to'] = None
-        g.vs['min_height'] = None
-        g.vs['max_height'] = None
-        g.vs['shape_height'] = None
-
-        # set harbor flows
-        for v in g.vs.select(is_harbor=True):
-            for e in v.all_edges():
-                if e.source == v.index:
-                    e['flow_to'] = e.target_vertex['name']
-                else:
-                    e['flow_to'] = e.source_vertex['name']
-
-        # initial call
-        print("Initial flow call...")
-        min_node_id = _create_flows(g, g, rds, band, rds_transformer)
-
-        print("Working on still unconnected flow parts...")
-        _recursively_connect_river()
-
-        # TODO: continue here
-        exit(0)
-
-        print("Adjusting heights and calculating slopes of edges.")
-
-        # traverse graph from the lowest point to the highest points
-        # TODO: if we have more than one lowest point (like a delta), we need another algorithm
-        # add flow_from attribute to all vertices
-        it = rbfsiter(vid=min_node_id, mode="all", advanced=True)
-        for (v, distance, parent) in it:
-            if distance > 0 and v['is_harbor'] is not True:
-                parent['flow_from'].append(v['name'])
-                # adjust heights - if a parent is higher than the current vertex, set the height of the vertex to that
-                # of the parent
-                if parent['shape_height'] > v['shape_height']:
-                    v['shape_height'] = parent['shape_height']
-
-        # now calculate flow rates
-        for e in g.es:
-            # add slopes
-            source = g.vs[e.source]
-            target = g.vs[e.target]
-
-            # harbor?
-            if source['is_harbor'] or target['is_harbor']:
-                # make shippable
-                e['slope'] = 0.
-                e['flow_rate'] = 0.  # flow rate is in m/s
-                e['flow_from'] = 'none'
-                e['min_width'] = 1000.
-                e['depth_m'] = 1000.
+            if not exists('graph_dump_' + str(water_body_id) + '.pickle'):
+                print("Graph file graph_dump_" + str(water_body_id) + ".pickle does not exist, skipping...")
                 continue
 
-            if source['name'] in target['flow_from']:
-                flow_from = source['name']
-            elif target['name'] in source['flow_from']:
-                flow_from = target['name']
-            else:
-                flow_from = ""  # some rare cases - we will determine this by the difference between the two heights
+            # check harbors existence for this water body
+            if water_body_id not in harbor_groups:
+                print("No harbors found for water body", water_body_id, " - skipping...")
+                continue
 
-            h1 = source['shape_height']  # shape height is a bit more accurate than center height, so we use this one
-            h2 = target['shape_height']
-            diff = h1 - h2
-            # we calculate the length from average of the two endpoints + line length, should be relatively accurate
-            l1 = transform(transformer.transform, force_2d(LineString([source['center'], target['center']]))).length
-            l2 = e['length']
-            length = l1 + l2 / 2
-            slope = abs(diff) / length
-            # taken from https://www.gabrielstrommer.com/rechner/fliessgeschwindigkeit-durchfluss/
-            if args.is_trapezoid:
-                # cross-sectional area for trapezoid river bed
-                # we assume bottom of river is 50% of river width
-                w1 = e['min_width']
-                w2 = e['min_width'] / 2
-                a = (w1+w2)/2 * e['depth_m']
-                # sides can be calculated as right triangles
-                c = (e['depth_m']**2 + ((w1-w2)/2)**2)**0.5
-                u = w2 + 2*c
-            else:
-                # cross-sectional area for rectangular river bed
-                a = e['min_width'] * e['depth_m']
-                u = e['min_width'] + 2*e['depth_m']
-            # hydraulic radius
-            r = a / u
-            # Gauckler-Manning-Strickler flow formula
-            vm = args.kst * r**(2/3) * slope**(1/2)
+            print("Loading graph from pickle file graph_dump_" + str(water_body_id) + ".pickle")
 
-            # add everything to edge
-            e['slope'] = slope
-            e['flow_rate'] = vm  # flow rate is in m/s
-            if flow_from == "":
-                if diff > 0:
-                    e['flow_from'] = source['name']
-                elif diff < 0:
-                    e['flow_from'] = target['name']
+            g: ig.Graph = pickle.load(open('graph_dump_' + str(water_body_id) + '.pickle', 'rb'))
+
+            # Add harbors to graph
+            print("Adding harbors to graph")
+
+            closest_vertices = {}
+
+            for v in g.vs:
+                for harbor in harbor_groups[water_body_id]:
+                    dist = v['center'].distance(harbor[1])
+                    if harbor[0] not in closest_vertices or dist < closest_vertices[harbor[0]][0]:
+                        closest_vertices[harbor[0]] = (dist, v)
+
+            # add harbor vertices
+            for harbor in harbor_groups[water_body_id]:
+                v1 = g.add_vertex(name=harbor[0], geom=harbor[1], center=harbor[1], is_harbor=True)
+                v2 = closest_vertices[harbor[0]][1]
+
+                g.add_edge(v1, v2, name=harbor[0] + '-' + v2['name'])
+
+            ##############################################################################################
+            print("Compacting graph - creating river segments")
+
+            g = _compact_graph(g)
+
+            print("Compacting finished. Adding heights of vertices and deriving flow directions in order to calculate"
+                  "slopes. This can take a very long time - hold on.")
+
+            # init flow to and heights
+            g.es['flow_to'] = None
+            g.vs['min_height'] = None
+            g.vs['max_height'] = None
+            g.vs['shape_height'] = None
+
+            # set harbor flows
+            for v in g.vs.select(is_harbor=True):
+                for e in v.all_edges():
+                    if e.source == v.index:
+                        e['flow_to'] = e.target_vertex['name']
+                    else:
+                        e['flow_to'] = e.source_vertex['name']
+
+            # initial call
+            print("Initial flow call...")
+            min_node_id = _create_flows(g, g, rds, band, rds_transformer, transformer)
+            print("min node =", g.vs[min_node_id]['name'])
+
+            print("Working on remaining unconnected flow parts...")
+            _recursively_connect_river(g, rds, band, rds_transformer, transformer)
+
+            print("Adjusting heights and calculating slopes of edges.")
+
+            # traverse graph from the lowest point to the highest points
+            # we continue doing this until all heights have been adjusted
+            # TODO: if we have more than one lowest point (like a delta), we need another algorithm
+            while True:
+                found = False
+
+                it = g.bfsiter(vid=min_node_id)
+                for v in it:
+                    if v.index != min_node_id and v['is_harbor'] is not True:
+                        for e in v.incident():
+
+                            # check flow_tos
+                            if e['flow_to'] != v['name']:
+                                other_node = e.source_vertex if e.source_vertex['name'] != v['name'] else e.target_vertex
+                                # my height smaller than that of flow_to shape?
+                                if v['shape_height'] < other_node['shape_height']:
+                                    # adjust my shape height
+                                    v['shape_height'] = other_node['shape_height']
+                                    found = True
+
+                if found is False:
+                    break
+
+            # now calculate flow rates
+            for e in g.es:
+                # add slopes
+                source = g.vs[e.source]
+                target = g.vs[e.target]
+
+                # harbor?
+                if source['is_harbor'] or target['is_harbor']:
+                    # make shippable
+                    e['slope'] = 0.
+                    e['flow_rate'] = 0.  # flow rate is in m/s
+                    # e['flow_to'] = target['name'] if source['is_harbor'] else source['name'] # should have been set before
+                    e['min_width'] = 1000.
+                    e['depth_m'] = 1000.
+                    continue
+
+                h1 = source['shape_height']  # shape height is a bit more accurate than center height, so we use this one
+                h2 = target['shape_height']
+                diff = h1 - h2
+                # we calculate the length from average of the two endpoints + line length, should be relatively accurate
+                l1 = transform(transformer.transform, force_2d(LineString([source['center'], target['center']]))).length
+                l2 = e['length']
+                length = l1 + l2 / 2
+                slope = abs(diff) / length
+                # taken from https://www.gabrielstrommer.com/rechner/fliessgeschwindigkeit-durchfluss/
+                if args.is_trapezoid:
+                    # cross-sectional area for trapezoid river bed
+                    # we assume bottom of river is 50% of river width
+                    w1 = e['min_width']
+                    w2 = e['min_width'] / 2
+                    a = (w1 + w2) / 2 * e['depth_m']
+                    # sides can be calculated as right triangles
+                    c = (e['depth_m'] ** 2 + ((w1 - w2) / 2) ** 2) ** 0.5
+                    u = w2 + 2 * c
                 else:
-                    e['flow_from'] = 'none'
-            else:
-                e['flow_from'] = flow_from
+                    # cross-sectional area for rectangular river bed
+                    a = e['min_width'] * e['depth_m']
+                    u = e['min_width'] + 2 * e['depth_m']
+                # hydraulic radius
+                r = a / u
+                # Gauckler-Manning-Strickler flow formula
+                vm = args.kst * r ** (2 / 3) * slope ** (1 / 2)
 
-        ##############################################################################################
-        # save graph to pickle file for the testing script
-        if args.save_completed_graph:
-            print("Persisting completed graph to graph_dump_" + str(water_body_id) + "_calculated.pickle.")
-            with open('graph_dump_' + str(water_body_id) + '_calculated.pickle', 'wb') as f:
-                pickle.dump(tg, f)
+                # add everything to edge
+                e['slope'] = slope
+                e['flow_rate'] = vm  # flow rate is in m/s
+
+            ##############################################################################################
+            # save graph to pickle file for the testing script
+            if args.save_completed_graph:
+                print("Persisting completed graph to graph_dump_" + str(water_body_id) + "_calculated.pickle.")
+                with open('graph_dump_' + str(water_body_id) + '_calculated.pickle', 'wb') as f:
+                    pickle.dump(g, f)
+        else:
+            print("************** Loading PRECALCULATED network for water body", water_body_id, "**************")
+            g: ig.Graph = pickle.load(open('graph_dump_' + str(water_body_id) + '_calculated.pickle', 'rb'))
 
         ##############################################################################################
         print("Weeding out graph to edges necessary to travel each harbor.")
         # Compact the graph by only storing the edges necessary to travel from each to each harbor
         # on the 5 best routes to do so
-        path_weeder: PathWeeder = PathWeeder(tg)
+        path_weeder: PathWeeder = PathWeeder(g)
         path_weeder.init(args.crs_no, args.crs_to)
 
         harbors = g.vs.select(is_harbor=True)
@@ -798,25 +813,13 @@ if __name__ == "__main__":
                     height = band[x, y]
                     vertex['center'] = Point(p.x, p.y, height)
 
-        ##############################################################################################
-        # create riversTruncate edges?
-        if args.empty_edges:
-            print("Truncating edges database...")
-            conn.execute(text("TRUNCATE TABLE " + args.schema + ".edges;"))
-            conn.commit()
-        elif args.delete_rivers:  # delete rivers from edges table?
-            print("Deleting river edges and hubs from database...")
-            conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'river';"))
-            conn.execute(text("DELETE FROM " + args.schema + ".hubs WHERE data @> '{\"type\": \"river\"}';"))
-            conn.commit()
-
         # create hubs
         print("Creating hubs...")
         for v in g.vs:
             # do not insert existing hubs
             result = conn.execute(text("SELECT id FROM " + args.schema + ".hubs WHERE id = '{}'".format(v['name']))).fetchone()
             if result is None:
-                geo_stmt = WKTElement(v['center'].wkt, srid=args.crs_no)
+                geo_stmt = WKTElement(Point(v['center'].x, v['center'].x, v['shape_height']).wkt, srid=args.crs_no)
                 is_harbor = ('is_harbor' in v.attributes() and v['is_harbor']) or False
 
                 # enter edge into hubs table
@@ -868,10 +871,10 @@ if __name__ == "__main__":
                                               data={"length_m": e['length'], "shape": union_all(e['shapes']).wkt,
                                                     "slope": e['slope'], "flow_rate": e['flow_rate'],
                                                     "min_width": e['min_width'], "depth_m": e['depth_m'],
-                                                    "flow_from": e['flow_from'], "water_body_id": water_body_id,
+                                                    "flow_to": e['flow_to'], "water_body_id": water_body_id,
                                                     "legs": legs})
             conn.execute(stmt)
 
         conn.commit()
 
-print("Done!")
+    print("Finished.")
