@@ -857,14 +857,25 @@ if __name__ == "__main__":
                 last_coord = coord
 
             # calculate cost of edges
-            # kph = e['flow_rate'] * 3.6  # km/h from m/s
-            # TODO: create a cost formula that makes sense
-            cost_a_b = 1.
-            cost_b_a = 1.
+            mph = e['flow_rate'] * 3600  # m/s to m/h
+            # downriver cost
+            mph_downriver = 3000 if mph < 3000 else mph
+            cost_down_river = e['length'] / mph_downriver
+            # upriver cost
+            mph_upriver = 3000 - mph
+            cost_up_river = e['length'] / mph_upriver if mph_upriver > 0 else e['length'] * 10  # arbitrary cost
+            # TODO: adjust to more realistic values?
 
             geo_stmt = WKTElement(force_3d(e['geom']).wkt, srid=args.crs_no)
             from_id = g.vs[e.source]['name']
             to_id = g.vs[e.target]['name']
+
+            if to_id == e['flow_to']:
+                cost_a_b = cost_down_river
+                cost_b_a = cost_up_river
+            else:
+                cost_a_b = cost_up_river
+                cost_b_a = cost_down_river
 
             stmt = insert(edges_table).values(id=e['name'], geom=geo_stmt, hub_id_a=from_id,
                                               hub_id_b=to_id, type='river', cost_a_b=cost_a_b, cost_b_a=cost_b_a,
