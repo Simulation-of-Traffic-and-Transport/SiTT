@@ -36,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--crs-to', dest='crs_to', default=32633, type=int,
                         help='projection target (should support meters)')
     parser.add_argument('--xy', dest='always_xy', default=True, type=bool, help='use the traditional GIS order')
-    parser.add_argument('-c', '--cost', dest='cost_factor', default=1., type=float,
+    parser.add_argument('-c', '--cost', dest='cost_factor', default=0.000333333, type=float,
                         help='cost factor for edges (multiplied by length in meters)')
 
     parser.add_argument('--empty-edges', dest='empty_edges', default=False, type=bool,
