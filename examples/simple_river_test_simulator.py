@@ -12,12 +12,17 @@ from sitt import PathWeeder, convert_graph_to_shapefile
 
 
 graph_file = "graph_dump_1_calculated.pickle"
-from_node = "river-1-13200"  # Quelle Laußnitzbach
-to_node = "river-1-152911"  # kurz oberhalb Lieserbrücke (Nähe Seeboden/Millstädter See)
+# from_node = "river-1-13200"  # Quelle Laußnitzbach
+# to_node = "river-1-152911"  # kurz oberhalb Lieserbrücke (Nähe Seeboden/Millstädter See)
+# variant_name = "variante1"
+
+from_node = "river-1-56001"  # Gurk, Ausgang Wörthersee
+to_node = "river-1-129452"  # Zufluss Gurk in die Drau
+variant_name = "variante2"
 k_shortest = 100  # try out how many shortest paths to compute
 
 # defined data
-base_kph = 3.  # base speed in km/h (base paddle speed)
+base_kph = 3.  # min speed in km/h (base paddle speed)
 max_kph = 20.  # max speed in km/h
 crs_no = 4326
 crs_to = 32633
@@ -25,7 +30,7 @@ crs_to = 32633
 max_difference_time = 10.  # maximum time difference in seconds to consider when checking agent behavior
 
 base_m_per_s = base_kph * 1000 / 3600  # base speed
-
+max_m_per_s = max_kph * 1000 / 3600
 
 # load graph
 graph: ig.Graph = pickle.load(open(graph_file, 'rb'))
@@ -50,7 +55,7 @@ for eid in edge_set:
 # create a subgraph of the nodes and edges in the shortest paths
 sub_graph = graph.subgraph(node_set)
 
-# convert_graph_to_shapefile(sub_graph, ".", "graph.shp")
+convert_graph_to_shapefile(sub_graph, ".", "variante2.shp")
 
 print("Considering", len(sub_graph.vs), "nodes and", len(sub_graph.es), "paths from", from_node, "to", to_node + ".")
 
@@ -130,9 +135,11 @@ finished_agents = []
 def advance_agent(g: ig.Graph, agent: Agent) -> Agent | None:
     # get next edge based on route key
     edge = g.es.find(name=agent.route_key)
-    speed = edge['flow_rate'] + base_m_per_s
-    if speed > max_kph:
-        speed = max_kph
+    speed = edge['flow_rate']
+    if speed < base_m_per_s:
+        speed = base_m_per_s
+    if speed > max_m_per_s:
+        speed = max_m_per_s
 
     # advance
     time_delta_h = edge['length'] / speed / 3600
@@ -204,3 +211,8 @@ while len(agents) > 0:
 finished_agents.sort(key=lambda x: x.current_time)
 print(finished_agents[0].current_time * 60, finished_agents[0].length_m)
 print(finished_agents[-1].current_time * 60, finished_agents[-1].length_m)
+
+# length differences
+finished_agents.sort(key=lambda x: x.length_m)
+print(finished_agents[0].length_m)
+print(finished_agents[-1].length_m)
