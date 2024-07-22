@@ -28,7 +28,7 @@ from sitt.base import (
 )
 from sitt.core import Core, BaseClass, Preparation, Simulation, Output
 from sitt.utils import is_truthy
-from sitt.lib import PathWeeder
+from sitt.lib import PathWeeder, convert_graph_to_shapefile
 
 import sitt.modules.preparation as preparation
 import sitt.modules.simulation_step as simulation_step
@@ -59,7 +59,8 @@ __all__ = [
     "preparation",
     "simulation_step",
     "output",
-    "PathWeeder"
+    "PathWeeder",
+    "convert_graph_to_shapefile"
 ]
 
 logger: logging.Logger = logging.getLogger()
