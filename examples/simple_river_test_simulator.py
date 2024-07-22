@@ -62,6 +62,21 @@ print("Considering", len(sub_graph.vs), "nodes and", len(sub_graph.es), "paths f
 id_counter = 0
 
 
+def get_opposite_node_in_edge(edge: ig.Edge, node: str) -> str:
+    """
+    Get the opposite node in an edge.
+
+    :param edge: edge
+    :param node: node
+    :return:
+    """
+    if edge.target_vertex['name'] == node:
+        return edge.source_vertex['name']
+    if edge.source_vertex['name'] == node:
+        return edge.target_vertex['name']
+    raise ValueError('Node not in edge')
+
+
 def generate_id() -> str:
     """This utility function will generate uids for agents in increasing numerical order, padded with leading zeros."""
     global id_counter
@@ -108,7 +123,11 @@ def create_agents_on_node(g: ig.Graph, hub: str, agent_to_clone: Agent | None = 
         e = g.es[edge]
         target = e['flow_to']
 
-        # skip if target had been visited before
+        # very slow speed?
+        if e['flow_rate'] == 0 and target == hub:
+            target = get_opposite_node_in_edge(e, hub)
+
+        # skip if wrong direction (unless no speed) or target has been visited before
         if target == hub or target in agent_to_clone.targets_visited:
             continue
 
