@@ -10,20 +10,25 @@ import pickle
 import igraph as ig
 from sitt import PathWeeder, convert_graph_to_shapefile
 
-
-graph_file = "graph_dump_1_calculated.pickle"
-# from_node = "river-1-13200"  # Quelle Laußnitzbach
-# to_node = "river-1-152911"  # kurz oberhalb Lieserbrücke (Nähe Seeboden/Millstädter See)
+# # Variant 1
+# from_node = "river-1-142988"  # Lavant, Start recht weit oben (Bärnthal)
+# to_node = "river-1-150651"  # St. Gertraud im Lavanttal
 # variant_name = "variante1"
 
+# Variant 2
 from_node = "river-1-56001"  # Gurk, Ausgang Wörthersee
 to_node = "river-1-129452"  # Zufluss Gurk in die Drau
 variant_name = "variante2"
+
+graph_file = "graph_dump_1_calculated.pickle"
 k_shortest = 100  # try out how many shortest paths to compute
 
 # defined data
 base_kph = 3.  # min speed in km/h (base paddle speed)
 max_kph = 20.  # max speed in km/h
+max_depth = 0.25  # max depth in meters (for ships)
+max_length = 5.  # max width/length in meters (for ships)
+
 crs_no = 4326
 crs_to = 32633
 
@@ -109,8 +114,13 @@ class Agent:
         return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.length_m:.2f}m)]'
 
 
+junctions: set[str] = set()
+
+
 def create_agents_on_node(g: ig.Graph, hub: str, agent_to_clone: Agent | None = None, current_time: float = 0.) -> list[
     Agent]:
+    global junctions
+
     agents: list[Agent] = []
 
     # create new agent if none is defined
@@ -122,6 +132,10 @@ def create_agents_on_node(g: ig.Graph, hub: str, agent_to_clone: Agent | None = 
     for edge in g.incident(hub):
         e = g.es[edge]
         target = e['flow_to']
+
+        # check depth and width
+        if e['depth_m'] < max_depth or e['min_width'] < max_length:
+            continue
 
         # very slow speed?
         if e['flow_rate'] == 0 and target == hub:
@@ -143,6 +157,10 @@ def create_agents_on_node(g: ig.Graph, hub: str, agent_to_clone: Agent | None = 
         new_agent.route_key = e['name']  # name of edge
 
         agents.append(new_agent)
+
+    # check if this node is a junction (multiple outgoing edges) - for counting purposes
+    if len(agents) > 1:
+        junctions.add(hub)
 
     return agents
 
@@ -226,6 +244,12 @@ while len(agents) > 0:
     # new list of agents for next step
     agents = weed_out_similar_agents(agents_continuing)
     print(len(agents), "agents remaining.")
+
+print("Junctions checked:", len(junctions))
+
+if len(finished_agents) == 0:
+    print("********* No agents could finish.")
+    exit(0)
 
 finished_agents.sort(key=lambda x: x.current_time)
 print(finished_agents[0].current_time * 60, finished_agents[0].length_m)
