@@ -60,7 +60,7 @@ for eid in edge_set:
 # create a subgraph of the nodes and edges in the shortest paths
 sub_graph = graph.subgraph(node_set)
 
-convert_graph_to_shapefile(sub_graph, ".", "variante2.shp")
+convert_graph_to_shapefile(sub_graph, ".", variant_name + ".shp")
 
 print("Considering", len(sub_graph.vs), "nodes and", len(sub_graph.es), "paths from", from_node, "to", to_node + ".")
 
