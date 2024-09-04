@@ -24,6 +24,8 @@ crs_no = 4326
 
 def parse_yes_no_entry(s: str) -> bool:
     """Parse a yes/no entry."""
+    if s is None:
+        return False  # default to False if no value is provided
     v = s.lower()
     if v == 'y' or v == 'yes' or v == 'p':  # p == probably, we take it as true
         return True
@@ -49,6 +51,8 @@ for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM t
     # get column data
     hub_id = result[0]
     geom = result[1]
+    if not geom:
+        continue  # skip empty geometries
     harbor = parse_yes_no_entry(result[2])
     overnight = parse_yes_no_entry(result[3])
     market = False  # just take fixed value for now
@@ -64,6 +68,8 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
     road_id = result[0]
     hubaid = result[1]
     hubbid = result[2]
+    if not result[3]:
+        continue  # skip empty geometries
     geom = wkb.loads(result[3])
     market = False  # just take fixed value for now
 
