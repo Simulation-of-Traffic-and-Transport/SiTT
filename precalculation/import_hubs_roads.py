@@ -68,9 +68,16 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
     road_id = result[0]
     hubaid = result[1]
     hubbid = result[2]
-    if not result[3]:
-        continue  # skip empty geometries
-    geom = wkb.loads(result[3])
+    geom = result[3]
+    if not geom or not hubaid or not hubbid:
+        continue  # skip empty geometries and ids
+    # check hub existence
+    hubs = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id IN ('{hubaid}', '{hubbid}')")).one()
+    if hubs[0] < 2:
+        print(f"Warning: Road {road_id} connects to non-existing hubs: {hubaid}, {hubbid} (skipping)")
+        continue  # skip roads that do not connect to existing hubs
+
+    geom = wkb.loads(geom)
     market = False  # just take fixed value for now
 
     # weed out duplicate values

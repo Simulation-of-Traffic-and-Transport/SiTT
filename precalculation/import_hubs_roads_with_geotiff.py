@@ -140,8 +140,15 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
     hubaid = result[1]
     hubbid = result[2]
     geom = result[3]
-    if not geom:
-        continue  # skip empty geometries
+
+    if not geom or not hubaid or not hubbid:
+        continue  # skip empty geometries and ids
+    # check hub existence
+    hubs = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id IN ('{hubaid}', '{hubbid}')")).one()
+    if hubs[0] < 2:
+        print(f"Warning: Road {road_id} connects to non-existing hubs: {hubaid}, {hubbid} (skipping)")
+        continue  # skip roads that do not connect to existing hubs
+
     coords = clean_coords(wkb.loads(geom).coords)
 
     if segment_paths:
