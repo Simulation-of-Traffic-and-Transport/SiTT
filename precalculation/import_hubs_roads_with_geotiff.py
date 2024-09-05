@@ -120,6 +120,13 @@ for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM t
     geom = result[1]
     if not geom:
         continue  # skip empty geometries
+
+    # check recroads - is hub connected at all?
+    roads = conn.execute(text(f"SELECT COUNT(*) FROM topology.recroads WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
+    if roads[0] == 0:
+        print(f"Warning: Hub {hub_id} is not connected to any roads (skipping)")
+        continue  # skip hubs that do not connect to any roads
+
     harbor = parse_yes_no_entry(result[2])
     overnight = parse_yes_no_entry(result[3])
     market = False  # just take fixed value for now
