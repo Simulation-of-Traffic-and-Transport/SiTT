@@ -9,7 +9,7 @@ from urllib import parse
 import numpy as np
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import wkb, ops, LineString
+from shapely import force_2d,wkb, ops, LineString, Point
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, Float, JSON, text, insert
 
@@ -79,13 +79,32 @@ if __name__ == "__main__":
         conn.commit()
 
     # read roads and convert to edges
-    for result in conn.execute(text("SELECT id, geom, hub_id_a, hub_id_b, roughness FROM sitt.roads")):
+    for result in conn.execute(text(f"SELECT id, geom, hub_id_a, hub_id_b, roughness FROM {args.schema}.roads")):
         # get column data
         road_id = result[0]
         geom = wkb.loads(result[1])
         hub_id_a = result[2]
         hub_id_b = result[3]
         roughness = result[4]
+
+        # Is geometry direction correct? hub_id_a should be closer to the start of the path than hub_id_b
+        start_point = force_2d(Point(geom.coords[0]))
+        end_point = force_2d(Point(geom.coords[-1]))
+        hub_a_point = force_2d(wkb.loads(conn.execute(text(f"SELECT geom FROM {args.schema}.hubs WHERE id = '{hub_id_a}'")).first()[0]))
+        hub_b_point = force_2d(wkb.loads(conn.execute(text(f"SELECT geom FROM {args.schema}.hubs WHERE id = '{hub_id_b}'")).first()[0]))
+
+        # distances
+        dist_s_a = start_point.distance(hub_a_point)
+        dist_s_b = start_point.distance(hub_b_point)
+        dist_e_a = end_point.distance(hub_a_point)
+        dist_e_b = end_point.distance(hub_b_point)
+
+        # flip geometry?
+        if dist_s_a > dist_s_b and dist_e_a < dist_e_b:
+            geom = geom.reverse()
+        elif not (dist_s_a < dist_s_b and dist_e_a > dist_e_b):
+            # possible error
+            print(f"WARNING: Possible error in connection between hubs for road ID: {road_id} (between {hub_id_a} and {hub_id_b})")
 
         # Calculate single legs
         length = 0.
