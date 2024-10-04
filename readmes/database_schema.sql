@@ -15,7 +15,7 @@ create table sitt.hubs
     overnight boolean default false  not null,
     harbor    boolean default false  not null,
     market    boolean default false  not null,
-    data      jsonb
+    data      jsonb not null default '{}'::jsonb
 );
 
 create index hubs_geom_index
@@ -133,7 +133,7 @@ create table sitt.edges
     type     sitt.edge_type,
     cost_a_b double precision default 1 not null,
     cost_b_a double precision default 1 not null,
-    data     jsonb
+    data     jsonb not null default '{}'::jsonb
 );
 
 alter table sitt.edges

@@ -20,6 +20,7 @@ flowchart TD
     enter_depths(["Enter water depths"])
     base_river["create_base_river_networks.py"]
     river_edges["convert_base_river_networks_to_edges.py"]
+    overnight_stays["mark_possible_overnight_stays.py"]
     
     schema --> water
     schema --> hubs_roads
@@ -27,9 +28,9 @@ flowchart TD
 
     hubs_roads --> geo_data
     
-    geo_data --> convert_roads
-    geo_data --> convert_lakes
-    water --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges
+    geo_data --> convert_roads --> overnight_stays
+    geo_data --> convert_lakes --> overnight_stays
+    water --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges --> overnight_stays
 ```
 
 
@@ -59,3 +60,6 @@ Short explanations:
   [segmentation](river_segmentation.md) document for more information.
 * [convert_base_river_networks_to_edges.py](convert_base_river_networks_to_edges.py) - converter to transform water
   information into actual edges. See [segmentation](river_segmentation.md) document for more information.
+* [mark_possible_overnight_stays.py](mark_possible_overnight_stays.py) - mark hubs adjacent to overnight stays to be
+  close a possible stay-over. This makes it easier for the simulation to guess overnight stays that are a bit off the
+  path (maximum distance can be defined, default is 1 km).
