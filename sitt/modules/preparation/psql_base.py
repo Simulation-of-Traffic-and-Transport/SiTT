@@ -49,7 +49,7 @@ class PSQLBase(PreparationInterface, ABC):
         """
         Load or initialize the connection to the database.
         """
-        if self.conn is None:
+        if self.conn is None or self.conn.closed:
             # create connection string and connect to db
             db_string: str = self._create_connection_string()
             self.conn = create_engine(db_string).connect()
