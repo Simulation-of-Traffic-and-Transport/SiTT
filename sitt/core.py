@@ -460,15 +460,17 @@ class Simulation(BaseClass):
 
             # finished?
             next_hub = self.context.graph.vs.find(name=agent.next_hub)
+            has_overnight_hub = 'overnight_hub' in next_hub.attribute_names()
+
             if agent.next_hub == self.config.simulation_end:
                 agent.this_hub = self.config.simulation_end
                 agent.next_hub = ''
                 agent.route_key = ''
                 agent.day_finished = self.current_day
                 results.agents_finished.append(agent)
-            elif next_hub['overnight'] == 'y' or ('overnight_hub' in next_hub and next_hub['overnight_hub']):
+            elif next_hub['overnight'] == 'y' or (has_overnight_hub and next_hub['overnight_hub']):
                 # proceed to new hub -> it is an overnight stay
-                if 'overnight_hub' in next_hub and next_hub['overnight_hub'] and agent.next_hub != next_hub['overnight_hub']:
+                if has_overnight_hub and next_hub['overnight_hub'] and agent.next_hub != next_hub['overnight_hub']:
                     agent.last_possible_resting_place = agent.next_hub
                     agent.last_possible_resting_time = agent.current_time
                 else:
