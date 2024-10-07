@@ -74,7 +74,7 @@ if __name__ == "__main__":
         conn.execute(text("TRUNCATE TABLE " + args.schema + ".edges;"))
         conn.commit()
     elif args.delete_roads:  # delete roads from edges table?
-        print("Deleting roads edges from database...")
+        print("Deleting road edges from database...")
         conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'road';"))
         conn.commit()
 
