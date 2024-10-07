@@ -304,9 +304,7 @@ class Simulation(BaseClass):
                             if uid not in data['agents']:
                                 data['agents'][uid] = edge['agents'][uid]
                     except:
-                        from_id = hashed_agents[hash_id].route_data.vs[edge.source]['name']
-                        to_id = hashed_agents[hash_id].route_data.vs[edge.target]['name']
-                        hashed_agents[hash_id].route_data.add_edge(from_id, to_id, agents=edge['agents'], key=edge['key'])
+                        hashed_agents[hash_id].route_data.add_edge(edge.source_vertex['name'], edge.target_vertex['name'], agents=edge['agents'], key=edge['key'])
 
         return list(hashed_agents.values())
 
