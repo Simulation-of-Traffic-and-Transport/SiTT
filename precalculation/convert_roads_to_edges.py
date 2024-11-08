@@ -6,10 +6,11 @@
 import argparse
 from urllib import parse
 
+import geopandas as gpd
 import numpy as np
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import force_2d,wkb, ops, LineString, Point
+from shapely import force_2d, wkb, ops, LineString, Point
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, Float, JSON, text, insert
 
@@ -32,6 +33,8 @@ if __name__ == "__main__":
     parser.add_argument('--xy', dest='always_xy', default=True, type=bool, help='use the traditional GIS order')
     parser.add_argument('--consider-heights', dest='consider_heights', default=True, type=bool,
                         help='calculate heights/slopes into length of path')
+    parser.add_argument('--max-difference', dest='max_difference', default=50., type=float,
+                        help='maximum difference in meters when checking points')
 
     parser.add_argument('--empty-edges', dest='empty_edges', default=False, type=bool,
                         help='empty edges database before import')
@@ -93,18 +96,19 @@ if __name__ == "__main__":
         hub_a_point = force_2d(wkb.loads(conn.execute(text(f"SELECT geom FROM {args.schema}.hubs WHERE id = '{hub_id_a}'")).first()[0]))
         hub_b_point = force_2d(wkb.loads(conn.execute(text(f"SELECT geom FROM {args.schema}.hubs WHERE id = '{hub_id_b}'")).first()[0]))
 
-        # distances
-        dist_s_a = start_point.distance(hub_a_point)
-        dist_s_b = start_point.distance(hub_b_point)
-        dist_e_a = end_point.distance(hub_a_point)
-        dist_e_b = end_point.distance(hub_b_point)
+        # distances in meters
+        hub_points = gpd.GeoDataFrame({'geometry': [hub_a_point, hub_a_point, hub_b_point, hub_b_point]}, crs=args.crs_from).to_crs(args.crs_to)
+        line_points = gpd.GeoDataFrame({'geometry': [start_point, end_point, start_point, end_point]}, crs=args.crs_from).to_crs(args.crs_to)
+        dist_s_a, dist_s_b, dist_e_a, dist_e_b = line_points.distance(hub_points)
 
         # flip geometry?
         if dist_s_a > dist_s_b and dist_e_a < dist_e_b:
             geom = geom.reverse()
-        elif not (dist_s_a < dist_s_b and dist_e_a > dist_e_b):
-            # possible error
-            print(f"WARNING: Possible error in connection between hubs for road ID: {road_id} (between {hub_id_a} and {hub_id_b})")
+            dist_s_a = dist_s_b
+            dist_e_b = dist_e_a
+
+        if dist_s_a > args.max_difference or dist_e_b > args.max_difference:
+            print(f"WARNING: Possible error in road ID: {road_id} (between {hub_id_a} and {hub_id_b}): distance between hubs and line ends is too large ({dist_s_a}m and {dist_e_b}m)")
 
         # Calculate single legs
         length = 0.
