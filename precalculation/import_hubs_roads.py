@@ -79,9 +79,17 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
     if not geom or not hubaid or not hubbid:
         continue  # skip empty geometries and ids
     # check hub existence
-    hubs = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id IN ('{hubaid}', '{hubbid}')")).one()
-    if hubs[0] < 2:
-        print(f"Warning: Road {road_id} connects to non-existing hubs: {hubaid}, {hubbid} (skipping)")
+    huba_exists = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id = '{hubaid}'")).one()
+    hubb_exists = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id = '{hubbid}'")).one()
+
+    missing_ids = []
+    if huba_exists[0] == 0:
+        missing_ids.append(hubaid)
+    if hubb_exists[0] == 0:
+        missing_ids.append(hubbid)
+
+    if len(missing_ids) > 0:
+        print(f"Warning: Road {road_id} connects to non-existing hub(s): {missing_ids} (skipping)")
         continue  # skip roads that do not connect to existing hubs
 
     geom = wkb.loads(geom)
