@@ -54,6 +54,39 @@ create index roads_hub_id_b_index
 
 
 
+create table sitt.rivers
+(
+    id         text                         not null
+        constraint rivers_pk
+            primary key,
+    geom       geography(LineStringZ, 4326) not null,
+    hub_id_a   text                         not null
+        constraint rivers_hubs_a_id_fk
+            references sitt.hubs,
+    hub_id_b   text                         not null
+        constraint rivers_hubs_b_id_fk
+            references sitt.hubs,
+    target_hub text                         not null
+        constraint rivers_targets_id_fk
+            references sitt.hubs,
+    is_tow     boolean default false        not null
+);
+
+alter table sitt.rivers
+    owner to postgres;
+
+create index rivers_geom_index
+    on sitt.rivers using gist (geom);
+
+create index rivers_hub_id_a_index
+    on sitt.rivers (hub_id_a);
+
+create index rivers_hub_id_b_index
+    on sitt.rivers (hub_id_b);
+
+
+
+
 create table sitt.water_bodies
 (
     id       integer not null

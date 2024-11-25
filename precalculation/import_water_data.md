@@ -8,6 +8,8 @@ to work properly.
 If you have shapefiles, you can import the data using `ogr2ogr` (see below). We assume that you have created a
 temporary schema `water_wip` in your PostgreSQL/PostGIS database:
 
+Alternatively, you can read the shapefiles like explained in [here](../examples/read_shape_file_into_db.py).
+
 ```postgresql
 -- create a schema to work with the data
 CREATE SCHEMA IF NOT EXISTS water_wip;

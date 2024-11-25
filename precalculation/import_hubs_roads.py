@@ -46,6 +46,14 @@ def clean_coords(coords: list[tuple[float, float]]) -> list[tuple[float, float, 
 conn = create_engine('postgresql://' + db_user + ':' + parse.quote_plus(db_password) + '@' + db_host + ':' + str(
     db_port) + '/' + db_name).connect()
 
+# --------------- truncate data first ---------------
+
+conn.execute(text("TRUNCATE sitt.roads"))
+conn.execute(text("TRUNCATE sitt.edges"))
+conn.execute(text("TRUNCATE sitt.rivers"))
+conn.execute(text("DELETE FROM sitt.hubs"))
+conn.commit()
+
 # --------------- get hub data from source ---------------
 for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM topology.rechubs")):
     # get column data
@@ -54,11 +62,12 @@ for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM t
     if not geom:
         continue  # skip empty geometries
 
-    # check recroads - is hub connected at all?
+    # check recroads and recrivers - is hub connected at all?
     roads = conn.execute(text(f"SELECT COUNT(*) FROM topology.recroads WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
-    if roads[0] == 0:
-        print(f"Warning: Hub {hub_id} is not connected to any roads (skipping)")
-        continue  # skip hubs that do not connect to any roads
+    rives = conn.execute(text(f"SELECT COUNT(*) FROM topology.recrivers WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
+    if roads[0] == 0 and rives[0] == 0:
+        print(f"Warning: Hub {hub_id} is not connected to any roads or rivers (skipping)")
+        continue  # skip hubs that do not connect to any roads or rivers
 
     harbor = parse_yes_no_entry(result[2])
     overnight = parse_yes_no_entry(result[3])
@@ -70,6 +79,8 @@ for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM t
 conn.commit()
 
 # -------------- get road data from source ---------------
+road_problems = []
+
 for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM topology.recroads")):
     # get column data
     road_id = result[0]
@@ -89,11 +100,11 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
         missing_ids.append(hubbid)
 
     if len(missing_ids) > 0:
+        road_problems.append(road_id)
         print(f"Warning: Road {road_id} connects to non-existing hub(s): {missing_ids} (skipping)")
         continue  # skip roads that do not connect to existing hubs
 
     geom = wkb.loads(geom)
-    market = False  # just take fixed value for now
 
     # weed out duplicate values
     coords = clean_coords(list(geom.coords))
@@ -104,3 +115,55 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom FROM top
         f"INSERT INTO sitt.roads (id, geom, hub_id_a, hub_id_b) VALUES ('{road_id}', ST_GeographyFromText('{line_str}'), '{hubaid}', '{hubbid}');"))
 
 conn.commit()
+
+# Print problems as list, so we can copy this to SQL select
+if len(road_problems):
+    print("Warning: The following roads connect to non-existing hubs:")
+    print(road_problems)
+
+
+# -------------- get river data from source ---------------
+river_problems = []
+
+for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom, direction FROM topology.recrivers")):
+    # get column data
+    river_id = result[0]
+    hubaid = result[1]
+    hubbid = result[2]
+    geom = result[3]
+    # check if river is going upwards (i.e. towing)
+    is_tow = 'true' if result[4] == 'upwards' else 'false'
+
+    if not geom or not hubaid or not hubbid:
+        continue  # skip empty geometries and ids
+    # check hub existence
+    huba_exists = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id = '{hubaid}'")).one()
+    hubb_exists = conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id = '{hubbid}'")).one()
+
+    missing_ids = []
+    if huba_exists[0] == 0:
+        missing_ids.append(hubaid)
+    if hubb_exists[0] == 0:
+        missing_ids.append(hubbid)
+
+    if len(missing_ids) > 0:
+        river_problems.append(river_id)
+        print(f"Warning: River {river_id} connects to non-existing hub(s): {missing_ids} (skipping)")
+        continue  # skip rivers that do not connect to existing hubs
+
+    geom = wkb.loads(geom)
+
+    # weed out duplicate values
+    coords = clean_coords(list(geom.coords))
+    line = LineString(coords)
+    line_str = f"SRID=" + str(crs_no) + ";" + str(line.wkt)
+
+    conn.execute(text(
+        f"INSERT INTO sitt.rivers (id, geom, hub_id_a, hub_id_b, target_hub, is_tow) VALUES ('{river_id}', ST_GeographyFromText('{line_str}'), '{hubaid}', '{hubbid}', '{hubbid}', {is_tow});"))
+
+conn.commit()
+
+# Print problems as list, so we can copy this to SQL select
+if len(river_problems):
+    print("Warning: The following rivers connect to non-existing hubs:")
+    print(river_problems)
