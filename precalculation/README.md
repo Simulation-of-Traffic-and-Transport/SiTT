@@ -10,7 +10,7 @@ Order of (script) execution:
 flowchart TD
     schema(["Create DB schemas"])
     water(["Import water data"])
-    hubs_roads["`import_hubs_roads.py *or*
+    hubs_roads["`import_hubs_roads_rivers.py *or*
     import_hubs_roads_with_geotiff.py`"]
     geo_data["make_geo_data_xyz.py"]
     convert_roads["convert_roads_to_edges.py"]
@@ -39,7 +39,7 @@ Short explanations:
 * [DB Schema](../readmes/database_schema.sql) - in `readmes` folder contains SQL to create the schema for PostGis.
 * [How to import water data](import_water_data.md) - explains how to import water shapes, so they work for our
   simulation. 
-* [import_hubs_roads.py](import_hubs_roads.py) - example on how to import hubs and roads from a base database.
+* [import_hubs_roads_rivers.py](import_hubs_roads_rivers.py) - example on how to import hubs, roads, and rivers from a base database.
 * [import_hubs_roads_with_geotiff.py](import_hubs_roads_with_geotiff.py) - example on how to import hubs and roads from
   a base database using a GeoTIFF file to determine the heights of hubs and roads. Moreover, there is an option to
   segment the roads a bit more in order to increase the exactness of heights. This is a matter of taste and your
