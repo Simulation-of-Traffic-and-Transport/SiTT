@@ -4,15 +4,19 @@
 """Take a GeoTIFF and create heights for all coordinates in the database."""
 
 import argparse
+import math
 import os
 from urllib import parse
 
 import geopandas as gpd
 import rasterio
 from pyproj import Transformer
+from pyproj.enums import TransformDirection
+from shapely import LineString, ops
 from shapely.geometry import shape
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, select, text, update
+
 
 
 def work_coordinates(coords) -> tuple[list, bool]:
@@ -37,6 +41,59 @@ def work_coordinates(coords) -> tuple[list, bool]:
     return geom, changed
 
 
+def get_height_for_coordinate(coord: tuple[float, float]) -> float:
+    # get height for coordinate
+    xx, yy = transformer.transform(coord[0], coord[1])
+    x, y = rds.index(xx, yy)
+    return band[x, y]
+
+
+# inspired by https://stackoverflow.com/questions/62283718/how-to-extract-a-profile-of-value-from-a-raster-along-a-given-line
+def create_segments(coords: list[tuple[float, float]]) -> list[tuple[float, float, float]]:
+    # min resolution to split - half of the hypotenuse of the resolution triangle will render a very good minimum
+    # resolution threshold
+    min_resolution = math.sqrt(math.pow(rds.res[0], 2) + math.pow(rds.res[1], 2)) / 2
+
+    ret_coords: list[tuple[float, float, float]] = []
+    last_coord = None
+
+    for coord in coords:
+        if last_coord is not None:
+            # guess resolution
+            line = LineString([last_coord, coord])
+            leg = ops.transform(transformer.transform, line)
+            # too short for splitting? just add coordinate (and possibly the first one, too)
+            if leg.length < min_resolution:
+                if len(ret_coords) == 0:
+                    ret_coords.append((last_coord[0], last_coord[1], get_height_for_coordinate(last_coord),))
+                ret_coords.append((coord[0], coord[1], get_height_for_coordinate(coord),))
+                continue
+
+            # not too short: create segments
+            # how many points to create?
+            points_to_create = math.ceil(leg.length / min_resolution)
+
+            for i in range(points_to_create):
+                point = leg.interpolate(i / points_to_create - 1., normalized=True)
+                # access the nearest pixel in the rds
+                x, y = rds.index(point.x, point.y)
+                t_x, t_y = transformer.transform(point.x, point.y,
+                                                 direction=TransformDirection.INVERSE)
+                # added already? might happen in some cases, if our resolution is too dense - in
+                # this case, we skip the point
+                if len(ret_coords) and t_x == ret_coords[-1][0] and t_y == ret_coords[-1][1]:
+                    continue
+
+                # get height
+                height = band[x, y]
+                # transform back and add point
+                ret_coords.append((t_x, t_y, height))
+
+        last_coord = coord
+
+    return ret_coords
+
+
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
@@ -56,6 +113,8 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--band', dest='band', default=1, type=int, help='band to use from GeoTIFF')
     parser.add_argument('-k', '--keep', dest='keep_existing', default=True, type=bool,
                         help='keep existing coordinates (overwrite otherwise)')
+    parser.add_argument('-S', '--create-segments', dest='create_segments', default=False, type=bool,
+                        help='create new input coordinates for roads by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
                         choices=['all', 'hubs', 'roads', 'water_bodies', 'water_lines'])
@@ -133,7 +192,11 @@ if __name__ == "__main__":
 
                 # simple shapes, like Points, etc.
                 elif g and g.coords:
-                    new_coords, changed_any = work_coordinates(g.coords)
+                    if g.geom_type == 'LineString' and args.create_segments:
+                        new_coords = create_segments(g.coords)
+                        changed_any = True
+                    else:
+                        new_coords, changed_any = work_coordinates(g.coords)
                     new_shape = shape({"type": row.geom.geom_type, "coordinates": new_coords})
 
                 # any change?

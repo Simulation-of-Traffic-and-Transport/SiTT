@@ -10,8 +10,7 @@ Order of (script) execution:
 flowchart TD
     schema(["Create DB schemas"])
     water(["Import water data"])
-    hubs_roads["`import_hubs_roads_rivers.py *or*
-    import_hubs_roads_with_geotiff.py`"]
+    hubs_roads_rivers["import_hubs_roads_rivers.py"]
     geo_data["make_geo_data_xyz.py"]
     convert_roads["convert_roads_to_edges.py"]
     convert_lakes["connect_lake_harbors.py"]
@@ -23,10 +22,10 @@ flowchart TD
     overnight_stays["mark_possible_overnight_stays.py"]
     
     schema --> water
-    schema --> hubs_roads
+    schema --> hubs_roads_rivers
     
 
-    hubs_roads --> geo_data
+    hubs_roads_rivers --> geo_data
     
     geo_data --> convert_roads --> overnight_stays
     geo_data --> convert_lakes --> overnight_stays
@@ -40,13 +39,11 @@ Short explanations:
 * [How to import water data](import_water_data.md) - explains how to import water shapes, so they work for our
   simulation. 
 * [import_hubs_roads_rivers.py](import_hubs_roads_rivers.py) - example on how to import hubs, roads, and rivers from a base database.
-* [import_hubs_roads_with_geotiff.py](import_hubs_roads_with_geotiff.py) - example on how to import hubs and roads from
-  a base database using a GeoTIFF file to determine the heights of hubs and roads. Moreover, there is an option to
+* [make_geo_data_xyz.py](make_geo_data_xyz.py) - converter that loads a GeoTiFF file and puts heights onto all points in
+  shapes created. Will keep created heights, unless you set some command line arguments. Moreover, there is an option to
   segment the roads a bit more in order to increase the exactness of heights. This is a matter of taste and your
   input data, but will not make your data much more accurate in the end (at least if your data is pretty good from the
   start).
-* [make_geo_data_xyz.py](make_geo_data_xyz.py) - converter that loads a GeoTiFF file and puts heights onto all points in
-  shapes created. Will keep created heights, unless you set some command line arguments.
 * [convert_roads_to_edges.py](convert_roads_to_edges.py) - converter that will convert road data into proper edges
 * [connect_lake_harbors](connect_lake_harbors.py) - connect harbors along lakes with edges
 * [convert_water_bodies_to_parts.py](convert_water_bodies_to_parts.py) - converter that will convert water body data
