@@ -123,7 +123,8 @@ if len(road_problems):
 
 
 # -------------- get river data from source ---------------
-river_problems = []
+river_hub_id_missing = []
+river_hub_too_far = []
 
 for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom, direction FROM topology.recrivers")):
     # get column data
@@ -147,9 +148,14 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom, directi
         missing_ids.append(hubbid)
 
     if len(missing_ids) > 0:
-        river_problems.append(river_id)
+        river_hub_id_missing.append(river_id)
         print(f"Warning: River {river_id} connects to non-existing hub(s): {missing_ids} (skipping)")
         continue  # skip rivers that do not connect to existing hubs
+
+    for hub_distance in conn.execute(text(f"SELECT id, st_distance(geom, '{geom}') FROM sitt.hubs WHERE id IN ('{hubaid}', '{hubbid}')")):
+        if hub_distance[1] > 50.: # distance too high, we consider this as a problem
+            river_hub_too_far.append(river_id)
+            print(f"Warning: River {river_id} connects to hub {hub_distance[0]} which is too far away: {hub_distance[1]}m")
 
     geom = wkb.loads(geom)
 
@@ -164,6 +170,10 @@ for result in conn.execute(text("SELECT recroadid, hubaid, hubbid, geom, directi
 conn.commit()
 
 # Print problems as list, so we can copy this to SQL select
-if len(river_problems):
+if len(river_hub_id_missing):
     print("Warning: The following rivers connect to non-existing hubs:")
-    print(river_problems)
+    print(river_hub_id_missing)
+
+if len(river_hub_too_far):
+    print("Warning: The following rivers connect to hubs which are too far away:")
+    print(river_hub_too_far)
