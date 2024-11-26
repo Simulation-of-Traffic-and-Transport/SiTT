@@ -81,6 +81,8 @@ if __name__ == "__main__":
         conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'road';"))
         conn.commit()
 
+    problematic_edges = []
+
     # read roads and convert to edges
     for result in conn.execute(text(f"SELECT id, geom, hub_id_a, hub_id_b, roughness FROM {args.schema}.roads")):
         # get column data
@@ -108,6 +110,7 @@ if __name__ == "__main__":
             dist_e_b = dist_e_a
 
         if dist_s_a > args.max_difference or dist_e_b > args.max_difference:
+            problematic_edges.append(road_id)
             print(f"WARNING: Possible error in road ID: {road_id} (between {hub_id_a} and {hub_id_b}): distance between hubs and line ends is too large ({dist_s_a}m and {dist_e_b}m)")
 
         # Calculate single legs
@@ -170,4 +173,10 @@ if __name__ == "__main__":
         conn.execute(stmt)
 
     conn.commit()
+
+    # print problematic edges (if any) as list, so it is easier to do SQL queries for them (e.g. in QGIS)
+    if len(problematic_edges):
+        print("Possible problematic edges:")
+        print(problematic_edges)
+
     print("Done.")
