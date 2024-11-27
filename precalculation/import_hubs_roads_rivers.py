@@ -61,15 +61,16 @@ for result in conn.execute(text("SELECT rechubid, geom, harbor, overnight FROM t
     geom = result[1]
     if not geom:
         continue  # skip empty geometries
-
-    # check recroads and recrivers - is hub connected at all?
-    roads = conn.execute(text(f"SELECT COUNT(*) FROM topology.recroads WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
-    rives = conn.execute(text(f"SELECT COUNT(*) FROM topology.recrivers WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
-    if roads[0] == 0 and rives[0] == 0:
-        print(f"Warning: Hub {hub_id} is not connected to any roads or rivers (skipping)")
-        continue  # skip hubs that do not connect to any roads or rivers
-
     harbor = parse_yes_no_entry(result[2])
+
+    if not harbor:  # always import harbors, they might be connected by lakes
+        # check recroads and recrivers - is hub connected at all?
+        roads = conn.execute(text(f"SELECT COUNT(*) FROM topology.recroads WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
+        rives = conn.execute(text(f"SELECT COUNT(*) FROM topology.recrivers WHERE hubaid = '{hub_id}' OR hubbid = '{hub_id}'")).one()
+        if roads[0] == 0 and rives[0] == 0:
+            print(f"Warning: Hub {hub_id} is not connected to any roads or rivers (skipping)")
+            continue  # skip hubs that do not connect to any roads or rivers
+
     overnight = parse_yes_no_entry(result[3])
     market = False  # just take fixed value for now
 
