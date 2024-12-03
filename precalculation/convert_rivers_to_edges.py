@@ -152,7 +152,7 @@ if __name__ == "__main__":
                 slopes.append(slope)
                 length += leg_length
 
-        last_coord = coord
+            last_coord = coord
 
         # TODO: take flow into account when calculating costs
         cost_a_b = (base_length / 4000)
