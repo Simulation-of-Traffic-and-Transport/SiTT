@@ -4,6 +4,7 @@
 
 import heapq as hq
 from sys import float_info
+from typing import Tuple, Dict
 
 import igraph as ig
 
@@ -12,17 +13,17 @@ Create an adjacency list for a given undirected graph with distances from a give
 """
 
 
-def create_adjacency_list(g: ig.Graph, start_node: int | str | ig.Vertex, is_sorted: bool = False) -> list[
-    list[tuple[int, int, float]]]:
+def create_adjacency_list(g: ig.Graph, start_node: int | str | ig.Vertex, is_sorted: bool = False) -> tuple[
+    dict[int, float], dict[int, int | None], dict[int, set]]:
     """
     Create an adjacency list for a given undirected graph with distances from a given start node.
 
     :param g: Undirected graph
     :param start_node: Start node index, name or vertex object
     :param is_sorted: If True, sort adjacent nodes distance in ascending order. Default is False.
-    :return: Adjacency list for the given graph with distances from the start node. It is a list of lists, where index
-             is the node index. The inner list contains adjacent nodes, represented by a tuple each: (neighbor_index,
-             edge_index, edge_length in m).
+    :return: Tuple of dictionaries (distances, sources, nodes_before). distances is a dictionary of node index to
+        the shortest distance from the start node to the given node. sources is a dictionary of node index to the node
+        that we reached it through. nodes_before is a dictionary of node index to the nodes that came before it.
     """
     # convert start_node to index
     if type(start_node) == ig.Vertex:
@@ -88,4 +89,4 @@ def create_adjacency_list(g: ig.Graph, start_node: int | str | ig.Vertex, is_sor
         # now we also now the shortest neighbor to this node, we can later check the shortest path
         sources[idx] = shortest_neighbor
 
-    return adj
+    return distances, sources, nodes_before
