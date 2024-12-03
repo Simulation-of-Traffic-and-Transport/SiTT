@@ -157,6 +157,11 @@ if __name__ == "__main__":
         # TODO: take flow into account when calculating costs
         cost_a_b = (base_length / 4000)
         cost_b_a = (base_length / 4000)
+        flow_rate = 0. # TODO: calculate flow rate
+        if is_tow:
+            flow_to = hub_id_b if target_hub == hub_id_a else hub_id_a
+        else:
+            flow_to = target_hub
 
         geo_stmt = WKTElement(geom.wkt, srid=args.crs_from)
 
@@ -164,6 +169,7 @@ if __name__ == "__main__":
         stmt = insert(edges_table).values(id=river_id, geom=geo_stmt, hub_id_a=hub_id_a,
                                           hub_id_b=hub_id_b, type='river', cost_a_b=cost_a_b, cost_b_a=cost_b_a,
                                           data={"length_m": length, "legs": legs, "slopes": slopes,
+                                                "flow_rate": flow_rate, "flow_to": flow_to,
                                                 "flat_length_m": base_length, "up_m": up_abs, "down_m": down_abs,
                                                 "target_hub": target_hub, "is_tow": is_tow})
         conn.execute(stmt)
