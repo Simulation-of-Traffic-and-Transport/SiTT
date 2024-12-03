@@ -6,13 +6,14 @@ Connect lake harbors via edges.
 """
 
 import argparse
+import math
 from urllib import parse
 
 from extremitypathfinder import PolygonEnvironment
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
 from shapely import wkb, is_ccw, \
-    contains, LineString, Polygon, force_2d
+    contains, LineString, Polygon, force_2d, force_3d
 from shapely.ops import nearest_points, transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, Float, JSON, text, insert
@@ -38,6 +39,8 @@ if __name__ == "__main__":
     parser.add_argument('--xy', dest='always_xy', default=True, type=bool, help='use the traditional GIS order')
     parser.add_argument('-c', '--cost', dest='cost_factor', default=0.000333333, type=float,
                         help='cost factor for edges (multiplied by length in meters)')
+    parser.add_argument('-s', '--segment-length', dest='segment_length', default=500., type=float,
+                        help='segment length for leg calculation')
 
     parser.add_argument('--empty-edges', dest='empty_edges', default=False, type=bool,
                         help='empty edges database before import')
@@ -166,10 +169,17 @@ if __name__ == "__main__":
                     path.append((harbors[j][1].x, harbors[j][1].y, h2))
                 shortest_path = LineString(path)
 
+                # calculate length in meters
+                base_length = transform(transformer.transform, shortest_path).length
+                cost = base_length * args.cost_factor
+
+                # create segments of certain size
+                segments = force_2d(shortest_path).segmentize(shortest_path.length / math.ceil(base_length / args.segment_length))
+
                 # leg lengths
                 legs = []
                 last_coord = None
-                for coord in path:
+                for coord in segments.coords:
                     if last_coord is not None:
                         # distance calculation for each leg
                         leg = transform(transformer.transform, LineString([last_coord, coord]))
@@ -177,11 +187,7 @@ if __name__ == "__main__":
 
                     last_coord = coord
 
-                # calculate length in meters
-                base_length = transform(transformer.transform, shortest_path).length
-                cost = base_length * args.cost_factor
-
-                geo_stmt = WKTElement(shortest_path.wkt, srid=args.crs_from)
+                geo_stmt = WKTElement(force_3d(segments).wkt, srid=args.crs_from)
                 edge_id = f"lake-{body_id}-{harbors[i][0]}-{harbors[j][0]}"
 
                 # now, enter into edges table
