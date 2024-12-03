@@ -33,26 +33,44 @@ class SimpleRiver(SimulationStepInterface):
             agent.state.signal_stop_here = True
             return agent.state
 
-        # determine speed
-        current_speed = self.speed
-        kph = next_leg['flow_rate'] * 3.6
-        if next_leg['flow_to'] == agent.next_hub:
-            # originating from this hub - check speed of current
-            if kph > current_speed:
-                current_speed = kph
-        elif next_leg['flow_to'] == agent.this_hub:
-            # traversing against the current
-            current_speed -= kph
-            if current_speed < 0:
-                agent.state.signal_stop_here = True
-                if logger.level <= logging.DEBUG:
-                    logger.debug(
-                        f"SimpleRiver against current failed: {agent.this_hub} to {agent.next_hub} via {agent.route_key}, current speed = {kph} k/h")
-                return agent.state
+        # traverse and calculate time taken for this leg of the journey
+        time_taken = 0.
+        time_for_legs: list[float] = []
 
-        # fixed speed in kph
-        agent.state.time_taken = next_leg['length_m'] / (current_speed * 1000)
-        agent.state.time_for_legs = [agent.state.time_taken]
+        # create range to traverse - might be reversed
+        r = range(len(next_leg['legs']))
+        if is_reversed:
+            r = reversed(r)
+
+        for i in r:
+            length = next_leg['legs'][i]  # length is in meters
+
+            # determine speed
+            current_speed = self.speed
+            kph = next_leg['flow_rate'] * 3.6
+            if next_leg['flow_to'] == agent.next_hub:
+                # originating from this hub - check speed of current
+                if kph > current_speed:
+                    current_speed = kph
+            elif next_leg['flow_to'] == agent.this_hub:
+                # traversing against the current
+                current_speed -= kph
+                if current_speed < 0:
+                    agent.state.signal_stop_here = True
+                    if logger.level <= logging.DEBUG:
+                        logger.debug(
+                            f"SimpleRiver against current failed: {agent.this_hub} to {agent.next_hub} via {agent.route_key}, current speed = {kph} k/h")
+                    return agent.state
+
+            # calculate time taken in units (hours) for this part
+            calculated_time = length / (current_speed * 1000)
+
+            time_for_legs.append(calculated_time)
+            time_taken += calculated_time
+
+        # save things in state
+        agent.state.time_taken = time_taken
+        agent.state.time_for_legs = time_for_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
