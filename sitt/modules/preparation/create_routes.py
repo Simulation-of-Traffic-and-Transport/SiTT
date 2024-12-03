@@ -68,6 +68,16 @@ class CreateRoutes(BaseClass, PreparationInterface):
         for p in all_paths:
             tg = self._add_directed_graph(p[1], config.simulation_start, context.graph, tg)
 
+        # delete nodes with target hubs
+        to_delete = []
+        if 'target_hub' in tg.es.attribute_names():
+            for e in tg.es:
+                if e['target_hub'] is not None and e['target_hub']!= '':
+                    if e['target_hub'] == e.source_vertex['name']:
+                        to_delete.append(e.index)
+        if len(to_delete):
+            tg.delete_edges(to_delete)
+
         context.routes = tg
 
         # might be an option?
