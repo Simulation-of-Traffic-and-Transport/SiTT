@@ -19,6 +19,7 @@ class SimpleLoadingState(SimulationDefineStateInterface):
     def __init__(self, add_time: float = 0.5):
         super().__init__()
         self.add_time: float = add_time
+        """add this amount of hours when route type changes"""
 
     def define_state(self, config: Configuration, context: Context, agent: Agent) -> State:
         state = agent.state
