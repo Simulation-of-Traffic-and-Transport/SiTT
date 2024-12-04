@@ -397,7 +397,8 @@ class Simulation(BaseClass):
             agent.state = def_state.define_state(self.config, self.context, agent)
 
         # get the next leg from context
-        next_leg: ig.Edge = self.context.get_path_by_id(agent.route_key)
+        last_key = agent.route_key
+        next_leg: ig.Edge = self.context.get_path_by_id(last_key)
 
         # run the actual state update loop
         for sim_step in self.config.simulation_step:
@@ -435,6 +436,7 @@ class Simulation(BaseClass):
             # proceed..., first add time
             start_time = agent.current_time
             agent.current_time += agent.state.time_taken
+            agent.last_route = last_key
 
             # add next vertex, if needed
             try:
