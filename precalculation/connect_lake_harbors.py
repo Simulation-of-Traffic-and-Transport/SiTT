@@ -131,8 +131,7 @@ if __name__ == "__main__":
             holes.append(list(hole.coords)[:-1])
 
         environment.store(list(shore_line.coords)[:-1], holes, validate=True)
-        # TODO: Check, there is something to do, our path does not look right...
-        # open issue on this matter: https://github.com/jannikmi/extremitypathfinder/issues/84
+        # TODO: If something does not right, look here: https://github.com/jannikmi/extremitypathfinder/issues/84
 
         # now get the shortest paths between all points
         harbors = harbors_for_water_bodies[body_id]
