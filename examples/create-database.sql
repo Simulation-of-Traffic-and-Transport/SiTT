@@ -86,9 +86,40 @@ CREATE SEQUENCE topology.rec_rivers_id_seq
 
 ALTER SEQUENCE topology.rec_rivers_id_seq OWNED BY topology.recrivers.id;
 
+
+create table topology.reclakes
+(
+    id                integer,
+    geom              geometry(LineString, 4326),
+    recroadid         text,
+    hubaid            text,
+    hubbid            text,
+    dimensions        text,
+    explanationfileid text
+);
+
+alter table topology.reclakes
+    add constraint reclakes_pk
+        primary key (id);
+
+create index sidx_rec_lakes_geom
+    on topology.reclakes using gist (geom);
+
+CREATE SEQUENCE topology.rec_lakes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE topology.rec_lakes_id_seq OWNED BY topology.reclakes.id;
+
+
 ALTER TABLE ONLY topology.rechubs ALTER COLUMN id SET DEFAULT nextval('topology.rec_hubs_id_seq'::regclass);
 ALTER TABLE ONLY topology.recroads ALTER COLUMN id SET DEFAULT nextval('topology.recroads_id_seq'::regclass);
 ALTER TABLE ONLY topology.recrivers ALTER COLUMN id SET DEFAULT nextval('topology.rec_rivers_id_seq'::regclass);
+ALTER TABLE ONLY topology.reclakes ALTER COLUMN id SET DEFAULT nextval('topology.rec_lakes_id_seq'::regclass);
 
 ALTER TABLE ONLY topology.rechubs
     ADD CONSTRAINT rec_hubs_pkey PRIMARY KEY (id);
