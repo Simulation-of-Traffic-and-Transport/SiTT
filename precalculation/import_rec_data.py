@@ -77,6 +77,7 @@ def print_closest_hub(path_id: str, hub_id: str, hubaid: str, hubbid: str, geom:
         closest_ids.remove(hubaid)
         print(f"UPDATE topology.rec{table}s SET hubbid ='{closest_ids[0]}' WHERE recroadid = '{path_id}';")
     else: # b contained -> replace hubaid with closer hub
+        closest_ids.remove(hubbid)
         print(f"UPDATE topology.rec{table}s SET hubaid ='{closest_ids[0]}' WHERE recroadid = '{path_id}';")
 
 
