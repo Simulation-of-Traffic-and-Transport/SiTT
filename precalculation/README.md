@@ -13,7 +13,7 @@ flowchart TD
     hubs_roads_rivers["import_rec_data.py"]
     geo_data["make_geo_data_xyz.py"]
     convert_roads["convert_roads_to_edges.py"]
-    convert_rivers["import_rec_data.py"]
+    convert_rivers["convert_rivers_to_edges.py"]
     convert_lakes["connect_lake_harbors.py"]
     convert_wb["`convert_water_bodies_to_parts.py *or* convert_water_bodies_to_parts_nogeos.py`"]
     prepare_water_depths["prepare_water_depths.py"]
@@ -30,7 +30,7 @@ flowchart TD
     
     geo_data --> convert_roads --> overnight_stays
     geo_data --> convert_lakes --> overnight_stays
-    nn --> convert_rivers --> overnight_stays
+    geo_data --> convert_rivers --> overnight_stays
     water --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges --> overnight_stays
 ```
 
@@ -47,6 +47,8 @@ Short explanations:
   input data, but will not make your data much more accurate in the end (at least if your data is pretty good from the
   start).
 * [convert_roads_to_edges.py](convert_roads_to_edges.py) - converter that will convert road data into proper edges
+* [convert_rivers_to_edges.py](convert_rivers_to_edges.py) - converter that will convert river data into proper edges.
+  This is an alternative way if you have fixed river edges.
 * [connect_lake_harbors](connect_lake_harbors.py) - connect harbors along lakes with edges
 * [convert_water_bodies_to_parts.py](convert_water_bodies_to_parts.py) - converter that will convert water body data
   to polygon shapes using Geos. Much faster than the Python-only version. See

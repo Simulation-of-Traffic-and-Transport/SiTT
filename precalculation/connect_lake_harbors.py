@@ -9,11 +9,12 @@ import argparse
 import math
 from urllib import parse
 
+import geopandas as gpd
 from extremitypathfinder import PolygonEnvironment
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
 from shapely import wkb, is_ccw, \
-    contains, LineString, Polygon, force_2d, force_3d
+    contains, LineString, Polygon, Point, force_2d, force_3d
 from shapely.ops import nearest_points, transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, Float, JSON, text, insert
@@ -33,6 +34,8 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--port', dest='port', default=5432, type=int, help='postgres port')
     parser.add_argument('--schema', dest='schema', default='sitt', type=str, help='schema name')
 
+    parser.add_argument('-i', '--import-from-db', dest='import_from_db', default=True, type=bool,
+                        help='import from database, if table reclakes exists and has entries')
     parser.add_argument('-f', '--crs-from', dest='crs_from', default=4326, type=int, help='projection source')
     parser.add_argument('-t', '--crs-to', dest='crs_to', default=32633, type=int,
                         help='projection target (should support meters)')
@@ -41,11 +44,13 @@ if __name__ == "__main__":
                         help='cost factor for edges (multiplied by length in meters)')
     parser.add_argument('-s', '--segment-length', dest='segment_length', default=500., type=float,
                         help='segment length for leg calculation')
+    parser.add_argument('--max-difference', dest='max_difference', default=50., type=float,
+                        help='maximum difference in meters when checking points')
 
     parser.add_argument('--empty-edges', dest='empty_edges', default=False, type=bool,
                         help='empty edges database before import')
-    parser.add_argument('--delete-roads', dest='delete_roads', default=True, type=bool,
-                        help='delete roads edges from database before import')
+    parser.add_argument('--delete-edges', dest='delete_edges', default=True, type=bool,
+                        help='delete lake edges from database before import')
 
     # parse or help
     args: argparse.Namespace | None = None
@@ -82,10 +87,80 @@ if __name__ == "__main__":
         print("Truncating edges database...")
         conn.execute(text("TRUNCATE TABLE " + args.schema + ".edges;"))
         conn.commit()
-    elif args.delete_roads:  # delete roads from edges table?
+    elif args.delete_edges:  # delete entries from edges table?
         print("Deleting lake edges from database...")
         conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'lake';"))
         conn.commit()
+
+    if args.import_from_db and conn.execute(text("SELECT COUNT(*) FROM sitt.lakes")).fetchone()[0]:
+        print("Importing lake edges from database...")
+
+        for result in conn.execute(text("SELECT id, geom, hub_id_a, hub_id_b FROM sitt.lakes")):
+            # get column data
+            lake_id = result[0]
+            geom = wkb.loads(result[1])
+            hub_id_a = result[2]
+            hub_id_b = result[3]
+
+            # Is geometry direction correct? hub_id_a should be closer to the start of the path than hub_id_b
+            start_point = force_2d(Point(geom.coords[0]))
+            end_point = force_2d(Point(geom.coords[-1]))
+            hub_a_point = force_2d(wkb.loads(
+                conn.execute(text(f"SELECT geom FROM {args.schema}.hubs WHERE id = '{hub_id_a}'")).first()[0]))
+            hub_b_point = force_2d(wkb.loads(
+                conn.execute(text(f"SELECT geom FROM {args.schema}.hubs WHERE id = '{hub_id_b}'")).first()[0]))
+
+            # distances in meters
+            hub_points = gpd.GeoDataFrame({'geometry': [hub_a_point, hub_a_point, hub_b_point, hub_b_point]},
+                                          crs=args.crs_from).to_crs(args.crs_to)
+            line_points = gpd.GeoDataFrame({'geometry': [start_point, end_point, start_point, end_point]},
+                                           crs=args.crs_from).to_crs(args.crs_to)
+            dist_s_a, dist_s_b, dist_e_a, dist_e_b = line_points.distance(hub_points)
+
+            # flip geometry?
+            if dist_s_a > dist_s_b and dist_e_a < dist_e_b:
+                geom = geom.reverse()
+                dist_s_a = dist_s_b
+                dist_e_b = dist_e_a
+
+            if dist_s_a > args.max_difference or dist_e_b > args.max_difference:
+                print(
+                    f"WARNING: Possible error in lake ID: {lake_id} (between {hub_id_a} and {hub_id_b}): distance between hubs and line ends is too large ({dist_s_a}m and {dist_e_b}m)")
+
+            # Calculate single legs
+            base_length = transform(transformer.transform, geom).length
+            cost = base_length * args.cost_factor
+
+            # create segments of certain size
+            segments = force_2d(geom).segmentize(
+                geom.length / math.ceil(base_length / args.segment_length))
+
+            # leg lengths
+            legs = []
+            last_coord = None
+            for coord in segments.coords:
+                if last_coord is not None:
+                    # distance calculation for each leg
+                    leg = transform(transformer.transform, LineString([last_coord, coord]))
+                    legs.append(leg.length)
+
+                last_coord = coord
+
+            geo_stmt = WKTElement(force_3d(segments).wkt, srid=args.crs_from)
+
+            closest_water_body = conn.execute(text(
+                f"SELECT id FROM sitt.water_bodies WHERE is_river = false ORDER BY ST_DistanceSpheroid(geom, '{result[1]}') LIMIT 1")).fetchone()
+
+            # now, enter into edges table
+            stmt = insert(edges_table).values(id=lake_id, geom=geo_stmt, hub_id_a=hub_id_a,
+                                              hub_id_b=hub_id_b, type='lake', cost_a_b=cost, cost_b_a=cost,
+                                              data={"length_m": base_length, "water_body_id": closest_water_body[0],
+                                                    "legs": legs})
+            conn.execute(stmt)
+
+        conn.commit()
+        print("Done.")
+        exit(0)
 
     # ids of water bodies that are connected to harbor hubs
     water_body_geoms = {}  # keeps geometries
