@@ -10,9 +10,10 @@ Order of (script) execution:
 flowchart TD
     schema(["Create DB schemas"])
     water(["Import water data"])
-    hubs_roads_rivers["import_hubs_roads_rivers.py"]
+    hubs_roads_rivers["import_rec_data.py"]
     geo_data["make_geo_data_xyz.py"]
     convert_roads["convert_roads_to_edges.py"]
+    convert_rivers["import_rec_data.py"]
     convert_lakes["connect_lake_harbors.py"]
     convert_wb["`convert_water_bodies_to_parts.py *or* convert_water_bodies_to_parts_nogeos.py`"]
     prepare_water_depths["prepare_water_depths.py"]
@@ -29,6 +30,7 @@ flowchart TD
     
     geo_data --> convert_roads --> overnight_stays
     geo_data --> convert_lakes --> overnight_stays
+    nn --> convert_rivers --> overnight_stays
     water --> convert_wb --> prepare_water_depths --> enter_depths --> base_river --> river_edges --> overnight_stays
 ```
 
@@ -38,7 +40,7 @@ Short explanations:
 * [DB Schema](../readmes/database_schema.sql) - in `readmes` folder contains SQL to create the schema for PostGis.
 * [How to import water data](import_water_data.md) - explains how to import water shapes, so they work for our
   simulation. 
-* [import_hubs_roads_rivers.py](import_hubs_roads_rivers.py) - example on how to import hubs, roads, and rivers from a base database.
+* [import_rec_data.py](import_rec_data.py) - example on how to import hubs, roads, rivers, and lakes from a base database.
 * [make_geo_data_xyz.py](make_geo_data_xyz.py) - converter that loads a GeoTiFF file and puts heights onto all points in
   shapes created. Will keep created heights, unless you set some command line arguments. Moreover, there is an option to
   segment the roads a bit more in order to increase the exactness of heights. This is a matter of taste and your

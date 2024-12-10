@@ -87,6 +87,33 @@ create index rivers_hub_id_b_index
 
 
 
+create table sitt.lakes
+(
+    id        text not null
+        constraint lakes_pk
+            primary key,
+    geom geography(LineStringZ,4326) not null,
+    hub_id_a  text not null
+        constraint lakes_hubs_a_id_fk
+            references sitt.hubs,
+    hub_id_b  text not null
+        constraint lakes_hubs_b_id_fk
+            references sitt.hubs
+);
+
+
+
+create index lakes_geom_index
+    on sitt.lakes using gist (geom);
+
+create index lakes_hub_id_a_index
+    on sitt.lakes (hub_id_a);
+
+create index lakes_hub_id_b_index
+    on sitt.lakes (hub_id_b);
+
+
+
 create table sitt.water_bodies
 (
     id       integer not null
