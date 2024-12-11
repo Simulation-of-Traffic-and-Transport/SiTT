@@ -8,6 +8,7 @@ import math
 import os
 from urllib import parse
 
+import requests
 import geopandas as gpd
 import rasterio
 from pyproj import Transformer
@@ -31,9 +32,7 @@ def work_coordinates(coords) -> tuple[list, bool]:
         lng = coord[0]
         lat = coord[1]
 
-        xx, yy = transformer.transform(lng, lat)
-        x, y = rds.index(xx, yy)
-        height = band[x, y]
+        height = get_height_for_coordinate((lng, lat))
 
         geom.append((lng, lat, height))
         changed = True
@@ -45,7 +44,17 @@ def get_height_for_coordinate(coord: tuple[float, float]) -> float:
     # get height for coordinate
     xx, yy = transformer.transform(coord[0], coord[1])
     x, y = rds.index(xx, yy)
-    return band[x, y]
+    height = band[x, y]
+
+    # Fallback?
+    if height < 1000. and args.google_api_key:
+        response = requests.get(f"https://maps.googleapis.com/maps/api/elevation/json?locations={coord[1]}%2C{coord[0]}&key={args.google_api_key}")
+        data = response.json()
+
+        # print(data)
+        return data['results'][0]['elevation']
+
+    return height
 
 
 # inspired by https://stackoverflow.com/questions/62283718/how-to-extract-a-profile-of-value-from-a-raster-along-a-given-line
@@ -115,6 +124,7 @@ if __name__ == "__main__":
                         help='keep existing coordinates (overwrite otherwise)')
     parser.add_argument('-S', '--create-segments', dest='create_segments', default=False, type=bool,
                         help='create new input coordinates for roads by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
+    parser.add_argument('--google-api-key', dest='google_api_key', default='', type=str, help='Google API key for elevation data (if needed)')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
                         choices=['all', 'hubs', 'roads', 'water_bodies', 'water_lines'])
