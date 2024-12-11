@@ -528,6 +528,11 @@ class Simulation(BaseClass):
             else:
                 agents_finished_for_today.append(agent)
 
+            # set this hub and reset tries
+            if agent.last_resting_place != agent.this_hub:
+                agent.last_resting_place = agent.this_hub
+                agent.tries = 0
+
     def _end_simulation(self, results: SetOfResults):
         """
         Run end simluation tasks

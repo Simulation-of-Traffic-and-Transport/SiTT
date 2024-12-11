@@ -380,6 +380,8 @@ class Agent(object):
         """cancelled at this day"""
         self.tries: int = 0
         """internal value for tries at this hub - will break at 100"""
+        self.last_resting_place: str = this_hub
+        """keep track of last resting place"""
 
         self.route_data: ig.Graph = ig.Graph(directed=True)
         """keeps route taken (multidigrapjh)"""
