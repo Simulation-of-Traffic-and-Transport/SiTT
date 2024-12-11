@@ -47,7 +47,7 @@ def get_height_for_coordinate(coord: tuple[float, float]) -> float:
     height = band[x, y]
 
     # Fallback?
-    if height < 1000. and args.google_api_key:
+    if height < -1000. and args.google_api_key:
         response = requests.get(f"https://maps.googleapis.com/maps/api/elevation/json?locations={coord[1]}%2C{coord[0]}&key={args.google_api_key}")
         data = response.json()
 
