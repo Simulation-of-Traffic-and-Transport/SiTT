@@ -76,7 +76,8 @@ class JSONOutput(OutputInterface):
         # merge full list
         history = self._merge_history_lists(history, merge_history)
 
-        nodes, paths = self._graph_to_data(set_of_results.agents_finished + set_of_results.agents_cancelled)
+        # add nodes and paths
+        nodes, paths = self._graph_to_data()
 
         # TODO add more data from configuration and context
         return {
@@ -172,26 +173,12 @@ class JSONOutput(OutputInterface):
 
         return list1
 
-    def _graph_to_data(self, agents: list[Agent]) -> Tuple[List[dict], List[dict]]:
-        # only the paths taken by agents
-        nodes_to_add: set[str] = set()
-        paths_to_add: set[str] = set()
-
-        for agent in agents:
-            for edge in agent.route_data.es:
-                paths_to_add.add(edge['key'])
-
-            for hub in agent.route_data.vs:
-                nodes_to_add.add(hub['name'])
-
+    def _graph_to_data(self) -> Tuple[List[dict], List[dict]]:
         nodes: List[dict] = []
         paths: List[dict] = []
 
         # aggregate node data
-        for node in self.context.graph.vs:
-            if node['name'] not in nodes_to_add:
-                continue
-
+        for node in self.context.routes.vs:
             data = {'id': node['name']}
 
             for key in node.attribute_names():
@@ -204,15 +191,13 @@ class JSONOutput(OutputInterface):
 
             nodes.append(data)
 
-        # aggregate path data - from routes, because these are directed
-        for path in self.context.graph.es:
-            if path['name'] not in paths_to_add:
-                continue
-
+        # aggregate path data
+        for path in self.context.routes.es:
+            orig_path = self.context.graph.es.find(name=path['name'])
             paths.append({
                 'id': path['name'],
-                "from": path['from'],
-                "to": path['to'],
+                "from": orig_path['from'],
+                "to": orig_path['to'],
                 'type': path["type"],
                 'length_m': path['length_m'],
                 'geom': mapping(path['geom']),
