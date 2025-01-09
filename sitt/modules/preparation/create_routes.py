@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Create routes to be traversed by the simulation."""
 import logging
+import math
 import sys
 
 import igraph as ig
@@ -68,7 +69,30 @@ class CreateRoutes(BaseClass, PreparationInterface):
         for p in all_paths:
             tg = self._add_directed_graph(p[1], config.simulation_start, context.graph, tg)
 
-        # delete nodes with target hubs
+        # find simple connections between existing hubs that have not been integrated into the graph yet
+        all_hubs_in_target = tg.vs['name']
+        all_vertices_in_target = tg.es['name']
+
+        for e in context.graph.es:
+            hub_a = e.source_vertex['name']
+            hub_b = e.target_vertex['name']
+            # find non-existing edges, but with existing hubs - we will check those to see, if we can add some of them
+            if e['name'] not in all_vertices_in_target and hub_a in all_hubs_in_target and hub_b in all_hubs_in_target:
+                # which one is the output hub?
+                distances = tg.distances(source=[hub_a, hub_b], target=[config.simulation_start], mode='in', weights='length_m')
+                # from hub must be further away from the target hub, so > is correct here:
+                from_hub = hub_a if distances[0][0] < distances[1][0] else hub_b
+                to_hub = hub_b if distances[0][0] < distances[1][0] else hub_a
+                # TODO: this is not the optimal solution, sometimes we have hubs further away from the target hub
+
+                # targeted hub?
+                if e['target_hub'] is not None and e['target_hub'] != to_hub:
+                    continue
+
+                # add edge
+                self._add_directed_graph([e.index], from_hub, context.graph, tg)
+
+        # delete nodes with target hubs in the wrong direction
         to_delete = []
         if 'target_hub' in tg.es.attribute_names():
             for e in tg.es:
