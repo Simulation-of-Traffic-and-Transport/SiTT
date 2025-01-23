@@ -417,21 +417,7 @@ class Simulation(BaseClass):
         # proceed or stop here?
         if not agent.state.signal_stop_here and agent.state.time_taken >= 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
             # add hub history
-            hub = agent.route_data.vs.find(name=agent.this_hub)
-            if 'agents' not in hub.attribute_names():
-                hub['agents'] = {}
-            # add stop-over if not added already
-            if agent.uid not in hub['agents']:
-                hub['agents'][agent.uid] = {
-                    'start': {
-                        'day': agent.current_day,
-                        'time': agent.current_time,
-                    },
-                    'end': {
-                        'day': agent.current_day,
-                        'time': agent.current_time,
-                    },
-                }
+            agent.add_hub_history()
 
             # proceed..., first add time
             start_time = agent.current_time

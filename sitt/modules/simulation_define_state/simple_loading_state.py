@@ -34,7 +34,12 @@ class SimpleLoadingState(SimulationDefineStateInterface):
 
         # types are not equal => add time to consider reloading goods from one vehicle type to another
         if last_route_type != current_route_type:
-            agent.current_time += self.add_time
+            # calculate new time
+            new_time = agent.current_time + self.add_time
+            # update history
+            agent.add_hub_history(end_time=new_time)
+            # update current time
+            agent.current_time = new_time
 
             if not self.skip and logger.level <= logging.DEBUG:
                 logger.debug(f"SimpleLoadingState: reloading due to route type change, new time = {agent.current_time:.2f} hours")

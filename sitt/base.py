@@ -449,16 +449,56 @@ class Agent(object):
         return self.uid
 
     def add_first_route_data_entry(self):
-        self.route_data.add_vertex(name=self.this_hub, agents={self.uid: {
-            'start': {
-                'day': self.current_day,
-                'time': self.current_time,
-            },
-            'end': {
-                'day': self.current_day,
-                'time': self.current_time,
-            }
-        }})
+        """
+        Initialize route data (history) by adding first vertex.
+        """
+        self.route_data.add_vertex(name=self.this_hub, agents={})
+
+    def add_hub_history(self, uid: str | None = None, hub_id: str | None = None, start_day: int | None = None,
+                    start_time: float | None = None, end_day: int | None = None, end_time: float | None = None):
+        # set defaults if not provided
+        if uid is None:
+            uid = self.uid
+        if hub_id is None:
+            hub_id = self.this_hub
+        if start_day is None:
+            start_day = self.current_day
+        if start_time is None:
+            start_time = self.current_time
+        if end_day is None:
+            end_day = self.current_day
+        if end_time is None:
+            end_time = self.current_time
+
+        try:
+            # get hub from history
+            hub = self.route_data.vs.find(name=hub_id)
+            # test data structure and add it, if it doesn't exist
+            if 'agents' not in hub.attribute_names():
+                hub['agents'] = {}
+            # add stop-over if not added already
+            if uid not in hub['agents']:
+                hub['agents'][uid] = {
+                    'start': {
+                        'day': start_day,
+                        'time': start_time,
+                    },
+                    'end': {
+                        'day': end_day,
+                        'time': end_time,
+                    },
+                }
+            elif hub['agents'][uid]['end']['day'] > end_day or (hub['agents'][uid]['end']['day'] == end_day and hub['agents'][uid]['end']['time'] > end_time):
+                # adjust end time
+                hub['agents'][uid]['end'] = {
+                    'day': end_day,
+                    'time': end_time,
+                }
+            elif hub['agents'][uid]['end']['day'] != end_day or hub['agents'][uid]['end']['time'] != end_time:
+                # log warning if stop-over already exists and we want to adjust it in some weird way
+                logging.warning(f"Stop-over for agent {uid} already exists in hub {hub_id}: {hub['agents'][uid]}, wanted: {start_day} {start_time} - {end_day} {end_time}")
+        except:
+            logging.error(f"Hub {self.this_hub} not found in route_data for add_history.")
 
 
 ########################################################################################################################
