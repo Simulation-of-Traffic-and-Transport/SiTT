@@ -488,7 +488,7 @@ class Agent(object):
                         'time': end_time,
                     },
                 }
-            elif hub['agents'][uid]['end']['day'] > end_day or (hub['agents'][uid]['end']['day'] == end_day and hub['agents'][uid]['end']['time'] > end_time):
+            elif hub['agents'][uid]['end']['day'] < end_day or (hub['agents'][uid]['end']['day'] == end_day and hub['agents'][uid]['end']['time'] > end_time):
                 # adjust end time
                 hub['agents'][uid]['end'] = {
                     'day': end_day,
