@@ -10,7 +10,7 @@ Order of (script) execution:
 flowchart TD
     schema(["Create DB schemas"])
     water(["Import water data"])
-    hubs_roads_rivers["import_rec_data.py"]
+    import_rec_data["import_rec_data.py"]
     geo_data["make_geo_data_xyz.py"]
     convert_roads["convert_roads_to_edges.py"]
     convert_rivers["convert_rivers_to_edges.py"]
@@ -23,10 +23,10 @@ flowchart TD
     overnight_stays["mark_possible_overnight_stays.py"]
     
     schema --> water
-    schema --> hubs_roads_rivers
+    schema --> import_rec_data
     
 
-    hubs_roads_rivers --> geo_data
+    import_rec_data --> geo_data
     
     geo_data --> convert_roads --> overnight_stays
     geo_data --> convert_lakes --> overnight_stays
