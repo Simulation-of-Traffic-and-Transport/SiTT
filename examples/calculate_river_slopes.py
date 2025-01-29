@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-This is an example how to calculate river inclinations (slopes) using hub heights (z-heights).
+This is an example how to calculate river slopes (inclines) using hub heights (z-heights).
 """
 import argparse
 
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument('-rg', '--river-geo-column', dest='river_geo_column', default='geom', type=str, help='river geometry column')
     parser.add_argument('-ra', '--river-huba-column', dest='river_a_column', default='hubaid', type=str, help='river hub a column')
     parser.add_argument('-rb', '--river-hubb-column', dest='river_b_column', default='hubbid', type=str, help='river hub b column')
-    parser.add_argument('-rd', '--river-inclination-column', dest='river_inclination_column', default='inclination', type=str, help='river inclination column')
+    parser.add_argument('-rd', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
 
     parser.add_argument('-ht', '--hub-table', dest='hub_table', default='topology.rechubs', type=str, help='hub table to check')
     parser.add_argument('-hc', '--hub-id-column', dest='hub_id_column', default='rechubid', type=str, help='hub id column')
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     cur_upd = conn.cursor() # update cursor
 
     # traverse river data
-    cur.execute(f"select {args.river_id_column}, {args.river_a_column}, {args.river_b_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_inclination_column} IS NULL OR {args.river_inclination_column} < 0")
+    cur.execute(f"select {args.river_id_column}, {args.river_a_column}, {args.river_b_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_slope_column} IS NULL OR {args.river_slope_column} < 0")
     for data in cur:
         # get heights from hub
         cur1.execute(f"select {args.hub_geo_column} from {args.hub_table} WHERE {args.hub_id_column} = %s", (data[1],))
@@ -80,6 +80,6 @@ if __name__ == "__main__":
 
         print(f"{data[0]} => Hub A: {point_a.z}, Hub B: {point_b.z}, length: {length}")
         slope = abs(point_a.z - point_b.z) / length
-        cur1.execute(f"UPDATE {args.river_table} SET {args.river_inclination_column} = %s WHERE {args.river_id_column} = %s", (slope, data[0],))
+        cur1.execute(f"UPDATE {args.river_table} SET {args.river_slope_column} = %s WHERE {args.river_id_column} = %s", (slope, data[0],))
 
     conn.commit()
