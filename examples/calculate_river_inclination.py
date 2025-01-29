@@ -7,8 +7,8 @@ This is an example how to calculate river inclinations (slopes) using hub height
 import argparse
 
 import psycopg2
-from shapely import wkb, Point, LineString
 from pyproj import Transformer
+from shapely import wkb, Point
 from shapely.ops import transform
 
 if __name__ == "__main__":
