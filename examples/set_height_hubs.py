@@ -73,13 +73,20 @@ if __name__ == "__main__":
         coordinates: list[str] = []
 
     # Get hubs to work with
-    cur.execute(f"SELECT {args.id_column}, {args.geo_column} FROM {args.table}")
+    if args.height_column:
+        cur.execute(f"SELECT {args.id_column}, {args.geo_column}, {args.height_column} FROM {args.table}")
+    else:
+        cur.execute(f"SELECT {args.id_column}, {args.geo_column} FROM {args.table}")
     for data in cur:
         hub_geom: Point = wkb.loads(data[1])
 
         # skip, if set already and if we want to keep existing coordinates
-        if args.keep_existing and hub_geom.z > 0.:
-            continue
+        if args.keep_existing:
+            if args.height_column:
+                if data[2] > 0.:
+                    continue
+            elif hub_geom.z > 0.:
+                continue
 
         # transform to height using GeoTIFF
         if args.file:

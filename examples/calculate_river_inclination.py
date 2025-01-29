@@ -58,7 +58,7 @@ if __name__ == "__main__":
     cur_upd = conn.cursor() # update cursor
 
     # traverse river data
-    cur.execute(f"select {args.river_id_column}, {args.river_a_column}, {args.river_b_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_inclination_column} IS NULL")
+    cur.execute(f"select {args.river_id_column}, {args.river_a_column}, {args.river_b_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_inclination_column} IS NULL OR {args.river_inclination_column} < 0")
     for data in cur:
         # get heights from hub
         cur1.execute(f"select {args.hub_geo_column} from {args.hub_table} WHERE {args.hub_id_column} = %s", (data[1],))
