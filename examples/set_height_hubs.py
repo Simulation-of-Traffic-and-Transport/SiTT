@@ -9,11 +9,9 @@ from os.path import abspath
 
 import psycopg2
 import rasterio
-import shapefile
-from pyproj import Transformer
-from shapely import wkb, Point, MultiPoint, Polygon, LineString
-from shapely.ops import nearest_points, transform
 import requests
+from pyproj import Transformer
+from shapely import wkb, Point
 
 if __name__ == "__main__":
     # parse arguments
