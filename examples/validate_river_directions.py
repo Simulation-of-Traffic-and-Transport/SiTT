@@ -5,12 +5,8 @@
 This is an example how to validate river directions and hub heights - are rivers flowing upwards maybe?
 """
 import argparse
-from os.path import abspath
 
 import psycopg2
-import rasterio
-import requests
-from pyproj import Transformer
 from shapely import wkb, Point
 
 if __name__ == "__main__":
