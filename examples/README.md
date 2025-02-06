@@ -15,6 +15,8 @@ This folder contains a score of sample files that help prepare and shape the geo
 * [create_river_segments.py](create_river_segments.py): This is an example how to create river segments in the database.
   Segments are 100m by default.
 * [create_sql_from_dump.py](create_sql_from_dump.py): Example of how to reimport a dump into SQL.
+* [import_shape_depths_folder.py](import_shape_depths_folder.py): Import a folder of shape files containing point
+  layers of water depths into the PostGis server.
 * [raster_river_profiles.py](raster_river_profiles.py): Test for xyz files.
 * [read_shape_file_into_db.py](read_shape_file_into_db.py): Example of how to read a Shape file (.shp) into the
   database.
@@ -53,6 +55,7 @@ HUBS[set_height_hubs.py]
 VALIDATE[validate_river_directions.py]
 SLOPES[calculate_river_slopes.py]
 SEGMENTS[create_river_segments.py]
+IMPORT_DEPTHS[import_shape_depths_folder.py]
 
 HUBS --> VALIDATE --> SLOPES
 VALIDATE --> HUBS
@@ -69,3 +72,5 @@ VALIDATE --> SEGMENTS
   end points of each river path and calculate the slope for the whole segment.
 * [create_river_segments.py](create_river_segments.py) creates a new column called `geom_segments` in your table with
   segmented paths for further calculation.
+* [import_shape_depths_folder.py](import_shape_depths_folder.py): This will import a number of shape files containing
+  points into the database. The script also fixes some glitches in these files.
