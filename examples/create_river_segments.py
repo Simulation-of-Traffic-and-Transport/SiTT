@@ -43,7 +43,6 @@ if __name__ == "__main__":
     conn = psycopg2.connect(host=args.server, dbname=args.database, user=args.user, password=args.password,
                             port=args.port)
     cur = conn.cursor()
-    cur1 = conn.cursor()  # second cursor
     cur_upd = conn.cursor()  # update cursor
 
     # check if geom_segments exists, create column if not
