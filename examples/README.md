@@ -53,3 +53,12 @@ SLOPES[calculate_river_slopes.py]
 
 HUBS --> VALIDATE --> SLOPES
 ```
+
+* [set_height_hubs.py](set_height_hubs.py) will set the heights of the hubs first, adding a z coordinate to each point,
+  and - optionally - setting the height of the `height_m` field. Set fields are not overwritten by default, so one can
+  use different methods to populate the heights.
+* [validate_river_directions.py](validate_river_directions.py) can be run to check river directions. It can be used to
+  adjust heights hubs a bit, so rivers do not flow upward.
+* [calculate_river_slopes.py](calculate_river_slopes.py) will calculate the slope of each river path. Due to modern
+  overbuilding and landscape shaping, we use a simplified method to calculate the slopes. We simply take the start and
+  end points of each river path and calculate the slope for the whole segment.

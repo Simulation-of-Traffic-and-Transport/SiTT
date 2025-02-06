@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 """
-This is an example how to calculate river slopes (inclines) using hub heights (z-heights).
+This is an example how to calculate river slopes (inclines) using hub heights (z-heights). We use a simplified method to
+calculate the slopes. We simply take the start and end points of each river path and calculate the slope for the whole
+segment. Otherwise, we would need a much more accurate height model of the ancient topography.
 """
 import argparse
 

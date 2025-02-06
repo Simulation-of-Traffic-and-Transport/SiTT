@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 """
-This is an example of how to set the heights of the hubs using GeoTIFF or the Google Geolocation API.
+This is an example of how to set the heights of the hubs using GeoTIFF or the Google Geolocation API. Fields set
+already are not overwritten by default, so one can use different methods to populate the heights.
 """
 import argparse
 from os.path import abspath
