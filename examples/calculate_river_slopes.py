@@ -14,7 +14,7 @@ from shapely.ops import transform
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
-        description="This is an example how to validate river directions and hub heights - are rivers flowing upwards maybe?",
+        description="This is an example how to validate river directions and hub heights - are rivers flowing upwards?",
         exit_on_error=False)
 
     # Postgis settings
