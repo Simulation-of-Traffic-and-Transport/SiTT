@@ -12,6 +12,8 @@ This folder contains a score of sample files that help prepare and shape the geo
 
 * [calculate_river_slopes.py](calculate_river_slopes.py): This is an example how to calculate river slopes (inclines)
   using hub heights (z-heights).
+* [create_river_segments.py](create_river_segments.py): This is an example how to create river segments in the database.
+  Segments are 100m by default.
 * [create_sql_from_dump.py](create_sql_from_dump.py): Example of how to reimport a dump into SQL.
 * [raster_river_profiles.py](raster_river_profiles.py): Test for xyz files.
 * [read_shape_file_into_db.py](read_shape_file_into_db.py): Example of how to read a Shape file (.shp) into the
@@ -50,8 +52,11 @@ flowchart TB
 HUBS[set_height_hubs.py]
 VALIDATE[validate_river_directions.py]
 SLOPES[calculate_river_slopes.py]
+SEGMENTS[create_river_segments.py]
 
 HUBS --> VALIDATE --> SLOPES
+VALIDATE --> HUBS
+VALIDATE --> SEGMENTS
 ```
 
 * [set_height_hubs.py](set_height_hubs.py) will set the heights of the hubs first, adding a z coordinate to each point,
@@ -62,3 +67,5 @@ HUBS --> VALIDATE --> SLOPES
 * [calculate_river_slopes.py](calculate_river_slopes.py) will calculate the slope of each river path. Due to modern
   overbuilding and landscape shaping, we use a simplified method to calculate the slopes. We simply take the start and
   end points of each river path and calculate the slope for the whole segment.
+* [create_river_segments.py](create_river_segments.py) creates a new column called `geom_segments` in your table with
+  segmented paths for further calculation.
