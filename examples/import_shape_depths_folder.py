@@ -13,7 +13,8 @@ create table topology.river_depths
         constraint river_depths_pk
             primary key,
     shape TEXT not null,
-    geom  geometry(PointZ, 4326)
+    geom  geometry(Point, 4326),
+    depth float not null
 );
 
 create index river_depths_geom_index
@@ -105,7 +106,10 @@ if __name__ == "__main__":
                 else:
                     point = row.geometry
                 try:
-                    cur.execute(f"INSERT INTO {args.depths_table} (shape, geom) VALUES ('{basename}', ST_GeomFromText('{point.wkt}'));")
+                    point2d = Point(point.x, point.y)
+                    depth = point.z
+
+                    cur.execute(f"INSERT INTO {args.depths_table} (shape, geom, depth) VALUES ('{basename}', ST_GeomFromText('{point2d.wkt}'), {depth});")
                 except:
                     print(f"Error: Failed to insert row {row.Index}.", basename, row, point)
 
