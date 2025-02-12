@@ -10,6 +10,8 @@ To facilitate usage, the example were created as Jupyter notebooks. These are:
 
 This folder contains a score of sample files that help prepare and shape the geo data for the simulation.
 
+* [calculate_river_depths.py](calculate_river_depths.py): This is an example how to calculate river depths using grid
+  interpolation.
 * [calculate_river_slopes.py](calculate_river_slopes.py): This is an example how to calculate river slopes (inclines)
   using hub heights (z-heights).
 * [create_river_segments.py](create_river_segments.py): This is an example how to create river segments in the database.
@@ -56,10 +58,12 @@ VALIDATE[validate_river_directions.py]
 SLOPES[calculate_river_slopes.py]
 SEGMENTS[create_river_segments.py]
 IMPORT_DEPTHS[import_shape_depths_folder.py]
+DEPTHS[calculate_river_depths.py]
 
 HUBS --> VALIDATE --> SLOPES
 VALIDATE --> HUBS
-VALIDATE --> SEGMENTS
+VALIDATE --> SEGMENTS-->DEPTHS
+IMPORT_DEPTHS-->DEPTHS
 ```
 
 * [set_height_hubs.py](set_height_hubs.py) will set the heights of the hubs first, adding a z coordinate to each point,
@@ -74,3 +78,6 @@ VALIDATE --> SEGMENTS
   segmented paths for further calculation.
 * [import_shape_depths_folder.py](import_shape_depths_folder.py): This will import a number of shape files containing
   points into the database. The script also fixes some glitches in these files.
+* [calculate_river_depths.py](calculate_river_depths.py): The script takes all path segments and river depths, and
+  calculates the depth of each point using grid interpolation. Since we have multiple (possibly) overlaying shapes, we
+  have to check each point. This takes quite a while, so go get some lunch while this is calculating.
