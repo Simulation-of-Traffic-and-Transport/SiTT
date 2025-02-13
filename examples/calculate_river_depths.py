@@ -68,6 +68,19 @@ if __name__ == "__main__":
                 f"ALTER TABLE {args.river_table} ADD {args.river_depths_column} double precision[]"))
             conn.commit()
 
+    # Load depths data
+    gdf = gpd.GeoDataFrame.from_postgis(
+        f"SELECT * FROM topology.river_depths", conn, geom_col='geom')
+    totalPointsArray = np.zeros([gdf.shape[0], 3])
+
+    for index, p in gdf.iterrows():
+        pointArray = np.array([p.geom.coords.xy[0][0], p.geom.coords.xy[1][0], p['depth']])
+        totalPointsArray[index] = pointArray
+
+    # triangulation function
+    triFn = Triangulation(totalPointsArray[:, 0], totalPointsArray[:, 1])
+    linTriFn = LinearTriInterpolator(triFn, totalPointsArray[:, 2])
+
     # traverse river data
     for data in conn.execute(text(f"select {args.river_id_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_depths_column} IS NULL")):
         # load wkb data
@@ -78,29 +91,8 @@ if __name__ == "__main__":
         # this will hold the depths for each point
         heights = np.zeros(len(coords))
 
+        # interpolate depths for each point in the river line
         for idx, coord in enumerate(coords):
-            # find shape level for this point
-            closest_shape = conn.execute(text(f"SELECT {args.depths_shape_column} FROM {args.depths_table} ORDER BY {args.depths_geo_column} <-> ST_GeogFromText('POINT({coord[0]} {coord[1]})') LIMIT 1")).fetchone()[0]
-            # add shape data, if needed
-            if closest_shape not in shape_cache:
-                # load complete shape data
-                gdf = gpd.GeoDataFrame.from_postgis(
-                    f"SELECT * FROM topology.river_depths WHERE shape = '{closest_shape}'", conn, geom_col='geom')
-                totalPointsArray = np.zeros([gdf.shape[0], 3])
-
-                for index, p in gdf.iterrows():
-                    pointArray = np.array([p.geom.coords.xy[0][0], p.geom.coords.xy[1][0], p['depth']])
-                    totalPointsArray[index] = pointArray
-
-                # triangulation function
-                triFn = Triangulation(totalPointsArray[:, 0], totalPointsArray[:, 1])
-                linTriFn = LinearTriInterpolator(triFn, totalPointsArray[:, 2])
-                shape_cache[closest_shape] = linTriFn
-
-                print("SHAPE:", closest_shape)
-            else:
-                linTriFn = shape_cache[closest_shape]
-
             tempZ = linTriFn(coord[0],coord[1])
             if np.isnan(float(tempZ)):
                 # nans are converted to 0s
@@ -110,4 +102,6 @@ if __name__ == "__main__":
         print("OK:", data[0])
         heights_str = "{" + list(heights).__str__()[1:-1] + "}"
         conn.execute(text(f"UPDATE {args.river_table} SET {args.river_depths_column} = '{heights_str}' WHERE {args.river_id_column} = '{data[0]}'"))
-        conn.commit()
+
+    # persist changes to the database
+    conn.commit()
