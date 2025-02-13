@@ -8,17 +8,10 @@ shapes created by create_river_segments.py, but you can set your own column to d
 
 import argparse
 
-import psycopg2
-from pyproj import Transformer
-from shapely import wkb, Point, Polygon, LineString, shortest_line
-from shapely.ops import transform
-from shapely.validation import make_valid
-import numpy as np
-import itertools
 import geopandas as gpd
 import numpy as np
 from matplotlib.tri import Triangulation, LinearTriInterpolator
-from shapely import wkb, Point
+from shapely import wkb, LineString
 from sqlalchemy import create_engine, text
 
 if __name__ == "__main__":
@@ -87,6 +80,11 @@ if __name__ == "__main__":
         geom = wkb.loads(data[1])
         # structure to add data to
         coords = np.array(geom.coords)
+        # structure to add data to
+        new_geom = np.array(geom.coords)
+        # z column exists?
+        if new_geom.shape[1] < 3:
+            new_geom = np.c_[new_geom, np.zeros(len(new_geom))]
 
         # this will hold the depths for each point
         heights = np.zeros(len(coords))
@@ -98,10 +96,13 @@ if __name__ == "__main__":
                 # nans are converted to 0s
                 tempZ = np.float64(0.)
             heights[idx]=tempZ
+            new_geom[idx, 2] = tempZ
 
         print("OK:", data[0])
+
         heights_str = "{" + list(heights).__str__()[1:-1] + "}"
-        conn.execute(text(f"UPDATE {args.river_table} SET {args.river_depths_column} = '{heights_str}' WHERE {args.river_id_column} = '{data[0]}'"))
+        updated_geom = LineString(new_geom).wkt
+        conn.execute(text(f"UPDATE {args.river_table} SET {args.river_depths_column} = '{heights_str}', {args.river_geo_column} = ST_GeomFromText('{updated_geom}') WHERE {args.river_id_column} = '{data[0]}'"))
 
     # persist changes to the database
     conn.commit()
