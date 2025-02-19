@@ -50,10 +50,7 @@ create index raw_river_shores_ref_id_index
 import argparse
 
 import psycopg2
-from shapely import wkb, wkt, Polygon,LineString, MultiPoint, Point
-from shapely.ops import nearest_points, split
-
-import heapq
+from shapely import wkb, Polygon, LineString
 
 if __name__ == "__main__":
     # parse arguments
