@@ -96,6 +96,9 @@ if __name__ == "__main__":
     R_f = create_rotation_matrix(args.degrees)
     R_b = create_rotation_matrix(360-args.degrees)
 
+    # counter
+    c = 0
+
     # load all river paths
     cur.execute("select recroadid, geom_segments from topology.recrivers")
     for data in cur:
@@ -103,6 +106,8 @@ if __name__ == "__main__":
         # skip first and last points - they are our start and end points
         # TODO - check these points
         for i in range(1, len(path.coords) - 1):
+            c += 1 # increase counter
+
             coord = path.coords[i]
             p = Point(coord[0], coord[1])
             wkb_point = wkb.dumps(p, srid=args.crs_source)
@@ -112,14 +117,14 @@ if __name__ == "__main__":
             # we expect at exactly one result - and we assume that the point is within the river
             closest_point: Point = wkb.loads(cur2.fetchone()[0])
             if closest_point is None:
-                print("Warning... closest_point")
+                print("Warning... closest_point", data[0])
                 # TODO: handle this
                 continue
 
             # line as opposite vector
             vec = np.array([closest_point.x - coord[0], closest_point.y - coord[1]]) * -1
             if vec[0] == 0. and vec[1] == 0.:
-                print("Warning... zero vector")
+                print("Warning... zero vector", data[0])
                 # TODO: handle this
                 continue
 
@@ -138,7 +143,7 @@ if __name__ == "__main__":
             # we expect at exactly one result - and we assume that the point is within the river
             closest_opposite_point: Point = wkb.loads(cur2.fetchone()[0])
             if closest_opposite_point is None:
-                print("Warning... closest_opposite_point")
+                print("Warning... closest_opposite_point", data[0])
                 # TODO: handle this
                 continue
 
@@ -156,3 +161,4 @@ if __name__ == "__main__":
 
     w.close()
 
+    print(c)
