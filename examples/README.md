@@ -14,8 +14,12 @@ This folder contains a score of sample files that help prepare and shape the geo
   interpolation.
 * [calculate_river_slopes.py](calculate_river_slopes.py): This is an example how to calculate river slopes (inclines)
   using hub heights (z-heights).
+* [calculate_river_widths.py](calculate_river_widths.py): This is a script to calculate river width per point on the segments. It uses the
+  river lines as base reference, takes the closest point and tries to find an opposite point within a certain angle.
 * [create_river_segments.py](create_river_segments.py): This is an example how to create river segments in the database.
   Segments are 100m by default.
+* [create_river_shores.py](create_river_shores.py): This will create river shores - which are taken from helper points
+  defined in the database. This script is not used at the moment, but could be useful in some cases.
 * [create_sql_from_dump.py](create_sql_from_dump.py): Example of how to reimport a dump into SQL.
 * [import_shape_depths_folder.py](import_shape_depths_folder.py): Import a folder of shape files containing point
   layers of water depths into the PostGis server.
@@ -53,17 +57,20 @@ Hubs should contain at least the following fields:
 ```mermaid
 flowchart TB
     
+IMPORT_DEPTHS[import_shape_depths_folder.py]
 HUBS[set_height_hubs.py]
 VALIDATE[validate_river_directions.py]
 SLOPES[calculate_river_slopes.py]
 SEGMENTS[create_river_segments.py]
-IMPORT_DEPTHS[import_shape_depths_folder.py]
 DEPTHS[calculate_river_depths.py]
+SHORES[create_river_shores.py]
+WIDTHS[calculate_river_widths.py]
 
 HUBS --> VALIDATE --> SLOPES
 VALIDATE --> HUBS
 VALIDATE --> SEGMENTS-->DEPTHS
 IMPORT_DEPTHS-->DEPTHS
+SEGMENTS --> WIDTHS
 ```
 
 * [set_height_hubs.py](set_height_hubs.py) will set the heights of the hubs first, adding a z coordinate to each point,
@@ -81,3 +88,5 @@ IMPORT_DEPTHS-->DEPTHS
 * [calculate_river_depths.py](calculate_river_depths.py): The script takes all path segments and river depths, and
   calculates the depth of each point using grid interpolation. Since we have multiple (possibly) overlaying shapes, we
   have to check each point. This takes quite a while, so go get some lunch while this is calculating.
+* [calculate_river_widths.py](calculate_river_widths.py): This is a script to calculate river width per point on the segments. It uses the
+  river lines as base reference, takes the closest point and tries to find an opposite point within a certain angle.
