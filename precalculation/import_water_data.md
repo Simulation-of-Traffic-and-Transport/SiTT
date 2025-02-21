@@ -212,6 +212,14 @@ SELECT (d.dump_set).path[1] as id, (d.dump_set).geom as geom into sitt.water_lin
 CREATE INDEX sidx_water_lines_geom ON sitt.water_lines USING gist (geom);
 ```
 
+And a complete water line shape:
+
+```postgresql
+DROP TABLE IF EXISTS water_wip.all_water_lines;
+SELECT 1 as id, ST_Boundary(geom)::geometry(MULTILINESTRING,4326) as geom into water_wip.all_water_lines FROM water_wip.all_river_body;
+CREATE INDEX sidx_all_water_lines_geom ON water_wip.all_water_lines USING gist (geom);
+```
+
 ## Clean data
 
 ```postgresql
