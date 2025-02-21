@@ -155,6 +155,6 @@ if __name__ == "__main__":
 
         # insert into shores table
         for c in coords:
-            cur_upd.execute(f"INSERT INTO water_wip.raw_river_shores (ref_id, geom) VALUES (%s, %s)", (river_id, wkb.dumps(LineString(c))))
+            cur_upd.execute("INSERT INTO water_wip.raw_river_shores (ref_id, geom) VALUES (%s, %s)", (river_id, wkb.dumps(LineString(c))))
 
     conn.commit()
