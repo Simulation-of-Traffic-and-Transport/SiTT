@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # projection settings
     parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')
     parser.add_argument('--crs-target', dest='crs_target', default=32633, type=int, help='projection target (has to support meters)')
-    parser.add_argument('--degrees', dest='degrees', default=45., type=float, help='degrees for checking opposite shore')
+    parser.add_argument('--degrees', dest='degrees', default=35., type=float, help='degrees for checking opposite shore')
 
     # parse or help
     args: argparse.Namespace | None = None
@@ -54,6 +54,7 @@ if __name__ == "__main__":
         parser.exit(1)
 
     project_forward = Transformer.from_crs(args.crs_source, args.crs_target, always_xy=True).transform
+    project_back = Transformer.from_crs(args.crs_target, args.crs_source, always_xy=True).transform
 
     # Connect to the database
     conn = psycopg2.connect(host=args.server, dbname=args.database, user=args.user, password=args.password,
@@ -81,6 +82,7 @@ if __name__ == "__main__":
     def rotate_vector(vector: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
         """
         Rotate a vector by given rotation matrix.
+        see https://scipython.com/book/chapter-6-numpy/examples/creating-a-rotation-matrix-in-numpy/
 
         :param vector: The vector to be rotated.
         :param rotation_matrix: The rotation matrix.
@@ -88,19 +90,35 @@ if __name__ == "__main__":
         """
         # rotate vector by given rotation matrix
         rot = np.dot(rotation_matrix, vector)
-        # normalize vector (this will give a vector of length 1 degree on earth surface) - this is a lot, so we will
-        # shorten it to 2 minutes by dividing by 30
-        return rot / np.linalg.norm(rot) / 30
+        # normalize vector (this will give a vector of length 1 unit - m in our case)
+        return rot / np.linalg.norm(rot)
 
     # create rotation matrices left and right of shore vector (to look for opposite shore)
     R_f = create_rotation_matrix(args.degrees)
     R_b = create_rotation_matrix(360-args.degrees)
 
+
+    def rotate_opposite_point(a: Point, b: Point, rotation_matrix: np.ndarray) -> Point | None:
+        # project forward - this is important, because we need to "flatten" the projection in order to get correct
+        # angles
+        proj_a = transform(project_forward, a)
+        proj_b = transform(project_forward, b)
+
+        # line as opposite vector (because we deduct b from a and not the other way around)
+        vec = np.array([proj_a.x - proj_b.x, proj_a.y - proj_b.y])
+        if vec[0] == 0. and vec[1] == 0.:
+            return None
+
+        # rotate vector by given rotation matrix - multiply by 3000 to 3 km
+        rot_vec = rotate_vector(vec, rotation_matrix) * 3000
+        # project the rotated vector back to original coordinate system - add to original coordinates
+        return transform(project_back, Point(proj_a.x + rot_vec[0], proj_a.y + rot_vec[1]))
+
     # counter
     c = 0
 
     # load all river paths
-    cur.execute("select recroadid, geom_segments from topology.recrivers")
+    cur.execute("select recroadid, geom_segments from topology.recrivers WHERE recroadid = 'STR-REC-WW-GLAN-002_down-2024_11_07'")
     for data in cur:
         path: LineString = wkb.loads(data[1])
         # skip first and last points - they are our start and end points
@@ -121,22 +139,12 @@ if __name__ == "__main__":
                 # TODO: handle this
                 continue
 
-            # line as opposite vector
-            vec = np.array([closest_point.x - coord[0], closest_point.y - coord[1]]) * -1
-            if vec[0] == 0. and vec[1] == 0.:
-                print("Warning... zero vector", data[0])
-                # TODO: handle this
-                continue
-
-            # rotate opposite using rotation matrix
-            # see https://scipython.com/book/chapter-6-numpy/examples/creating-a-rotation-matrix-in-numpy/
             # rotate using rotation matrix
-            rot_l = rotate_vector(vec, R_f)
-            # rotate back
-            rot_r = rotate_vector(vec, R_b)
+            rot_l = rotate_opposite_point(p, closest_point, R_f)
+            rot_r = rotate_opposite_point(p, closest_point, R_b)
 
             # create triangular polygon to look for opposite shore
-            triangle = Polygon([p, (coord[0] + rot_l[0], coord[1] + rot_l[1]), (coord[0] + rot_r[0], coord[1] + rot_r[1])])
+            triangle = Polygon([p, rot_l, rot_r])
             triangle_wkb = wkb.dumps(triangle, srid=args.crs_source)
             # find the closest opposite point on the shoreline of any river
             cur2.execute("SELECT ST_ClosestPoint(ST_Intersection(geom, %s), %s) FROM water_wip.all_water_lines", (triangle_wkb, wkb_point,))
