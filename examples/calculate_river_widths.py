@@ -43,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')
     parser.add_argument('--crs-target', dest='crs_target', default=32633, type=int, help='projection target (has to support meters)')
     parser.add_argument('--degrees', dest='degrees', default=35., type=float, help='degrees for checking opposite shore')
+    parser.add_argument('--wedge#length', dest='wedge_length', default=3000., type=float, help='length of legs to search for opposite shore in m')
 
     # parse or help
     args: argparse.Namespace | None = None
@@ -109,16 +110,46 @@ if __name__ == "__main__":
         if vec[0] == 0. and vec[1] == 0.:
             return None
 
-        # rotate vector by given rotation matrix - multiply by 3000 to 3 km
-        rot_vec = rotate_vector(vec, rotation_matrix) * 3000
+        # rotate vector by given rotation matrix - multiply by wedge_length (default = 3000m)
+        rot_vec = rotate_vector(vec, rotation_matrix) * args.wedge_length
         # project the rotated vector back to original coordinate system - add to original coordinates
         return transform(project_back, Point(proj_a.x + rot_vec[0], proj_a.y + rot_vec[1]))
+
+    def unit_vector(vector: np.array):
+        """ Returns the unit vector of the vector"""
+        return vector / np.linalg.norm(vector)
+
+    def angle(vector1: np.array, vector2: np.array) -> float | None:
+        """ Returns the angle in degrees between given vectors"""
+        v1_u = unit_vector(vector1)
+        v2_u = unit_vector(vector2)
+        minor = np.linalg.det(
+            np.stack((v1_u[-2:], v2_u[-2:]))
+        )
+        if minor == 0:
+            return None
+        return np.degrees(np.sign(minor) * np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
+
+    def interpolate_line_point(line: LineString) -> Point | None:
+        """
+        Interpolates a line point by given length.
+
+        :param line: The line to interpolate.
+        :return: The interpolated point on the line.
+        """
+        proj_line = transform(project_forward, line)
+        # to vector
+        vec = np.array([proj_line.coords[1][0] - proj_line.coords[0][0], proj_line.coords[1][1] - proj_line.coords[0][1]])
+        if vec[0] == 0. and vec[1] == 0.:
+            return None
+        interpolated_vec = unit_vector(vec) * args.wedge_length
+        return transform(project_back, Point(proj_line.coords[0][0] + interpolated_vec[0], proj_line.coords[0][1] + interpolated_vec[1]))
 
     # counter
     c = 0
 
     # load all river paths
-    cur.execute("select recroadid, geom_segments from topology.recrivers WHERE recroadid = 'STR-REC-WW-GLAN-002_down-2024_11_07'")
+    cur.execute("select recroadid, geom_segments from topology.recrivers")
     for data in cur:
         path: LineString = wkb.loads(data[1])
         # skip first and last points - they are our start and end points
@@ -142,6 +173,41 @@ if __name__ == "__main__":
             # rotate using rotation matrix
             rot_l = rotate_opposite_point(p, closest_point, R_f)
             rot_r = rotate_opposite_point(p, closest_point, R_b)
+            if rot_l is None or rot_r is None:
+                print("Warning... invalid rotation of point", rot_l, rot_r)
+                continue
+
+            # check line angle - rot_l and rot_r must not be greater than the respective angles
+            vec = np.array([p.x - closest_point.x, p.y - closest_point.y])  # this is the opposite vector of our current line
+            # get maximum angles
+            max_l = angle(vec, np.array([rot_l.x - p.x, rot_l.y - p.y]))
+            max_r = angle(vec, np.array([rot_r.x - p.x, rot_r.y - p.y]))
+            # swap variables
+            if max_l < max_r:
+                rot_r, rot_l = rot_l, rot_r
+                max_r, max_l = max_l, max_r
+            # get angles to line before and after
+            coords_before = path.coords[i-1]
+            coords_after = path.coords[i+1]
+            vec_before = np.array([coords_before[0] - p.x, coords_before[1] - p.y])
+            vec_after = np.array([ coords_after[0] - p.x, coords_after[1] - p.y])
+            before = angle(vec, vec_before)
+            after = angle(vec, vec_after)
+            if before is None or after is None:
+                print("Warning... angles too odd", data[0])
+                continue
+            # swap variables
+            if before < after:
+                coords_after, coords_before = coords_before, coords_after
+                before, after = after, before
+
+            # compare both angles
+            if max_l > before:
+                # adjust angle to point before
+                rot_l = interpolate_line_point(LineString([p, Point(coords_before[0], coords_before[1])]))
+            if max_r < after:
+                # adjust to after
+                rot_r = interpolate_line_point(LineString([p, Point(coords_after[0], coords_after[1])]))
 
             # create triangular polygon to look for opposite shore
             triangle = Polygon([p, rot_l, rot_r])
