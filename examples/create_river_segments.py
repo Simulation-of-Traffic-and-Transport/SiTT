@@ -53,3 +53,4 @@ if __name__ == "__main__":
 
     # update segments column
     cur.execute(f"UPDATE {args.river_table} SET {args.river_geo_column}_segments = ST_Segmentize(ST_Force3D({args.river_geo_column})::geography, {args.segment_length})")
+    conn.commit()
