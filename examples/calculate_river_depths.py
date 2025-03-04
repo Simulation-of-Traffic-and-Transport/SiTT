@@ -89,16 +89,19 @@ if __name__ == "__main__":
         # this will hold the depths for each point
         heights = np.zeros(len(coords))
 
-        # interpolate depths for each point in the river line
-        for idx, coord in enumerate(coords):
-            tempZ = linTriFn(coord[0],coord[1])
-            if np.isnan(float(tempZ)):
-                # nans are converted to 0s
-                tempZ = np.float64(0.)
-            heights[idx]=tempZ
-            new_geom[idx, 2] = tempZ
+        try:
+            # interpolate depths for each point in the river line
+            for idx, coord in enumerate(coords):
+                tempZ = linTriFn(coord[0],coord[1])
+                if np.isnan(float(tempZ)):
+                    # nans are converted to 0s
+                    tempZ = np.float64(0.)
+                heights[idx]=tempZ
+                new_geom[idx, 2] = tempZ
 
-        print("OK:", data[0])
+            print("OK:", data[0])
+        except:
+            print("FAIL:", data[0])
 
         heights_str = "{" + list(heights).__str__()[1:-1] + "}"
         updated_geom = LineString(new_geom).wkt
