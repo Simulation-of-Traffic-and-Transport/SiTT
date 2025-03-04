@@ -50,7 +50,9 @@ if __name__ == "__main__":
     cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_geo_column}_segments')")
     if not cur.fetchone()[0]:
         cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_geo_column}_segments geography(LineStringZ, 4326)")
+        print("Adding column for river segments...")
 
     # update segments column
     cur.execute(f"UPDATE {args.river_table} SET {args.river_geo_column}_segments = ST_Segmentize(ST_Force3D({args.river_geo_column})::geography, {args.segment_length})")
     conn.commit()
+    print("Done.")
