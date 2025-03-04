@@ -165,6 +165,14 @@ if __name__ == "__main__":
             p = Point(coord[0], coord[1])
             wkb_point = wkb.dumps(p, srid=args.crs_source)
 
+            # check if the point is within the river
+            cur2.execute("SELECT ST_Contains(geom, %s) FROM water_wip.all_river_body", (wkb_point,))
+            if not cur2.fetchone()[0]:
+                print("Warning... point outside river", p)
+                we.point(coord[0], coord[1])
+                we.record("point outside river")
+                continue
+
             # find the closest point on the shoreline of any river
             cur2.execute("SELECT ST_ClosestPoint(geom, %s) FROM water_wip.all_water_lines", (wkb_point,))
             # we expect at exactly one result - and we assume that the point is within the river
