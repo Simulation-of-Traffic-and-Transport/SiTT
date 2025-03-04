@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument('-rc', '--river-id-column', dest='river_id_column', default='recroadid', type=str, help='river id column')
     parser.add_argument('-rg', '--river-geo-column', dest='river_geo_column', default='geom', type=str, help='river geometry column')
 
-    parser.add_argument('-l', '--segment-length', dest='segment_length', default=100., type=float, help='length of each segment in meters')
+    parser.add_argument('-l', '--segment-length', dest='segment_length', default=10., type=float, help='length of each segment in meters')
 
     # parse or help
     args: argparse.Namespace | None = None
