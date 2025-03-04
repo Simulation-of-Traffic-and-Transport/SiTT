@@ -68,6 +68,10 @@ if __name__ == "__main__":
     w = shapefile.Writer(target='river_widths', shapeType=shapefile.POLYLINE, autoBalance=True)
     w.field("width", "N", decimal=10)
 
+    # error file
+    we = shapefile.Writer(target='river_widths_errors', shapeType=shapefile.POINT, autoBalance=True)
+    we.field("reason", "C")
+
 
     def create_rotation_matrix(degrees: float) -> np.ndarray:
         """ Create a rotation matrix for given degrees.
@@ -119,7 +123,7 @@ if __name__ == "__main__":
         """ Returns the unit vector of the vector"""
         return vector / np.linalg.norm(vector)
 
-    def angle(vector1: np.array, vector2: np.array) -> float | None:
+    def angle(vector1: np.array, vector2: np.array) -> float:
         """ Returns the angle in degrees between given vectors"""
         v1_u = unit_vector(vector1)
         v2_u = unit_vector(vector2)
@@ -127,7 +131,7 @@ if __name__ == "__main__":
             np.stack((v1_u[-2:], v2_u[-2:]))
         )
         if minor == 0:
-            return None
+            return 0. # return 0 degrees if vectors are parallel
         return np.degrees(np.sign(minor) * np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)))
 
     def interpolate_line_point(line: LineString) -> Point | None:
@@ -174,7 +178,10 @@ if __name__ == "__main__":
             rot_l = rotate_opposite_point(p, closest_point, R_f)
             rot_r = rotate_opposite_point(p, closest_point, R_b)
             if rot_l is None or rot_r is None:
+                we.point(coord[0], coord[1])
+                we.record("invalid rotation of point")
                 print("Warning... invalid rotation of point", rot_l, rot_r)
+                # TODO: handle this
                 continue
 
             # check line angle - rot_l and rot_r must not be greater than the respective angles
@@ -193,9 +200,22 @@ if __name__ == "__main__":
             vec_after = np.array([ coords_after[0] - p.x, coords_after[1] - p.y])
             before = angle(vec, vec_before)
             after = angle(vec, vec_after)
-            if before is None or after is None:
-                print("Warning... angles too odd", data[0])
+            if before == 0 and after == 0:
+                # quite unlikely, but will handle this anyway
+                print("Warning... angles too odd - both 0", data[0])
                 continue
+            # special case when line is the same as the shortest path to the shore - angle is 0 in this case
+            # we will set the angle to 180 degrees and let the code below handle this
+            if before == 0:
+                if after > 0:
+                    before = -180
+                else:
+                    before = 180
+            if after == 0:
+                if before > 0:
+                    after = -180
+                else:
+                    after = 180
             # swap variables
             if before < after:
                 coords_after, coords_before = coords_before, coords_after
@@ -217,8 +237,10 @@ if __name__ == "__main__":
             # we expect at exactly one result - and we assume that the point is within the river
             closest_opposite_point: Point = wkb.loads(cur2.fetchone()[0])
             if closest_opposite_point is None:
-                print("Warning... closest_opposite_point", data[0])
-                # TODO: handle this
+                we.point(coord[0], coord[1])
+                we.record("closest_opposite_point not found, possibly outside river")
+                print("Warning... closest_opposite_point not found, possibly outside river", data[0], i, f'POINT({coord[0]} {coord[1]})')
+                # TODO: handle this -> note to correct the path here
                 continue
 
             # create line string
@@ -234,5 +256,6 @@ if __name__ == "__main__":
             # TODO update river width in database
 
     w.close()
+    we.close()
 
     print(c)
