@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('-rg', '--river-geo-column', dest='river_geo_column', default='geom', type=str, help='river geometry column')
     parser.add_argument('-ra', '--river-huba-column', dest='river_a_column', default='hubaid', type=str, help='river hub a column')
     parser.add_argument('-rb', '--river-hubb-column', dest='river_b_column', default='hubbid', type=str, help='river hub b column')
-    parser.add_argument('-rd', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
+    parser.add_argument('-rw', '--river-width-column', dest='river_width_column', default='width', type=str, help='river width column')
 
     parser.add_argument('-ht', '--hub-table', dest='hub_table', default='topology.rechubs', type=str, help='hub table to check')
     parser.add_argument('-hc', '--hub-id-column', dest='hub_id_column', default='rechubid', type=str, help='hub id column')
@@ -63,6 +63,15 @@ if __name__ == "__main__":
     cur = conn.cursor()
     cur2 = conn.cursor()
     cur_upd = conn.cursor()  # update cursor
+
+    # add column, if needed
+    # check if depth exists, create column otherwise
+    schema, table = args.river_table.split('.')
+    cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_width_column}')")
+    if not cur.fetchone()[0]:
+        cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_width_column} double precision[]")
+        conn.commit()
+        print("Adding column for river widths...")
 
     # create shapefile to check lines
     w = shapefile.Writer(target='river_widths', shapeType=shapefile.POLYLINE, autoBalance=True)
@@ -155,9 +164,13 @@ if __name__ == "__main__":
     # load all river paths
     cur.execute("select recroadid, geom_segments from topology.recrivers")
     for data in cur:
+        recroadid = data[0]
         path: LineString = wkb.loads(data[1])
-        # skip first and last points - they are our start and end points
-        # TODO - check these points
+
+        # this will hold the depths for each point
+        widths = np.zeros(len(path.coords) - 2)
+
+        # skip first and last points - they are our start and end points - they will be interpolated later
         for i in range(1, len(path.coords) - 1):
             c += 1 # increase counter
 
@@ -178,7 +191,7 @@ if __name__ == "__main__":
             # we expect at exactly one result - and we assume that the point is within the river
             closest_point: Point = wkb.loads(cur2.fetchone()[0])
             if closest_point is None:
-                print("Warning... closest_point", data[0])
+                print("Warning... closest_point", recroadid)
                 # TODO: handle this
                 continue
 
@@ -210,7 +223,7 @@ if __name__ == "__main__":
             after = angle(vec, vec_after)
             if before == 0 and after == 0:
                 # quite unlikely, but will handle this anyway
-                print("Warning... angles too odd - both 0", data[0])
+                print("Warning... angles too odd - both 0", recroadid)
                 continue
             # special case when line is the same as the shortest path to the shore - angle is 0 in this case
             # we will set the angle to 180 degrees and let the code below handle this
@@ -247,7 +260,7 @@ if __name__ == "__main__":
             if closest_opposite_point is None:
                 we.point(coord[0], coord[1])
                 we.record("closest_opposite_point not found, possibly outside river")
-                print("Warning... closest_opposite_point not found, possibly outside river", data[0], i, f'POINT({coord[0]} {coord[1]})')
+                print("Warning... closest_opposite_point not found, possibly outside river", recroadid, i, f'POINT({coord[0]} {coord[1]})')
                 # TODO: handle this -> note to correct the path here
                 continue
 
@@ -261,9 +274,15 @@ if __name__ == "__main__":
             w.line([length_line.coords])
             w.record(width)
 
-            # TODO update river width in database
+            # add to river width
+            widths[i-1] = np.float64(width)
+
+        # update river width in database
+        widths_str = "{" + list(widths).__str__()[1:-1] + "}"
+        cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_width_column} = '{widths_str}' WHERE {args.river_id_column} = '{recroadid}'")
+        conn.commit()
 
     w.close()
     we.close()
 
-    print(c)
+    print(c, "widths calculated")
