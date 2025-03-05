@@ -9,8 +9,10 @@ import argparse
 
 import numpy as np
 import psycopg2
-from shapely import wkb, Point, LineString
 import shapefile
+from pyproj import Transformer
+from shapely import wkb, Point, LineString
+from shapely.ops import transform
 
 if __name__ == "__main__":
     # parse arguments
@@ -40,6 +42,9 @@ if __name__ == "__main__":
     parser.add_argument('-k', '--kst', dest='kst', default=25, type=float, help='Gauckler–Manning-Strickler coefficient')
     parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool, help='Assume trapezoid river bed, rectangular otherwise.')
 
+    # projection settings
+    parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')
+    parser.add_argument('--crs-target', dest='crs_target', default=32633, type=int, help='projection target (has to support meters)')
 
     # parse or help
     args: argparse.Namespace | None = None
@@ -49,6 +54,8 @@ if __name__ == "__main__":
     except:
         parser.print_help()
         parser.exit(1)
+
+    project_forward = Transformer.from_crs(args.crs_source, args.crs_target, always_xy=True).transform
 
     # Connect to the database
     conn = psycopg2.connect(host=args.server, dbname=args.database, user=args.user, password=args.password,
@@ -164,8 +171,27 @@ if __name__ == "__main__":
         size = len(depth_sections)
 
         for i in range(size):
-            average_depth = -np.average(depth_sections[i])
-            average_width = np.average(np.trim_zeros(width_sections[i])) # trim zeros from width (we ignore those for width)
+            # get river segment lengths for setting weights
+            section_lengths = np.zeros(len(coord_sections[i]) - 1)
+            for j in range(len(coord_sections[i]) - 1):
+                line = LineString([(coord_sections[i][j][0], coord_sections[i][j][1]), (coord_sections[i][j+1][0], coord_sections[i][j+1][1])])
+                section_lengths[j] = transform(project_forward, line).length
+
+            section_weights = np.zeros(len(coord_sections[i]))
+            for j in range(len(coord_sections[i])):
+                if j == 0:
+                    section_weights[j] = section_lengths[j] / 2
+                elif j == len(coord_sections[i]) - 1:
+                    section_weights[j] = section_lengths[j-1] / 2
+                else:
+                    section_weights[j] = section_lengths[j-1] / 2 + section_lengths[j] / 2
+
+            # create weights per section
+            section_weights = section_weights / np.sum(section_weights)
+
+            # calculate average depth and width for this river segment - use weights from sections
+            average_depth = -np.average(depth_sections[i], weights=section_weights)
+            average_width = np.average(width_sections[i], weights=section_weights)
             if i == 0:
                 # take first point of starting point
                 coords = coord_sections[i][0]
