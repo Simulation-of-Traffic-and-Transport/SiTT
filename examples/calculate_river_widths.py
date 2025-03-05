@@ -162,9 +162,9 @@ if __name__ == "__main__":
     c = 0
 
     # load all river paths
-    cur.execute("select recroadid, geom_segments from topology.recrivers")
+    cur.execute(f"select {args.river_id_column}, {args.river_geo_column} from {args.river_table}")
     for data in cur:
-        recroadid = data[0]
+        recroadid: str = data[0]
         path: LineString = wkb.loads(data[1])
 
         # this will hold the depths for each point

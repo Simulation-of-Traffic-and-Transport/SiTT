@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 """
 This is an example how to create river segments in the database. Segment length can be set and is approximate. A length
-of between 10 and 500 meters is a reasonable default. The algorithm uses PostGIS and not Shapely du to being more
-accurate when projecting points.
+of between 10 is a reasonable default, because we will combine these segments into larger chunks later. The algorithm
+uses PostGIS and not Shapely du to being more accurate when projecting points.
 """
 
 import argparse

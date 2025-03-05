@@ -12,6 +12,8 @@ This folder contains a score of sample files that help prepare and shape the geo
 
 * [calculate_river_depths.py](calculate_river_depths.py): This is an example how to calculate river depths using grid
   interpolation.
+* [calculate_river_flows.py](calculate_river_flows.py): Example of how to combine all factors into a river flow
+  calculation.
 * [calculate_river_slopes.py](calculate_river_slopes.py): This is an example how to calculate river slopes (inclines)
   using hub heights (z-heights).
 * [calculate_river_widths.py](calculate_river_widths.py): This is a script to calculate river width per point on the segments. It uses the
@@ -57,20 +59,20 @@ Hubs should contain at least the following fields:
 ```mermaid
 flowchart TB
     
-IMPORT_DEPTHS[import_shape_depths_folder.py]
 HUBS[set_height_hubs.py]
 VALIDATE[validate_river_directions.py]
 SLOPES[calculate_river_slopes.py]
 SEGMENTS[create_river_segments.py]
+IMPORT_DEPTHS[import_shape_depths_folder.py]
 DEPTHS[calculate_river_depths.py]
-SHORES[create_river_shores.py]
 WIDTHS[calculate_river_widths.py]
+FLOWS[calculate_river_flows.py]
 
-HUBS --> VALIDATE --> SLOPES
-VALIDATE --> HUBS
-VALIDATE --> SEGMENTS-->DEPTHS
-IMPORT_DEPTHS-->DEPTHS
-SEGMENTS --> WIDTHS
+HUBS-->VALIDATE-->SLOPES-->FLOWS
+VALIDATE-->HUBS
+VALIDATE-->SEGMENTS-->DEPTHS
+IMPORT_DEPTHS-->DEPTHS-->FLOWS
+SEGMENTS-->WIDTHS-->FLOWS
 ```
 
 * [set_height_hubs.py](set_height_hubs.py) will set the heights of the hubs first, adding a z coordinate to each point,
@@ -90,3 +92,4 @@ SEGMENTS --> WIDTHS
   have to check each point. This takes quite a while, so go get some lunch while this is calculating.
 * [calculate_river_widths.py](calculate_river_widths.py): This is a script to calculate river width per point on the segments. It uses the
   river lines as base reference, takes the closest point and tries to find an opposite point within a certain angle.
+* [calculate_river_flows.py](calculate_river_flows.py): TODO
