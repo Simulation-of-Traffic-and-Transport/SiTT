@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 import psycopg2
 from shapely import wkb, Point, Polygon, LineString
+import shapefile
 
 if __name__ == "__main__":
     # parse arguments
@@ -120,6 +121,18 @@ if __name__ == "__main__":
         segment_lengths = create_split_indexes(length)
         return np.cumsum(segment_lengths)[:-1] # remove last position
 
+    # create shapefile to check lines
+    w = shapefile.Writer(target='river_flows', shapeType=shapefile.POINT, autoBalance=True)
+    w.field("width", "N", decimal=10)
+    w.field("depth", "N", decimal=10)
+    w.field("slope", "N", decimal=10)
+    w.field("flow", "N", decimal=10)
+
+    # error file
+    we = shapefile.Writer(target='river_flows_errors', shapeType=shapefile.POINT, autoBalance=True)
+    we.field("reason", "C")
+
+
     # load all river paths
     cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column} from {args.river_table}")
     for data in cur:
@@ -181,6 +194,21 @@ if __name__ == "__main__":
             r = a / u
             # Gauckler-Manning-Strickler flow formula
             vm = args.kst * r ** (2 / 3) * slope ** (1 / 2) # flow rate is in m/s
+            if np.isnan(vm):
+                we.point(coords[0], coords[1])
+                if np.isnan(slope):
+                    we.record("slope is NaN")
+                elif np.isnan(average_width):
+                    we.record("width is NaN")
+                elif average_depth < 0:
+                    we.record("depth is negative")
+                else:
+                    we.record("vm is NaN")
 
+            # write to shapefile
+            w.point(coords[0], coords[1])
+            w.record(average_width, average_depth, slope, vm)
             print(p, average_depth, average_width, slope, vm)
 
+    w.close()
+    we.close()
