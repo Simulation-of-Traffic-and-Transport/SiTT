@@ -53,7 +53,7 @@ if __name__ == "__main__":
     conn = create_engine(f"postgresql://{args.user}:{args.password}@{args.server}:{args.port}/{args.database}").connect()
 
     # add column, if needed
-    # check if geom_segments exists, create column if not
+    # check if depth exists, create column otherwise
     schema, table = args.river_table.split('.')
     if not conn.execute(text(
         f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_depths_column}')")).fetchone()[0]:
