@@ -9,7 +9,7 @@ import argparse
 
 import numpy as np
 import psycopg2
-from shapely import wkb, Point, Polygon, LineString
+from shapely import wkb, Point, LineString
 import shapefile
 
 if __name__ == "__main__":
@@ -33,6 +33,9 @@ if __name__ == "__main__":
     parser.add_argument('-rs', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
     parser.add_argument('-rw', '--river-width-column', dest='river_width_column', default='width', type=str, help='river width column')
 
+    # chunk settings
+    parser.add_argument('--chunk-size', dest='chunk_size', default=10, type=float, help='Size of chunks to put back together')
+
     # flow settings
     parser.add_argument('-k', '--kst', dest='kst', default=25, type=float, help='Gauckler–Manning-Strickler coefficient')
     parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool, help='Assume trapezoid river bed, rectangular otherwise.')
@@ -51,6 +54,7 @@ if __name__ == "__main__":
     conn = psycopg2.connect(host=args.server, dbname=args.database, user=args.user, password=args.password,
                             port=args.port)
     cur = conn.cursor()
+    cur_upd = conn.cursor()
 
     def create_split_indexes(length: float) -> np.array:
         """
@@ -61,24 +65,24 @@ if __name__ == "__main__":
         :return: Array of segment index lengths.
         """
         # special cases of very short segments
-        if length < 10:
+        if length < args.chunk_size:
             return np.array([int(np.floor(length/2)), int(np.ceil(length/2))])
 
         # we deduct 5 from start and end points, because these belong to those
-        l = length - 10
+        l = length - args.chunk_size
         # get rest
-        rest = l % 10
+        rest = l % args.chunk_size
         # get number of segments based on the rest and the length, but always round down to a whole number
-        n_segments = int((l-rest) / 10)
+        n_segments = int((l-rest) / args.chunk_size)
 
         # create segment array, fill with 10s, respectively 5 for the first and last point
-        segments = np.full(n_segments + 2, 10)
-        segments[0] = 5
-        segments[-1] = 5
+        segments = np.full(n_segments + 2, args.chunk_size)
+        segments[0] = args.chunk_size / 2
+        segments[-1] = args.chunk_size / 2
 
         # special case: if the rest is more than n_segments
         if rest > n_segments:
-            if rest < 5:
+            if rest < args.chunk_size / 2:
                 i = 0
                 while rest > 0:
                     segments[i] += 1
@@ -89,26 +93,26 @@ if __name__ == "__main__":
                 return segments
             # very short, length == 15-19
             if n_segments == 0:
-                return np.array([5, rest, 5])
+                return np.array([args.chunk_size / 2, rest, args.chunk_size / 2])
             # add short segment into middle
             pos = int(np.floor(n_segments / 2)) + 1
             # calculate segments in the middle to be 10 + rest
-            segments[pos] = int(np.floor((10 + rest)/2))
-            return np.insert(segments, pos, int(np.ceil((10 + rest)/2)))
+            segments[pos] = int(np.floor((args.chunk_size + rest)/2))
+            return np.insert(segments, pos, int(np.ceil((args.chunk_size + rest)/2)))
         # less than 5, create some 11 elements segments
-        if rest < 5:
+        if rest < args.chunk_size / 2:
             pos = int(np.floor(n_segments/2)) + 1
             for i in range(int(np.ceil(pos - rest/2)), int(np.ceil(pos + rest/2))):
-                segments[i] = 11
+                segments[i] = args.chunk_size + 1
             return segments
 
         # more than 4, add one segment and insert segments of 9 in the middle
-        segments = np.insert(segments, 1, 10) # add segment
+        segments = np.insert(segments, 1, args.chunk_size) # add segment
         n_segments += 1
-        rest = 10 - rest
+        rest = args.chunk_size - rest
         pos = int(np.floor(n_segments / 2)) + 1
         for i in range(int(np.ceil(pos - rest / 2)), int(np.ceil(pos + rest / 2))):
-            segments[i] = 9
+            segments[i] = args.chunk_size - 1
         return segments
 
     def create_segmentable_list(length: float) -> np.array:
@@ -131,7 +135,6 @@ if __name__ == "__main__":
     # error file
     we = shapefile.Writer(target='river_flows_errors', shapeType=shapefile.POINT, autoBalance=True)
     we.field("reason", "C")
-
 
     # load all river paths
     cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column} from {args.river_table}")
