@@ -31,7 +31,7 @@ from pathlib import Path
 import geopandas as gpd
 import psycopg2
 from pyproj import Transformer
-from shapely import wkb, Point, force_3d
+from shapely import Point, force_3d
 from shapely.ops import transform
 
 if __name__ == "__main__":
@@ -56,6 +56,7 @@ if __name__ == "__main__":
 
     # path settings
     parser.add_argument('-f', '--folder', dest='folder', default='depths', type=str, help='folder containing shape files')
+    parser.add_argument('-df', '--depth-field', dest='depth_field_index', default=3, type=int, help='index of depth field in shape files')
 
     parser.add_argument('--crs', dest='crs_no', default=4326, type=int, help='projection target')
 
@@ -100,9 +101,9 @@ if __name__ == "__main__":
                 if row.geometry is None:
                     # if geopandas does not convert points properly, convert it here
                     #print(f"Warning: Skipping row {row.Index} with missing geometry.", row)
-                    point = transform(project_forward, Point(row.field_1, row.field_2, row.field_3))
-                elif row.geometry.has_z is False:
-                    point = force_3d(Point(row.geometry.x, row.geometry.y, row.field_3))  # assume z is the third field in the shapefile
+                    point = transform(project_forward, Point(row.field_1, row.field_2, row[args.depth_field_index]))
+                elif row[args.depth_field_index] or row.geometry.has_z is False:
+                    point = force_3d(Point(row.geometry.x, row.geometry.y, row[args.depth_field_index]))  # assume z is the third field in the shapefile
                 else:
                     point = row.geometry
                 try:
