@@ -39,7 +39,8 @@ if __name__ == "__main__":
     parser.add_argument('--chunk-size', dest='chunk_size', default=10, type=float, help='Size of chunks to put back together')
 
     # flow settings
-    parser.add_argument('-k', '--kst', dest='kst', default=25, type=float, help='Gauckler–Manning-Strickler coefficient')
+    # see: https://www.bauformeln.de/wasserbau/gerinnehydraulik/rauheitsbeiwerte-nach-strickler/ for more examples
+    parser.add_argument('-k', '--kst', dest='kst', default=30, type=float, help='Gauckler–Manning-Strickler coefficient')
     parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool, help='Assume trapezoid river bed, rectangular otherwise.')
 
     # projection settings
