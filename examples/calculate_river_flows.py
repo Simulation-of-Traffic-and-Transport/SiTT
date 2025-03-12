@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # flow settings
     # see: https://www.bauformeln.de/wasserbau/gerinnehydraulik/rauheitsbeiwerte-nach-strickler/ for more examples
     parser.add_argument('-k', '--kst', dest='kst', default=30, type=float, help='Gauckler–Manning-Strickler coefficient')
-    parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool, help='Assume trapezoid river bed, rectangular otherwise.')
+    parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=False, type=bool, help='Assume trapezoid river bed, rectangular otherwise.')
 
     # projection settings
     parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')

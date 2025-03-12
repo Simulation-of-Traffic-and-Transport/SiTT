@@ -501,7 +501,7 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--band', dest='band', default=1, type=int, help='band to use from GeoTIFF')
     parser.add_argument('-k', '--kst', dest='kst', default=25, type=float,
                         help='Gauckler–Manning-Strickler coefficient')
-    parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=True, type=bool,
+    parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=False, type=bool,
                         help='Assume trapezoid river bed, rectangular otherwise.')
     parser.add_argument('--lowest-point', dest='lowest_point', default="", type=str,
                         help='Lowest point of river (name of vertex) - if empty, algorithm tries to find the lowest point automatically.')
