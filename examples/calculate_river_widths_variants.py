@@ -361,7 +361,7 @@ if __name__ == "__main__":
                     if np.isnan(float(tempZ)):
                         # nans are converted to 0s
                         tempZ = np.float64(0.)
-                    xyz[j, 2] = np.abs(tempZ) # abs strictly not needed, since we square anyway, but let's do it consistently
+                    xyz[j, 2] = tempZ
             # add vectors and calculate length including slopes
             ug = 0.
             ag = 0.
