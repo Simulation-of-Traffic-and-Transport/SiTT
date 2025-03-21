@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument('-rd', '--river-depths-column', dest='river_depths_column', default='depths', type=str, help='river depths column (will be created, if not existing)')
     parser.add_argument('-rs', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
     parser.add_argument('-rw', '--river-width-column', dest='river_width_column', default='width', type=str, help='river width column')
+    parser.add_argument('-rf', '--river-flow-column', dest='river_flow_column', default='flow', type=str, help='river flow column')
 
     # chunk settings
     parser.add_argument('--chunk-size', dest='chunk_size', default=10, type=float, help='Size of chunks to put back together')
@@ -133,6 +134,14 @@ if __name__ == "__main__":
         segment_lengths = create_split_indexes(length)
         return np.cumsum(segment_lengths)[:-1] # remove last position
 
+    # add column, if needed
+    schema, table = args.river_table.split('.')
+    cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_flow_column}')")
+    if not cur.fetchone()[0]:
+        cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_flow_column} double precision[]")
+        conn.commit()
+        print("Adding column for river flows...")
+
     # create shapefile to check lines
     w = shapefile.Writer(target='river_flows', shapeType=shapefile.POINT, autoBalance=True)
     w.field("width", "N", decimal=10)
@@ -170,6 +179,9 @@ if __name__ == "__main__":
         coord_sections: list[np.array] = np.split(np.array(segments.coords), indexes)
         width_sections: list[np.array] = np.split(widths, indexes)
         size = len(depth_sections)
+
+        # this will hold the flows for each point
+        flows = np.zeros(size)
 
         for i in range(size):
             # get river segment lengths for setting weights
@@ -241,7 +253,16 @@ if __name__ == "__main__":
             # write to shapefile
             w.point(coords[0], coords[1])
             w.record(average_width, average_depth, slope, vm)
-            print(p, average_depth, average_width, slope, vm)
+
+            # add to list of flows
+            flows[i] = np.float64(vm)
+
+            # print(p, average_depth, average_width, slope, vm)
+
+        # update river width in database
+        flows_str = "{" + list(flows).__str__()[1:-1] + "}"
+        cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}' WHERE {args.river_id_column} = '{recroadid}'")
+        conn.commit()
 
     w.close()
     we.close()
