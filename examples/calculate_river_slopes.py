@@ -25,6 +25,9 @@ if __name__ == "__main__":
     parser.add_argument('-U', '--user', dest='user', default='postgres', type=str, help='postgres user')
     parser.add_argument('-P', '--password', dest='password', default='postgres', type=str, help='postgres password')
     parser.add_argument('-p', '--port', dest='port', default=5432, type=int, help='postgres port')
+
+    parser.add_argument('--overwrite', dest='overwrite', default=False, type=bool, help='overwrite existing slopes')
+
     # table settings
     parser.add_argument('-rt', '--river-table', dest='river_table', default='topology.recrivers', type=str, help='river table to check')
     parser.add_argument('-rc', '--river-id-column', dest='river_id_column', default='recroadid', type=str, help='river id column')
@@ -60,7 +63,11 @@ if __name__ == "__main__":
     cur_upd = conn.cursor() # update cursor
 
     # traverse river data
-    cur.execute(f"select {args.river_id_column}, {args.river_a_column}, {args.river_b_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_slope_column} IS NULL OR {args.river_slope_column} < 0")
+    stmt = f"select {args.river_id_column}, {args.river_a_column}, {args.river_b_column}, {args.river_geo_column} from {args.river_table}"
+    if not args.overwrite:
+        stmt += f" WHERE {args.river_slope_column} IS NULL OR {args.river_slope_column} < 0"
+
+    cur.execute(stmt)
     for data in cur:
         # get heights from hub
         cur1.execute(f"select {args.hub_geo_column} from {args.hub_table} WHERE {args.hub_id_column} = %s", (data[1],))
