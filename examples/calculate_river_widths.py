@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')
     parser.add_argument('--crs-target', dest='crs_target', default=32633, type=int, help='projection target (has to support meters)')
     parser.add_argument('--degrees', dest='degrees', default=35., type=float, help='degrees for checking opposite shore')
-    parser.add_argument('--wedge#length', dest='wedge_length', default=3000., type=float, help='length of legs to search for opposite shore in m')
+    parser.add_argument('--wedge-length', dest='wedge_length', default=3000., type=float, help='length of legs to search for opposite shore in m')
 
     # parse or help
     args: argparse.Namespace | None = None
