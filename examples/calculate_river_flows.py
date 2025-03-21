@@ -221,7 +221,10 @@ if __name__ == "__main__":
                 a = average_width * average_depth
                 u = average_width + 2 * average_depth
             # hydraulic radius
-            r = a / u
+            if u == 0 or a == 0:
+                r = 0.
+            else:
+                r = a / u
             # Gauckler-Manning-Strickler flow formula
             vm = args.kst * r ** (2 / 3) * slope ** (1 / 2) # flow rate is in m/s
             if np.isnan(vm):
