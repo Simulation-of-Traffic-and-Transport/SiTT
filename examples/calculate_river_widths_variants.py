@@ -189,7 +189,7 @@ if __name__ == "__main__":
         return transform(project_back, Point(proj_line.coords[0][0] + interpolated_vec[0], proj_line.coords[0][1] + interpolated_vec[1]))
 
     # counter
-    c = 0
+    counter = 0
 
     # load all river paths
     cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, slope from {args.river_table}")
@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
         # skip first and last points - they are our start and end points - they will be interpolated later
         for i in range(1, len(path.coords) - 1):
-            c += 1 # increase counter
+            counter += 1 # increase counter
 
             coord = path.coords[i]
             p = Point(coord[0], coord[1])
@@ -400,4 +400,4 @@ if __name__ == "__main__":
 
     w.close()
 
-    print(c, "widths calculated")
+    print(counter, "widths calculated")
