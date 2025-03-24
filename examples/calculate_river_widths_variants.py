@@ -9,7 +9,6 @@ certain angle.
 import argparse
 import pickle
 
-import geopandas as gpd
 import numpy as np
 import psycopg2
 import shapefile
@@ -111,6 +110,24 @@ if __name__ == "__main__":
     w.field("cross_sectional_ground", "N", decimal=15)
     w.field("hydraulic_radius_ground", "N", decimal=15)
     w.field("flow_ground", "N", decimal=15)
+    w.field("width_calc_vs_direct", "N", decimal=15)
+    w.field("width_calc_vs_variant", "N", decimal=15)
+    w.field("wetper_trap_vs_ground", "N", decimal=15)
+    w.field("wetper_trap_vs_square", "N", decimal=15)
+    w.field("wetper_ground_vs_square", "N", decimal=15)
+    w.field("hr_trap_vs_ground", "N", decimal=15)
+    w.field("hr_trap_vs_square", "N", decimal=15)
+    w.field("hr_ground_vs_square", "N", decimal=15)
+    w.field("fl_trap_vs_ground", "N", decimal=15)
+    w.field("fl_trap_vs_square", "N", decimal=15)
+    w.field("fl_ground_vs_square", "N", decimal=15)
+
+
+    def divide_no_error(a: float, b: float) -> float:
+        if np.isnan(a) or np.isnan(b) or a == 0. or b == 0.:
+            return 0.
+        return a / b
+
 
     def create_rotation_matrix(degrees: float) -> np.ndarray:
         """ Create a rotation matrix for given degrees.
@@ -196,6 +213,7 @@ if __name__ == "__main__":
     for data in cur:
         recroadid: str = data[0]
         path: LineString = wkb.loads(data[1])
+        slope: float = data[2]
 
         # skip first and last points - they are our start and end points - they will be interpolated later
         for i in range(1, len(path.coords) - 1):
@@ -331,7 +349,7 @@ if __name__ == "__main__":
             else:
                 r = a / u
                 # Gauckler-Manning-Strickler flow formula
-                vm = args.kst * r ** (2 / 3) * data[2] ** (1 / 2)  # flow rate is in m/s
+                vm = args.kst * r ** (2 / 3) * slope ** (1 / 2)  # flow rate is in m/s
 
             ############################################################################################################
             # cross-sectional area for square river bed
@@ -343,7 +361,7 @@ if __name__ == "__main__":
             else:
                 rsq = asq / usq
                 # Gauckler-Manning-Strickler flow formula
-                vmsq = args.kst * rsq ** (2 / 3) * data[2] ** (1 / 2)  # flow rate is in m/s
+                vmsq = args.kst * rsq ** (2 / 3) * slope ** (1 / 2)  # flow rate is in m/s
 
             ############################################################################################################
             # now let's calculate the ground line
@@ -394,9 +412,25 @@ if __name__ == "__main__":
                 # Gauckler-Manning-Strickler flow formula
                 vmg = args.kst * rg ** (2 / 3) * data[2] ** (1 / 2)  # flow rate is in m/s
 
-            # original line
+            # statistics calculation
+            width_calc_vs_direct = 1. - divide_no_error(width_direct, width)
+            width_calc_vs_variant = 1. - divide_no_error(width_variant, width)
+
+            wetper_trap_vs_ground = 1. - np.abs(divide_no_error(u, ug))
+            wetper_trap_vs_square = 1. - np.abs(divide_no_error(u, usq))
+            wetper_ground_vs_square = 1. - np.abs(divide_no_error(ug, usq))
+
+            hr_trap_vs_ground = 1. - np.abs(divide_no_error(a, ag))
+            hr_trap_vs_square = 1. - np.abs(divide_no_error(a, asq))
+            hr_ground_vs_square = 1. - np.abs(divide_no_error(ag, asq))
+
+            fl_trap_vs_ground = 1. - np.abs(divide_no_error(a, ag))
+            fl_trap_vs_square = 1. - np.abs(divide_no_error(a, asq))
+            fl_ground_vs_square = 1. - np.abs(divide_no_error(ag, asq))
+
+            # write line to shapefile
             w.line([length_line.coords])
-            w.record(data[2], width, width_direct, width_variant, deg, u, a, r, vm, usq, asq, rsq, vmsq, ug, ag, rg, vmg)
+            w.record(slope, width, width_direct, width_variant, deg, u, a, r, vm, usq, asq, rsq, vmsq, ug, ag, rg, vmg, width_calc_vs_direct, width_calc_vs_variant, wetper_trap_vs_ground, wetper_trap_vs_square, wetper_ground_vs_square, hr_trap_vs_ground, hr_trap_vs_square, hr_ground_vs_square, fl_trap_vs_ground, fl_trap_vs_square, fl_ground_vs_square)
 
     w.close()
 
