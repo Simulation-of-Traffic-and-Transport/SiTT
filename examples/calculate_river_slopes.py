@@ -8,6 +8,8 @@ segment. Otherwise, we would need a much more accurate height model of the ancie
 """
 import argparse
 
+import numpy as np
+import pandas as pd
 import psycopg2
 from pyproj import Transformer
 from shapely import wkb, Point
@@ -44,6 +46,10 @@ if __name__ == "__main__":
     parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')
     parser.add_argument('--crs-target', dest='crs_target', default=32633, type=int, help='projection target (has to support meters)')
 
+    # export settings
+    parser.add_argument('--export', dest='export', default=False, type=bool, help='Export statistics to a Excel file (openpyxl library required)')
+    parser.add_argument('--export-name', dest='export_name', default="river_routes_slopes.xlsx", type=str, help='Export file name')
+
     # parse or help
     args: argparse.Namespace | None = None
 
@@ -67,6 +73,9 @@ if __name__ == "__main__":
     if not args.overwrite:
         stmt += f" WHERE {args.river_slope_column} IS NULL OR {args.river_slope_column} < 0"
 
+    # gather list of slopes
+    slopes = []
+
     cur.execute(stmt)
     for data in cur:
         # get heights from hub
@@ -87,8 +96,23 @@ if __name__ == "__main__":
         # calculate length of river section by projecting and calculating distance
         length: float = transform(project_forward, wkb.loads(data[3])).length
 
-        print(f"{data[0]} => Hub A: {point_a.z}, Hub B: {point_b.z}, length: {length}")
         slope = abs(point_a.z - point_b.z) / length
+        print(f"{data[0]} => Hub A: {point_a.z}, Hub B: {point_b.z}, length: {length}, slope: {slope}")
         cur1.execute(f"UPDATE {args.river_table} SET {args.river_slope_column} = %s WHERE {args.river_id_column} = %s", (slope, data[0],))
 
+        slopes.append(slope)
+
     conn.commit()
+
+    # show statistics
+    slopes = np.array(slopes)
+    print("\nStatistics:")
+    print("Average slope:", slopes.mean())
+    print("Maximum slope:", slopes.max())
+    print("Minimum slope:", slopes.min())
+    print("Median slope:", np.median(slopes))
+
+    if args.export:
+        df = pd.DataFrame(slopes)
+        df.to_excel(args.export_name)
+        print("Statistics exported to", args.export_name)
