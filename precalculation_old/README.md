@@ -2,7 +2,34 @@
 
 This folder contains precalculation scripts (see [concept](../readmes/concept.md)). They are not part of the core
 application, but can be run before starting the simulation, depending on your data. The scripts are examples only and
-should be adjusted to your needs.
+should be adjusted to your needs. The example folder also contains a lot of scripts to prepare data - depending on what
+data you have, precalculation should have access to the following table data:
+
+* `rechubs` containing hub data
+* `recroads` containing road data
+* `recrives` with detailed, precalculated river data (see [examples readme](../examples/README.md))
+* `reclakes` with information on lake routes
+
+Target schemas are available in [DB Schema](../readmes/database_schema.sql) documentation.
+
+Here a chart showing how to proceed:
+
+```mermaid
+flowchart TD
+    prepare(["Prepare data (examples folder)"])
+    schema(["Create DB schemas"])
+    
+    prepare --> schema
+```
+
+Short explanations:
+
+* [Prepare data](../examples/README.md) - this is largely dependent on your data, but in the end, you should have the
+  tables mentioned above.
+* [DB Schema](../readmes/database_schema.sql) - in `readmes` folder contains SQL to create the schema for PostGis.
+
+
+---
 
 Order of (script) execution:
 
@@ -50,16 +77,16 @@ Short explanations:
 * [convert_rivers_to_edges.py](convert_rivers_to_edges.py) - converter that will convert river data into proper edges.
   This is an alternative way if you have fixed river edges.
 * [connect_lake_harbors](connect_lake_harbors.py) - connect harbors along lakes with edges
-* [convert_water_bodies_to_parts.py](convert_water_bodies_to_parts.py) - converter that will convert water body data
+* [convert_water_bodies_to_parts.py](../readmes/old_concepts/convert_water_bodies_to_parts.py) - converter that will convert water body data
   to polygon shapes using Geos. Much faster than the Python-only version. See
   [segmentation](../readmes/old_concepts/river_segmentation.md) document for more information.
-* [convert_water_bodies_to_parts_nogeos.py](convert_water_bodies_to_parts_nogeos.py) - converter that will convert 
+* [convert_water_bodies_to_parts_nogeos.py](../readmes/old_concepts/convert_water_bodies_to_parts_nogeos.py) - converter that will convert 
   water body data to polygon shapes using plain Python. This will be *very* slow for large water bodies.
 * [prepare_water_depths](prepare_water_depths.py) - prepares the water depths table to be filled manually.
 * [create_base_river_networks.py](create_base_river_networks.py) - creates basic igraphs for river networks and saves
   them to pickle files in the same directory. Takes quite some time in complex river systems. See
   [segmentation](../readmes/old_concepts/river_segmentation.md) document for more information.
-* [convert_base_river_networks_to_edges.py](convert_base_river_networks_to_edges.py) - converter to transform water
+* [convert_base_river_networks_to_edges.py](../readmes/old_concepts/convert_base_river_networks_to_edges.py) - converter to transform water
   information into actual edges. See [segmentation](../readmes/old_concepts/river_segmentation.md) document for more information.
 * [mark_possible_overnight_stays.py](mark_possible_overnight_stays.py) - mark hubs adjacent to overnight stays to be
   close a possible stay-over. This makes it easier for the simulation to guess overnight stays that are a bit off the
