@@ -12,17 +12,11 @@ create table sitt.hubs
         constraint hubs_pk
             primary key,
     geom      geography(PointZ, 4326) not null,
-    overnight boolean default false  not null,
-    harbor    boolean default false  not null,
-    market    boolean default false  not null,
     data      jsonb not null default '{}'::jsonb
 );
 
 create index hubs_geom_index
     on sitt.hubs using gist (geom);
-
-create index hubs_harbor_index
-    on sitt.hubs (harbor);
 
 create index hubs_data_type_index on sitt.hubs using gin (data);
 
