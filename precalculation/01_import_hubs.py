@@ -50,6 +50,9 @@ if __name__ == "__main__":
     parser.add_argument('--geom-field', dest='geom_field', default='geom', type=str, help='field containing geometry')
     parser.add_argument('--height-field', dest='height_field', type=str, help='field containing height if any')
 
+    parser.add_argument('--delete', dest='delete', default=True, type=bool, help='delete before import')
+    parser.add_argument('--drop', dest='drop', default=False, type=bool, help='drop table before import')
+
     # parse or help
     args: argparse.Namespace | None = None
 
@@ -63,6 +66,11 @@ if __name__ == "__main__":
     # connect to database
     conn = create_engine('postgresql://' + args.user + ':' + parse.quote_plus(args.password) + '@' + args.server + ':' +
                          str(args.port) + '/' + args.database).connect()
+
+    if args.drop:
+        print("Dropping table...")
+        conn.execute(text("DROP TABLE IF EXISTS " + args.schema + ".hubs;"))
+        conn.commit()
 
     metadata_obj: MetaData = MetaData(schema=args.schema)
 
@@ -79,6 +87,12 @@ if __name__ == "__main__":
     conn.commit()
 
     print("Database connected - working...")
+
+    # delete existing hubs
+    if args.delete:
+        print("Deleting old records...")
+        conn.execute(text("DELETE FROM " + args.schema + ".hubs;"))
+        conn.commit()
 
     # read original table
     gdf = gpd.read_postgis(f"SELECT * FROM {args.source_schema}.rechubs", conn, geom_col=args.geom_field)
