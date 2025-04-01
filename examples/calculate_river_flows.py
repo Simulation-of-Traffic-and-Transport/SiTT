@@ -153,6 +153,8 @@ if __name__ == "__main__":
     we = shapefile.Writer(target='river_flows_errors', shapeType=shapefile.POINT, autoBalance=True)
     we.field("reason", "C")
 
+    c = 0
+
     # load all river paths
     cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column} from {args.river_table}")
     for data in cur:
@@ -259,6 +261,8 @@ if __name__ == "__main__":
 
             # print(p, average_depth, average_width, slope, vm)
 
+        c += len(flows)
+
         # update river width in database
         flows_str = "{" + list(flows).__str__()[1:-1] + "}"
         cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}' WHERE {args.river_id_column} = '{recroadid}'")
@@ -266,3 +270,5 @@ if __name__ == "__main__":
 
     w.close()
     we.close()
+
+    print(f"Created {c} river flow points.")
