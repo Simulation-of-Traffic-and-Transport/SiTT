@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Import hubs from rechubs into the live structure."""
+"""Import hubs from rechubs into hubs of the simulation.."""
 
 import argparse
 from urllib import parse
@@ -17,7 +17,7 @@ from precalculation.common import parse_yes_no_entry
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
-        description="Convert rivers to edges.",
+        description="Import hubs from rechubs into hubs of the simulation.",
         exit_on_error=False)
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
