@@ -52,15 +52,15 @@ Short explanations:
 * [connect_lake_harbors](connect_lake_harbors.py) - connect harbors along lakes with edges
 * [convert_water_bodies_to_parts.py](convert_water_bodies_to_parts.py) - converter that will convert water body data
   to polygon shapes using Geos. Much faster than the Python-only version. See
-  [segmentation](river_segmentation.md) document for more information.
+  [segmentation](../readmes/old_concepts/river_segmentation.md) document for more information.
 * [convert_water_bodies_to_parts_nogeos.py](convert_water_bodies_to_parts_nogeos.py) - converter that will convert 
   water body data to polygon shapes using plain Python. This will be *very* slow for large water bodies.
 * [prepare_water_depths](prepare_water_depths.py) - prepares the water depths table to be filled manually.
 * [create_base_river_networks.py](create_base_river_networks.py) - creates basic igraphs for river networks and saves
   them to pickle files in the same directory. Takes quite some time in complex river systems. See
-  [segmentation](river_segmentation.md) document for more information.
+  [segmentation](../readmes/old_concepts/river_segmentation.md) document for more information.
 * [convert_base_river_networks_to_edges.py](convert_base_river_networks_to_edges.py) - converter to transform water
-  information into actual edges. See [segmentation](river_segmentation.md) document for more information.
+  information into actual edges. See [segmentation](../readmes/old_concepts/river_segmentation.md) document for more information.
 * [mark_possible_overnight_stays.py](mark_possible_overnight_stays.py) - mark hubs adjacent to overnight stays to be
   close a possible stay-over. This makes it easier for the simulation to guess overnight stays that are a bit off the
   path (maximum distance can be defined, default is 1 km).

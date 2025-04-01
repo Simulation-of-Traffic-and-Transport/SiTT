@@ -4,9 +4,9 @@ This document describes the segmentation of rivers into graphs.
 
 Reference scripts:
 
-* [convert_water_bodies_to_parts.py](convert_water_bodies_to_parts.py) or [convert_water_bodies_to_parts_nogeos.py](convert_water_bodies_to_parts_nogeos.py)
-* [create_base_river_networks.py](create_base_river_networks.py)
-* [convert_base_river_networks_to_edges.py](convert_base_river_networks_to_edges.py)
+* [convert_water_bodies_to_parts.py](../../precalculation/convert_water_bodies_to_parts.py) or [convert_water_bodies_to_parts_nogeos.py](../../precalculation/convert_water_bodies_to_parts_nogeos.py)
+* [create_base_river_networks.py](../../precalculation/create_base_river_networks.py)
+* [convert_base_river_networks_to_edges.py](../../precalculation/convert_base_river_networks_to_edges.py)
 
 ## Segmenting Water Bodies
 
@@ -28,7 +28,7 @@ polygons and create a graph model from them:
 We figure out the following data for each part:
 
 * Add harbors from our hub model (= closest hubs with harbor set to true).
-* Depth (taken from manually entered data points) - see [prepare_water_depths](prepare_water_depths.py).
+* Depth (taken from manually entered data points) - see [prepare_water_depths](../../precalculation/prepare_water_depths.py).
 * Height profile - from geotiff data. This will come handy once we try to calculate slopes.
 
 From this model, we have to figure out segments of the water body. Since water bodies can branch into
