@@ -6,17 +6,12 @@
 import argparse
 from urllib import parse
 
-import pandas as pd
 import geopandas as gpd
-import numpy as np
 from geoalchemy2 import Geometry, WKTElement
-from geoalchemy2.shape import to_shape
-from pyproj import Transformer
-from shapely import force_2d, wkb, ops, LineString, Point
 from sqlalchemy import create_engine, Table, Column, MetaData, \
-    String, Float, JSON, text, insert
+    String, text, insert
 from sqlalchemy.dialects.postgresql import JSONB
-from shapely import wkt
+
 
 def parse_yes_no_entry(s: str | bool) -> bool:
     """Parse a yes/no entry."""
