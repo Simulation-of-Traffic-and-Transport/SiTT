@@ -94,7 +94,7 @@ if __name__ == "__main__":
         if args.fields and len(args.fields) > 0:
             for field in args.fields:
                 if field in row:
-                    if field in args.boolean_fields:
+                    if args.boolean_fields and field in args.boolean_fields:
                         # convert certain values to boolean
                         data[field] = parse_yes_no_entry(row[field])
                     else:

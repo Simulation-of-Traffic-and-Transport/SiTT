@@ -137,11 +137,13 @@ if __name__ == "__main__":
         if args.fields and len(args.fields) > 0:
             for field in args.fields:
                 if field in row:
-                    if field in args.boolean_fields:
+                    if args.boolean_fields and field in args.boolean_fields:
                         # convert certain values to boolean
                         data[field] = parse_yes_no_entry(row[field])
                     else:
-                        # TODO: is_reversed => reverse data, if it is a list
+                        # if geo is reversed, also reverse list data
+                        if is_reversed and type(row[field]) == list:
+                            row[field].reverse()
                         data[field] = row[field]
         # add directions
         directions = {}

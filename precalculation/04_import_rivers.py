@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Import lakes from reclakes into edges of the simulation."""
+"""Import rivers from recrivers into edges of the simulation."""
 
 import argparse
 import math
@@ -19,7 +19,7 @@ from precalculation.common import parse_yes_no_entry
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
-        description="Import lakes from reclakes into edges of the simulation.",
+        description="Import rivers from recrivers into edges of the simulation.",
         exit_on_error=False)
 
     parser.add_argument('-H', '--server', dest='server', default='localhost', type=str, help='database server')
@@ -29,10 +29,10 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--port', dest='port', default=5432, type=int, help='postgres port')
     parser.add_argument('--schema', dest='schema', default='sitt', type=str, help='schema name')
 
-    parser.add_argument('--source-schema', dest='source_schema', default='topology', type=str, help='source schema name (reclakes table)')
-    parser.add_argument('-d', '--data-fields', dest='fields', nargs='*', help='data fields to import from reclakes')
+    parser.add_argument('--source-schema', dest='source_schema', default='topology', type=str, help='source schema name (recrivers table)')
+    parser.add_argument('-d', '--data-fields', dest='fields', nargs='*', help='data fields to import from recrivers')
     parser.add_argument('-b', '--boolean-fields', dest='boolean_fields', nargs='*', help='data fields that have boolean values like "y" or true')
-    parser.add_argument('-dir', '--direction-fields', dest='directions', nargs='*', help='direction fields to import from reclakes')
+    parser.add_argument('-dir', '--direction-fields', dest='directions', nargs='*', help='direction fields to import from recrivers')
     parser.add_argument('--id-field', dest='id_field', default='recroadid', type=str, help='field containing unique identifier')
     parser.add_argument('--hub-a-field', dest='huba_field', default='hubaid', type=str, help='field containing from hub id')
     parser.add_argument('--hub-b-field', dest='hubb_field', default='hubbid', type=str, help='field containing to hub id')
@@ -82,14 +82,14 @@ if __name__ == "__main__":
 
     print("Database connected - working...")
 
-    # delete existing lakes
+    # delete existing rivers
     if args.delete:
         print("Deleting old records...")
-        conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'lake';"))
+        conn.execute(text("DELETE FROM " + args.schema + ".edges WHERE type = 'river';"))
         conn.commit()
 
     # read original table
-    gdf = gpd.read_postgis(f"SELECT * FROM {args.source_schema}.reclakes", conn, geom_col=args.geom_field)
+    gdf = gpd.read_postgis(f"SELECT * FROM {args.source_schema}.recrivers", conn, geom_col=args.geom_field)
 
     # transform hubs format
     for _, row in gdf.iterrows():
@@ -131,7 +131,7 @@ if __name__ == "__main__":
                 is_reversed = True
 
         # add edge type
-        edge_type = "lake"
+        edge_type = "river"
         # add JSONB data
         data = {}
         if args.fields and len(args.fields) > 0:
