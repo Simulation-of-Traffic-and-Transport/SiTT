@@ -8,6 +8,7 @@ from urllib import parse
 
 import geopandas as gpd
 from geoalchemy2 import Geometry, WKTElement
+from shapely import force_3d
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, text, insert
 from sqlalchemy.dialects.postgresql import JSONB
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     # transform hubs format
     for _, row in gdf.iterrows():
         myid = row[args.id_field]
-        geom = row[args.geom_field]
+        geom = force_3d(row[args.geom_field])
         if args.height_field and args.height_field in row:
             # add height conditionally
             geom.z = row[args.height_field]
