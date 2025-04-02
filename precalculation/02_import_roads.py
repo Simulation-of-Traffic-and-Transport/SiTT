@@ -9,7 +9,7 @@ from urllib import parse
 
 import geopandas as gpd
 from geoalchemy2 import Geometry, WKTElement
-from shapely import force_3d
+from shapely import force_2d, force_3d, wkb, Point
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, text, insert
 from sqlalchemy.dialects.postgresql import JSONB
@@ -100,13 +100,35 @@ if __name__ == "__main__":
             continue
         hub_id_a = row[args.huba_field]
         hub_id_b = row[args.hubb_field]
-        # check hub existence
-        if hub_id_a and not conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id = '{hub_id_a}'")).one()[0]:
-            print(f"Skipping row {myid} because hub {hub_id_a} does not exist.")
+        # check hub existence and distance
+        hub_a = conn.execute(text(f"SELECT geom FROM sitt.hubs WHERE id = '{hub_id_a}'")).first()
+        hub_b = conn.execute(text(f"SELECT geom FROM sitt.hubs WHERE id = '{hub_id_b}'")).first()
+        if hub_a is None or hub_b is None:
+            print(f"Skipping row {myid} because hubs missing: {hub_id_a} = {hub_a is None}, {hub_id_b} = {hub_b is None}.")
             continue
-        if hub_id_b and not conn.execute(text(f"SELECT COUNT(*) FROM sitt.hubs WHERE id = '{hub_id_b}'")).one()[0]:
-            print(f"Skipping row {myid} because hub {hub_id_b} does not exist.")
-            continue
+
+        # fix geometry direction if necessary
+        is_reversed = False
+        if args.correct:
+            # create 2D points
+            point_a = force_2d(wkb.loads(hub_a[0]))
+            point_b = force_2d(wkb.loads(hub_b[0]))
+
+            # points of route
+            line_a = Point(geom.coords[0][0:2])
+            line_b = Point(geom.coords[-1][0:2])
+
+            dist_matrix = [
+                point_a.distance(line_a),
+                point_a.distance(line_b),
+                point_b.distance(line_a),
+                point_b.distance(line_b)
+            ]
+
+            # flip geometry?
+            if dist_matrix[0] > dist_matrix[1] and dist_matrix[2] < dist_matrix[3]:
+                geom = geom.reverse()
+                is_reversed = True
 
         # add edge type
         edge_type = "road"
@@ -119,6 +141,7 @@ if __name__ == "__main__":
                         # convert certain values to boolean
                         data[field] = parse_yes_no_entry(row[field])
                     else:
+                        # TODO: is_reversed => reverse data, if it is a list
                         data[field] = row[field]
         # add directions
         directions = {}
