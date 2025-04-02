@@ -91,13 +91,14 @@ if __name__ == "__main__":
             geom.z = row[args.height_field]
         # add JSONB data
         data = {}
-        for field in args.fields:
-            if field in row:
-                if field in args.boolean_fields:
-                    # convert certain values to boolean
-                    data[field] = parse_yes_no_entry(row[field])
-                else:
-                    data[field] = row[field]
+        if args.fields and len(args.fields) > 0:
+            for field in args.fields:
+                if field in row:
+                    if field in args.boolean_fields:
+                        # convert certain values to boolean
+                        data[field] = parse_yes_no_entry(row[field])
+                    else:
+                        data[field] = row[field]
 
         # insert data into hubs table
         stmt = insert(hubs_table).values(id=myid, geom=WKTElement(geom.wkt), data=data)
