@@ -5,10 +5,11 @@
 from abc import ABC
 from urllib import parse
 
+import geopandas as gpd
 import igraph as ig
 from geoalchemy2 import Geography
-from sqlalchemy import create_engine, select, MetaData, Column, Table, Boolean, String, Float, JSON, Enum
-import geopandas as gpd
+from sqlalchemy import create_engine, MetaData, Column, Table, String, Enum
+from sqlalchemy.dialects.postgresql import JSONB
 
 from sitt import PreparationInterface
 
@@ -64,12 +65,8 @@ class PSQLBase(PreparationInterface, ABC):
 
         id_col = Column('id', String, primary_key=True)
         geom_col = Column('geom', Geography('POINTZ'))
-        overnight = Column('overnight', Boolean)
-        harbor = Column('harbor', Boolean)
-        market = Column('market', Boolean)
-        data_col = Column('data', JSON)
-        return Table("hubs", self.metadata_obj, id_col, geom_col, overnight, harbor, market, data_col,
-                     schema=self.schema)
+        data_col = Column('data', JSONB)
+        return Table("hubs", self.metadata_obj, id_col, geom_col, data_col, schema=self.schema)
 
     def get_edges_table(self) -> Table:
         """Get the edges table."""
@@ -82,11 +79,10 @@ class PSQLBase(PreparationInterface, ABC):
         hub_id_a = Column('hub_id_a', String)
         hub_id_b = Column('hub_id_b', String)
         edge_type = Column('type', Enum('road', 'river', 'lake'))
-        cost_a_b = Column('cost_a_b', Float)
-        cost_b_a = Column('cost_b_a', Float)
-        data_col = Column('data', JSON)
-        return Table("edges", self.metadata_obj, id_col, geom_col, hub_id_a, hub_id_b, edge_type, cost_a_b,
-                     cost_b_a, data_col, schema=self.schema)
+        data_col = Column('data', JSONB)
+        directions_col = Column('directions', JSONB)
+        return Table("edges", self.metadata_obj, id_col, geom_col, hub_id_a, hub_id_b, edge_type, data_col,
+                     directions_col, schema=self.schema)
 
     def load_graph_from_database(self) -> ig.Graph:
         g: ig.Graph = ig.Graph()
@@ -98,8 +94,7 @@ class PSQLBase(PreparationInterface, ABC):
         hubs_data = gpd.GeoDataFrame.from_postgis(self.get_hubs_table().select(), conn, index_col='id')
         # iterate frame and add vertices to graph
         for hub in hubs_data.itertuples():
-            attrs = {"name": hub.Index, "geom": hub.geom, "overnight": hub.overnight, "harbor": hub.harbor,
-                     "market": hub.market}
+            attrs = {"name": hub.Index, "geom": hub.geom}
             if hub.data is not None:
                 for key, value in hub.data.items():
                     attrs[key] = value
@@ -109,11 +104,12 @@ class PSQLBase(PreparationInterface, ABC):
         edges_data = gpd.GeoDataFrame.from_postgis(self.get_edges_table().select(), conn, index_col='id')
         # iterate frame and add edges to graph
         for edge in edges_data.itertuples():
-            attrs = {"name": edge.Index, "geom": edge.geom, "type": edge.type, "cost_a_b": edge.cost_a_b,
-                     "cost_b_a": edge.cost_b_a, "from": edge.hub_id_a, "to": edge.hub_id_b}
+            attrs = {"name": edge.Index, "geom": edge.geom, "type": edge.type, "from": edge.hub_id_a, "to": edge.hub_id_b}
             if edge.data is not None:
                 for key, value in edge.data.items():
                     attrs[key] = value
+            if edge.directions is not None:
+                attrs["directions"] = edge.directions
             g.add_edge(edge.hub_id_a, edge.hub_id_b, **attrs)
 
         # close connection

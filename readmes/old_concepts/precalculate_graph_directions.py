@@ -136,4 +136,4 @@ for i in range(1, len(graphs)):
             te['count_a_b'] = 1
             te['count_b_a'] = 0
 
-convert_graph_to_shapefile(g, ".", "union_graph.shp")
+convert_graph_to_shapefile(g, "../../precalculation_old", "union_graph.shp")
