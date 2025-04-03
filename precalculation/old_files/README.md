@@ -33,7 +33,7 @@ flowchart TD
 
 Short explanations:
 
-* [DB Schema](../database_schema.sql) - in `readmes` folder contains SQL to create the schema for PostGis.
+* [DB Schema](../../readmes/database_schema.sql) - in `readmes` folder contains SQL to create the schema for PostGis.
 * [How to import water data](import_water_data.md) - explains how to import water shapes, so they work for our
   simulation. 
 * [import_rec_data.py](import_rec_data.py) - example on how to import hubs, roads, rivers, and lakes from a base database.

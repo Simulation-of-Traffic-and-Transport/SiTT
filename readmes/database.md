@@ -45,7 +45,7 @@ Fields:
 Water bodies are much more convoluted than roads - they possess a specific width, may be flowing into one direction,
 are variable in height and velocity, etc. We need a few tables to represent this.
 
-See [Import Water Data](old_concepts/import_water_data.md) for information on how to create the basic water data
+See [Import Water Data](../precalculation/old_files/import_water_data.md) for information on how to create the basic water data
 body tables.
 
 The base data consists of two tables:
