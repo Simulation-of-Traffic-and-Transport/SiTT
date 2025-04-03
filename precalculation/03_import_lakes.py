@@ -9,7 +9,9 @@ from urllib import parse
 
 import geopandas as gpd
 from geoalchemy2 import Geometry, WKTElement
+from pyproj import Transformer
 from shapely import force_2d, force_3d, wkb, Point
+from shapely.ops import transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, text, insert
 from sqlalchemy.dialects.postgresql import JSONB
@@ -42,6 +44,11 @@ if __name__ == "__main__":
     parser.add_argument('--delete', dest='delete', default=True, type=bool, help='delete before import')
     parser.add_argument('--drop', dest='drop', default=False, type=bool, help='drop table before import')
 
+    parser.add_argument('-f', '--crs-from', dest='crs_from', default=4326, type=int, help='projection source')
+    parser.add_argument('-t', '--crs-to', dest='crs_to', default=32633, type=int,
+                        help='projection target (should support meters)')
+    parser.add_argument('--xy', dest='always_xy', default=True, type=bool, help='use the traditional GIS order')
+
     # parse or help
     args: argparse.Namespace | None = None
 
@@ -51,6 +58,7 @@ if __name__ == "__main__":
         parser.print_help()
         parser.exit(1)
 
+    transformer = Transformer.from_crs(args.crs_from, args.crs_to, always_xy=args.always_xy)
 
     # connect to database
     conn = create_engine('postgresql://' + args.user + ':' + parse.quote_plus(args.password) + '@' + args.server + ':' +
@@ -154,7 +162,10 @@ if __name__ == "__main__":
                 else:
                     directions[direction] = 0
 
-        # insert data into hubs table
+        # add length in m
+        data['length_m'] = transform(transformer.transform, geom).length
+
+        # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
         conn.execute(stmt)
 
