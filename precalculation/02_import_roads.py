@@ -157,10 +157,11 @@ if __name__ == "__main__":
         directions = {}
         if args.directions and len(args.directions) > 0:
             for direction in args.directions:
+                dir_key = direction.lower()
                 if direction in row and not math.isnan(row[direction]):
-                    directions[direction] = int(row[direction])
+                    directions[dir_key] = int(row[direction])
                 else:
-                    directions[direction] = 0
+                    directions[dir_key] = 0
 
         # add length in m
         data['length_m'] = transform(transformer.transform, geom).length
