@@ -91,21 +91,24 @@ if __name__ == "__main__":
 
         # transform to height using GeoTIFF
         if args.file:
-            xx, yy = rds_transformer.transform(hub_geom.x, hub_geom.y)
-            x, y = rds.index(xx, yy)
-            height = band[x, y]
+            try:
+                xx, yy = rds_transformer.transform(hub_geom.x, hub_geom.y)
+                x, y = rds.index(xx, yy)
+                height = band[x, y]
 
-            # update height, if defined
-            if height > 0.:
-                print(f"Updating hub {data[0]} with height {height}...")
-                if args.height_column:
-                    cur_upd.execute(
-                        f"UPDATE {args.table} SET {args.geo_column} = ST_MakePoint(ST_X({args.geo_column}),ST_Y({args.geo_column}), %s), {args.height_column} = %s WHERE {args.id_column} = %s",
-                        (float(height), float(height), data[0]))
-                else:
-                    cur_upd.execute(
-                        f"UPDATE {args.table} SET {args.geo_column} = ST_MakePoint(ST_X({args.geo_column}),ST_Y({args.geo_column}), %s) WHERE {args.id_column} = %s",
-                        (float(height), data[0]))
+                # update height, if defined
+                if height > 0.:
+                    print(f"Updating hub {data[0]} with height {height}...")
+                    if args.height_column:
+                        cur_upd.execute(
+                            f"UPDATE {args.table} SET {args.geo_column} = ST_MakePoint(ST_X({args.geo_column}),ST_Y({args.geo_column}), %s), {args.height_column} = %s WHERE {args.id_column} = %s",
+                            (float(height), float(height), data[0]))
+                    else:
+                        cur_upd.execute(
+                            f"UPDATE {args.table} SET {args.geo_column} = ST_MakePoint(ST_X({args.geo_column}),ST_Y({args.geo_column}), %s) WHERE {args.id_column} = %s",
+                            (float(height), data[0]))
+            except IndexError as e:
+                print(f"Error processing hub {data[0]}: {hub_geom}: {e}")
 
         if args.google_api_key:
             # add to coordinate map
