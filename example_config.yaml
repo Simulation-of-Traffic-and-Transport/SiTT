@@ -39,6 +39,8 @@ quiet: false
 # Simulation start and end points
 simulation_start: &simulation_start START_HUB_ID
 simulation_end: &simulation_end END_HUB_ID
+# Route/Direction to be considered (will be converted to lowercase to match db fields)
+simulation_route: &simulation_route TeurniaVirunum
 
 # used as global start date (e.g. in nc files), must be ISO date YYYY-MM-DD
 start_date: &start_date 1990-08-01
