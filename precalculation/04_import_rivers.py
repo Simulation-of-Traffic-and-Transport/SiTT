@@ -10,7 +10,7 @@ from urllib import parse
 import geopandas as gpd
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import force_2d, force_3d, wkb, Point
+from shapely import force_2d, force_3d, wkb, Point, LineString
 from shapely.ops import transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, text, insert
@@ -163,8 +163,20 @@ if __name__ == "__main__":
                 else:
                     directions[dir_key] = 0
 
+        # leg lengths
+        legs = []
+        last_coord = None
+        for coord in geom.coords:
+            if last_coord is not None:
+                # distance calculation for each leg
+                leg = transform(transformer.transform, LineString([last_coord, coord]))
+                legs.append(leg.length)
+
+            last_coord = coord
+
         # add length in m
         data['length_m'] = transform(transformer.transform, geom).length
+        data['legs'] = legs
 
         # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
