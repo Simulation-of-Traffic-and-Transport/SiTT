@@ -10,7 +10,7 @@ from urllib import parse
 import geopandas as gpd
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import force_2d, force_3d, wkb, Point
+from shapely import force_2d, force_3d, wkb, Point, LineString
 from shapely.ops import transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, text, insert
@@ -40,6 +40,8 @@ if __name__ == "__main__":
     parser.add_argument('--hub-b-field', dest='hubb_field', default='hubbid', type=str, help='field containing to hub id')
     parser.add_argument('--geom-field', dest='geom_field', default='geom', type=str, help='field containing geometry (should be 3D)')
 
+    parser.add_argument('-s', '--segment-length', dest='segment_length', default=500., type=float,
+                        help='segment length for leg calculation')
     parser.add_argument('--correct-directions', dest='correct', default=True, type=bool, help='correct directions if necessary (tests geography of linestring)')
     parser.add_argument('--delete', dest='delete', default=True, type=bool, help='delete before import')
     parser.add_argument('--drop', dest='drop', default=False, type=bool, help='drop table before import')
@@ -97,12 +99,12 @@ if __name__ == "__main__":
         conn.commit()
 
     # read original table
-    gdf = gpd.read_postgis(f"SELECT * FROM {args.source_schema}.reclakes", conn, geom_col=args.geom_field)
+    gdf = gpd.read_postgis(f"SELECT *, ST_Segmentize({args.geom_field}::geography, {args.segment_length}) as {args.geom_field}_segments FROM {args.source_schema}.reclakes", conn, geom_col=args.geom_field+'_segments')
 
     # transform hubs format
     for _, row in gdf.iterrows():
         myid = row[args.id_field]
-        geom = force_3d(row[args.geom_field])
+        geom = force_3d(row[args.geom_field+'_segments'])
         if geom is None:
             print(f"Skipping row {myid} because geometry is None.")
             continue
@@ -163,8 +165,20 @@ if __name__ == "__main__":
                 else:
                     directions[dir_key] = 0
 
+        # leg lengths
+        legs = []
+        last_coord = None
+        for coord in geom.coords:
+            if last_coord is not None:
+                # distance calculation for each leg
+                leg = transform(transformer.transform, LineString([last_coord, coord]))
+                legs.append(leg.length)
+
+            last_coord = coord
+
         # add length in m
         data['length_m'] = transform(transformer.transform, geom).length
+        data['legs'] = legs
 
         # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
