@@ -134,15 +134,12 @@ preparation:
       save_shapefile: true
       save_shapefile_name: network
 
-# Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
-# maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)
-# maximum_difference_from_shortest: if greater than 1, this is the maximum difference of a route from the shortest one
-# (in factor) to be retained in the list.
+# Create actual routes for simulation - this is important in order for the simulation to run. Check graph is true by
+# default and tests some parameters in the graph, so we can be surer it works.
   - class: CreateRoutes
     module: modules.preparation
     args:
-
-
+      check_graph: true
 
 # The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to
 # repeat the conditions for every single step. In our example the check is not_data_must_exist. This will check if the

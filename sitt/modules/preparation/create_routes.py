@@ -4,6 +4,7 @@
 """Create routes to be traversed by the simulation."""
 import logging
 
+import igraph as ig
 import yaml
 
 from sitt import BaseClass, Configuration, Context, PreparationInterface
@@ -26,9 +27,9 @@ class CreateRoutes(BaseClass, PreparationInterface):
     You need precalculated routes for this, so run CalculatePathsAndHubs before calling this class.
     """
 
-    def __init__(self, maximum_routes: int = 0, maximum_difference_from_shortest: float = 0., k_shortest: int = 100):
+    def __init__(self, check_graph: bool = False):
         super().__init__()
-        self.maximum_difference_from_shortest: float = maximum_difference_from_shortest
+        self.check_graph: bool = check_graph
         """Maximum difference from shortest route (factor, if greater than 1)"""
 
 
@@ -49,11 +50,25 @@ class CreateRoutes(BaseClass, PreparationInterface):
         # convert to directed graph
         context.routes = convert_graph_to_directed(context.graph, config.simulation_route, config.simulation_route_reverse)
 
+        if self.check_graph:
+            self.run_check_graph(config, context.routes)
+
         if logger.level <= logging.INFO:
             logger.info(f"PreparationInterface CreateRoutes: Created directed graph with {len(context.routes.vs)} "
                         f"vertices and {len(context.routes.es)} edges.")
 
         return context
+
+    def run_check_graph(self, config: Configuration, g: ig.Graph):
+        # test route
+        try:
+            steps = g.get_shortest_path(config.simulation_start, config.simulation_end)
+            logger.info(f"Shortest route has {len(steps)} steps.")
+        except Exception as e:
+            logger.error(f"Error while checking graph: {str(e)}")
+            raise
+
+        # TODO: more tests, like clusters or so?
 
     def __repr__(self):
         return yaml.dump(self)
