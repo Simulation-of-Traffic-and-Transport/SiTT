@@ -114,24 +114,22 @@ preparation:
 # "show_network": Display network on stdout (depends on platform). If save_network is true, "save_network_name" and
 # "save_network_type" will define the output file name and type. Possible file types are eps, jpeg, jpg, pdf, pgf, png,
 # ps, raw, rgba, svg, svgz, tif, tiff.
-# "display_routes": Display an example route. You need to define "start" and "end" hub ids. "show_graphs" will plot
-# graphs to stdout (depends on platform). "save_graphs" defines, if graphs should be saved (multiple files are
-# possible). Like above, "save_graphs_names" and "save_graphs_type" define file names and types (same possible values).
+# "save_shapefile": Will save the route as shapefile to "save_shapefile_name" - this will be lines only, but directed,
+# so one can create a pointer output from this to check if the defined route is valid.
   - class: DebugDisplayPathsAndHubs
     module: modules.preparation
     args:
-      draw_network: true
+      start: *simulation_start
+      end: *simulation_end
+      route: *simulation_route
+      draw_network: false
       show_network: false
       save_network: true
       save_network_name: network
-      save_network_type: png
-      display_routes: false
-      start: *simulation_start
-      end: *simulation_end
-      show_graphs: false
-      save_graphs: true
-      save_graphs_names: possible_routes
-      save_graphs_type: png
+      save_network_type: svg
+      # possible values are eps, jpeg, jpg, pdf, pgf, png, ps, raw, rgba, svg, svgz, tif, tiff
+      save_shapefile: true
+      save_shapefile_name: network
 
 # Create actual routes for simulation - this is important in order for the simulation to run. It takes two parameters:
 # maximum_routes: if greater than 0, this is the maximum number of routes to retain (sorted by shortest routes)

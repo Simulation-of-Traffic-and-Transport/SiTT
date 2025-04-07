@@ -3,18 +3,13 @@
 # SPDX-License-Identifier: MIT
 """Debug loaded paths and hubs"""
 import logging
-from zlib import crc32
 
-import igraph as ig
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import numpy as np
+import shapefile
 import yaml
-from shapely.geometry import GeometryCollection
 
 from sitt import Configuration, Context, PreparationInterface
-from sitt.convert_graph_to_directed import convert_graph_to_directed
-import shapefile
 
 logger = logging.getLogger()
 
@@ -51,34 +46,6 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
         if self.route is None:
             logger.error("No route specified.")
             return context
-
-        # ### TODO
-        #
-        # g = convert_graph_to_directed(context.graph, self.route, False, self.start, self.end)
-        # fig, ax = plt.subplots()
-        # fig.set_dpi(300)
-        #
-        # # coordinates for nodes
-        # v_x = []
-        # v_y = []
-        #
-        # for vs in g.vs:
-        #     v_x.append(vs['geom'].coords[0][0])
-        #     v_y.append(vs['geom'].coords[0][1])
-        #
-        # p = gpd.GeoSeries(gpd.points_from_xy(x=v_x, y=v_y))
-        # p.plot(ax=ax,markersize=1)
-        # plt.title(self.route)
-        #
-        # for es in g.es:
-        #     s = es.source_vertex['geom']
-        #     t = es.target_vertex['geom']
-        #     ax.annotate(text='', xytext=(s.x, s.y), xy=(t.x, t.y), arrowprops=dict(arrowstyle='->', shrinkB=0, shrinkA=0, mutation_scale=4))
-        #
-        # plt.show()
-        #
-        # ### TODO
-        # exit(0)
 
         # convert route to lower case for case-insensitive comparison
         route = self.route.lower()
