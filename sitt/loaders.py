@@ -149,7 +149,7 @@ def _load_steps_from_raw_list(key: str, data: dict, raw_class_list: list, config
         my_instance = my_class()
 
         # parameters, if defined - this will not write arguments not defined in class
-        if 'args' in entry:
+        if 'args' in entry and entry['args'] is not None:
             my_instance_attrs = my_instance.__dict__
 
             for arg in entry['args']:
