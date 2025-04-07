@@ -8,9 +8,10 @@ import math
 from urllib import parse
 
 import geopandas as gpd
+import numpy as np
 from geoalchemy2 import Geometry, WKTElement
 from pyproj import Transformer
-from shapely import force_2d, force_3d, wkb, Point
+from shapely import force_2d, force_3d, wkb, Point, LineString
 from shapely.ops import transform
 from sqlalchemy import create_engine, Table, Column, MetaData, \
     String, text, insert
@@ -41,6 +42,8 @@ if __name__ == "__main__":
     parser.add_argument('--geom-field', dest='geom_field', default='geom', type=str, help='field containing geometry (should be 3D)')
 
     parser.add_argument('--correct-directions', dest='correct', default=True, type=bool, help='correct directions if necessary (tests geography of linestring)')
+    parser.add_argument('--consider-heights', dest='consider_heights', default=True, type=bool,
+                        help='calculate heights/slopes into length of path')
     parser.add_argument('--delete', dest='delete', default=True, type=bool, help='delete before import')
     parser.add_argument('--drop', dest='drop', default=False, type=bool, help='drop table before import')
 
@@ -163,8 +166,53 @@ if __name__ == "__main__":
                 else:
                     directions[dir_key] = 0
 
+        # Calculate single legs
+        length = 0.
+        legs = []  # in m
+        slopes = []  # in percent
+        base_length = 0.  # in m, for calculating costs
+        up_abs = 0.  # in m, for calculating costs
+        down_abs = 0.  # in m, for calculating costs
+
+        last_coord = None
+        for coord in geom.coords:
+            if last_coord is not None:
+                # distance calculation for each leg
+                leg = transform(transformer.transform, LineString([last_coord, coord]))
+                leg_length = leg.length
+                base_length += leg.length
+
+                # asc/desc
+                diff = last_coord[2] - coord[2]
+
+                # add height to length calculation
+                if args.consider_heights:
+                    leg_length = np.sqrt([leg_length * leg_length + diff * diff])[0]
+
+                # logger.info("%f, %f", diff, leg_length)
+                if leg_length > 0:
+                    slope = diff / leg_length  # slope is in percent (0.00-1.00)
+                    # add to absolute change in m
+                    if diff > 0:
+                        up_abs += diff
+                    else:
+                        down_abs -= diff
+                else:
+                    slope = 0.0
+
+                legs.append(leg_length)
+                slopes.append(slope)
+                length += leg_length
+
+            last_coord = coord
+
         # add length in m
-        data['length_m'] = transform(transformer.transform, geom).length
+        data['length_m'] = length
+        data['legs'] = legs
+        data['slopes'] = slopes
+        data['up_m'] = up_abs
+        data['down_m'] = down_abs
+        data['flat_length_m'] = base_length
 
         # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
