@@ -12,15 +12,6 @@ from sitt.convert_graph_to_directed import convert_graph_to_directed
 
 logger = logging.getLogger()
 
-
-class SortableRoute:
-    legs: []
-    length: float
-
-    def __lt__(self, other):
-        return self.length < other.length
-
-
 class CreateRoutes(BaseClass, PreparationInterface):
     """
     Create routes to be traversed by the simulation. This is used right before the simulation starts.
