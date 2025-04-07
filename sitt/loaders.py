@@ -69,6 +69,10 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
         config.simulation_start = data['simulation_start']
     if 'simulation_end' in data and data['simulation_end']:
         config.simulation_end = data['simulation_end']
+    if 'simulation_route' in data and data['simulation_route']:
+        config.simulation_route = data['simulation_route'].lower()
+    if 'simulation_route_reverse' in data and data['simulation_route_reverse']:
+        config.simulation_route_reverse = data['simulation_route_reverse']
 
     # maximum number of steps without advancing before breaking
     if 'break_simulation_after' in data and data['break_simulation_after']:

@@ -41,6 +41,8 @@ simulation_start: &simulation_start START_HUB_ID
 simulation_end: &simulation_end END_HUB_ID
 # Route/Direction to be considered (will be converted to lowercase to match db fields)
 simulation_route: &simulation_route TeurniaVirunum
+# Is route reversed?
+simulation_route_reverse: &simulation_route_reverse false
 
 # used as global start date (e.g. in nc files), must be ISO date YYYY-MM-DD
 start_date: &start_date 1990-08-01
@@ -107,7 +109,7 @@ preparation:
       # filename of pickled graph
       filename: 'saved_graph.pkl'
       # save to pickled graph if retrieved from db
-      save: true
+      save: false
 
 # DebugDisplayPathsAndHubs is a utility module to check if everything went smoothly during preparation. The options are:
 # "draw_network": Draw or save a network graph. Dependent options are: "save_network": Save graph as file to disk.
@@ -122,6 +124,7 @@ preparation:
       start: *simulation_start
       end: *simulation_end
       route: *simulation_route
+      route_reversed: *simulation_route_reverse
       draw_network: false
       show_network: false
       save_network: true
@@ -138,8 +141,7 @@ preparation:
   - class: CreateRoutes
     module: modules.preparation
     args:
-      maximum_routes: 0
-      maximum_difference_from_shortest: 2.0
+
 
 
 # The ConditionalModule is a utility module to bundle multiple modules with one condition check (so you do not have to

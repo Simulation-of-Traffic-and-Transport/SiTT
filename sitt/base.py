@@ -113,6 +113,10 @@ class Configuration:
         """"Start hub for simulation"""
         self.simulation_end: str | None = None
         """"End hub for simulation"""
+        self.simulation_route: str | None = None
+        """Route key for simulation - should be lowercase"""
+        self.simulation_route_reverse: bool = False
+        """Is route reversed?"""
         self.start_date: dt.date | None = None
         """used as global start date (e.g. in nc files)"""
 
@@ -288,8 +292,7 @@ class Context(object):
         self.routes: ig.Graph | None = None
         """
         Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to
-        find the correct route. It is a multidigraph containing possible routes (normally determined by k-shortest
-        paths in preparation.create_routes).
+        find the correct route. It is a multidigraph containing possible routes.
         """
         self.space_time_data: Dict[str, SpaceTimeData] = {}
 

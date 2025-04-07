@@ -10,11 +10,11 @@ import psycopg2
 import shapefile
 from shapely import LineString
 
-conn = psycopg2.connect("host=localhost dbname=sitt user=[user] password=[pw]")
+conn = psycopg2.connect("host=localhost dbname=sitt user=postgres password=12345")
 conn.set_isolation_level(0)
 cur = conn.cursor()
 
-r = shapefile.Reader("[shapefile].shp").shapeRecords()
+r = shapefile.Reader("/home/mkalus/Kaernten/Kaerntner Flussrouten/Routen_Fluesse.shp").shapeRecords()
 
 for i in range(len(r)):
     rec: shapefile.ShapeRecord = r[i]

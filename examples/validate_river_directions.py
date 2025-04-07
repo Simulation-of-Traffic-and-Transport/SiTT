@@ -73,3 +73,7 @@ if __name__ == "__main__":
                 print(data[0], data[3], point_a.z, point_b.z)
         else:
             print(f"Invalid direction {data[3]} for hub {data[1]} in {data[0]}")
+
+# UPDATE topology.rechubs SET height_m = 390.7, geom = ST_MakePoint(ST_X(geom),ST_Y(geom), 390.7) WHERE id = 82;
+# UPDATE topology.rechubs SET height_m = 390.6, geom = ST_MakePoint(ST_X(geom),ST_Y(geom), 390.6) WHERE id = 230;
+# UPDATE topology.rechubs SET height_m = 378.8999938964844, geom = ST_MakePoint(ST_X(geom),ST_Y(geom), 378.8999938964844) WHERE id = 234;
