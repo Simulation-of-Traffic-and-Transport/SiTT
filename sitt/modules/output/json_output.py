@@ -193,11 +193,10 @@ class JSONOutput(OutputInterface):
 
         # aggregate path data
         for path in self.context.routes.es:
-            orig_path = self.context.graph.es.find(name=path['name'])
             paths.append({
                 'id': path['name'],
-                "from": orig_path['from'],
-                "to": orig_path['to'],
+                "from": path['from'],
+                "to": path['to'],
                 'type': path["type"],
                 'length_m': path['length_m'],
                 'geom': mapping(path['geom']),
