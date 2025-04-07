@@ -40,12 +40,12 @@ def convert_graph_to_directed(graph: ig.Graph, direction: str, reverse: bool) ->
         del attrs['directions']
 
         if direction_value == 1 or direction_value == 2:
-            g.add_edges([(edge['from'], edge['to'])], attributes=attrs.copy())
+            g.add_edge(edge['from'], edge['to'], **attrs.copy())
         if direction_value == -1 or direction_value == 2:
             new_attrs = attrs.copy()
             new_attrs['reverse'] = True
             new_attrs['name'] = new_attrs['name'] + '_rev'
-            g.add_edges([(edge['to'], edge['from'])], attributes=new_attrs)
+            g.add_edge(edge['to'], edge['from'], **new_attrs)
 
     return g
 
