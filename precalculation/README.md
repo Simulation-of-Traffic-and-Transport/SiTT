@@ -18,13 +18,14 @@ Here a chart showing how to proceed:
 ```mermaid
 flowchart TD
     prepare(["Prepare data (examples folder)"])
+    make_xyz[00_make_xyz.py]
     import[01_import_hubs.py]
     roads[02_import_roads.py]
     lakes[03_import_lakes.py]
     rivers[04_import_rivers.py]
     overnight[05_mark_possible_overnight_stays.py]
     
-    prepare --> import --> roads --> overnight
+    prepare --> make_xyz --> import --> roads --> overnight
     import --> lakes --> overnight
     import --> rivers --> overnight
 ```
@@ -33,6 +34,7 @@ Short explanations:
 
 * [Prepare data](../examples/README.md) - this is largely dependent on your data, but in the end, you should have the
   tables mentioned above.
+* [00_make_xyz.py](00_make_xyz.py) - make xyz coordinates using Google API or GeoTIFF.
 * [01_import_hubs.py_](01_import_hubs.py) - import hubs from `rechubs` to `sitt.hubs`
 * [02_import_roads.py](02_import_roads.py) - import roads from `recroads` to `sitt.edges`
 * [03_import_lakes.py](03_import_lakes.py) - import lakes from `reclakes` to `sitt.edges`
