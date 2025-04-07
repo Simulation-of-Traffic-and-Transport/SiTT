@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('-rs', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
     parser.add_argument('-rw', '--river-width-column', dest='river_width_column', default='width', type=str, help='river width column')
     parser.add_argument('-rf', '--river-flow-column', dest='river_flow_column', default='flow', type=str, help='river flow column')
+    parser.add_argument('-rfc', '--river-flow-geometry-column', dest='river_flow_geometry_column', default='geom_flow', type=str, help='river flow geometry column (linestring)')
 
     # chunk settings
     parser.add_argument('--chunk-size', dest='chunk_size', default=10, type=float, help='Size of chunks to put back together')
@@ -134,13 +135,20 @@ if __name__ == "__main__":
         segment_lengths = create_split_indexes(length)
         return np.cumsum(segment_lengths)[:-1] # remove last position
 
-    # add column, if needed
+    # add flow column, if needed
     schema, table = args.river_table.split('.')
     cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_flow_column}')")
     if not cur.fetchone()[0]:
         cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_flow_column} double precision[]")
         conn.commit()
         print("Adding column for river flows...")
+
+    # add flow geometry column, if needed
+    cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_flow_geometry_column}')")
+    if not cur.fetchone()[0]:
+        cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_flow_geometry_column} geometry(LineString,4326)")
+        conn.commit()
+        print("Adding geometry column for river flows...")
 
     # create shapefile to check lines
     w = shapefile.Writer(target='river_flows', shapeType=shapefile.POINT, autoBalance=True)
@@ -184,6 +192,7 @@ if __name__ == "__main__":
 
         # this will hold the flows for each point
         flows = np.zeros(size)
+        flow_coordinates = np.zeros((size, 2))
 
         for i in range(size):
             # get river segment lengths for setting weights
@@ -258,14 +267,14 @@ if __name__ == "__main__":
 
             # add to list of flows
             flows[i] = np.float64(vm)
-
-            # print(p, average_depth, average_width, slope, vm)
+            flow_coordinates[i] = np.array((coords[0], coords[1]))
 
         c += len(flows)
+        new_coords = LineString(flow_coordinates).wkt
 
         # update river width in database
         flows_str = "{" + list(flows).__str__()[1:-1] + "}"
-        cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}' WHERE {args.river_id_column} = '{recroadid}'")
+        cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}', {args.river_flow_geometry_column} = st_geomfromewkt('SRID={args.crs_source};{new_coords}') WHERE {args.river_id_column} = '{recroadid}'")
         conn.commit()
 
     w.close()
