@@ -13,15 +13,14 @@ logger = logging.getLogger()
 
 
 class SimpleRiver(SimulationStepInterface):
-    def __init__(self, speed: float = 3., tow_speed: float = 0.):
+    def __init__(self, min_speed_down: float = 3.35, min_speed_up: float = 3.35):
         """
-        :param speed: average/minimum row speed in kph (if river is slower than this, take this as minimum speed).
-        :param tow_speed: speed in kph when rowing against the current. If not provided, defaults to speed. Half the
-        current's pull will be deducted from the speed, although this is not accurate.
+        :param min_speed_down: minimum row speed in kph (if river is slower than this, take this as minimum speed).
+        :param min_speed_up: speed in kph when towing upriver. If not provided, defaults to speed.
         """
         super().__init__()
-        self.speed: float = speed
-        self.tow_speed: float = tow_speed if tow_speed >= 0. else self.speed
+        self.min_speed_down: float = min_speed_down
+        self.min_speed_up: float = min_speed_up if min_speed_up >= 0. else self.speed
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
                      is_reversed: bool) -> State:
@@ -41,32 +40,25 @@ class SimpleRiver(SimulationStepInterface):
 
         # create range to traverse - might be reversed
         r = range(len(next_leg['legs']))
+        flows = next_leg['flow'].copy()
+
         if is_reversed:
             r = reversed(r)
+            flows.reverse() # also reverse flow
 
         for i in r:
             length = next_leg['legs'][i]  # length is in meters
 
-            # river speed
-            kph = next_leg['flow_rate'] * 3.6
+            # river speed - we take this and the next point's flow rate to calculate the speed
+            kph = (flows[i] + flows[i+1])/2  * 3.6
 
             # determine speed
-            if 'is_tow' in next_leg.attribute_names() and next_leg['is_tow']:
-                # rowing against the current, aka towing
-                current_speed = self.tow_speed
-                # traversing against the current
-                current_speed -= kph/2. # half the current's pull will be deducted from the speed, although this is not accurate
-                if current_speed < 0:
-                    agent.state.signal_stop_here = True
-                    if logger.level <= logging.DEBUG:
-                        logger.debug(
-                            f"SimpleRiver against current failed: {agent.this_hub} to {agent.next_hub} via {agent.route_key}, current speed = {kph} k/h")
-                    return agent.state
+            if 'direction' in next_leg.attribute_names() and next_leg['direction'] == 'upstream':
+                min_speed = self.min_speed_up
             else:
-                current_speed = self.speed
-                # if the pull is greater than the river speed, use the river speed
-                if kph > current_speed:
-                    current_speed = kph
+                min_speed = self.min_speed_down
+
+            current_speed = max(min_speed, kph)
 
             # calculate time taken in units (hours) for this part
             calculated_time = length / (current_speed * 1000)
