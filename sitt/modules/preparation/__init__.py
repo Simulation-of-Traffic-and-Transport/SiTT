@@ -9,6 +9,7 @@ from .create_routes import CreateRoutes
 from .debug_display_paths_and_hubs import DebugDisplayPathsAndHubs
 from .dummy import Dummy
 from .graph_load import GraphLoad
+from .load_data_from_netcdf import LoadDataFromNETCDF
 
 __all__ = [
     'PSQLBase',
@@ -17,4 +18,5 @@ __all__ = [
     'DebugDisplayPathsAndHubs',
     'Dummy',
     'GraphLoad',
+    'LoadDataFromNETCDF',
 ]
