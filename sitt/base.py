@@ -22,6 +22,7 @@ import nanoid
 import netCDF4 as nc
 import numpy as np
 import yaml
+import functools
 
 __all__ = [
     "SkipStep",
@@ -182,6 +183,8 @@ class SpaceTimeData(object):
         """longitude array"""
         self.times: nc.Variable = data.variables[time]
         """time dataset"""
+        self._cache: dict[tuple[int, int, int], dict[str, any]] = {}
+        """Cached data for quicker access"""
 
         # add variables
         self.variables: Dict[str, nc.Variable] = {}
@@ -246,8 +249,6 @@ class SpaceTimeData(object):
 
     def get(self, lat: float, lon: float, day: int, hours: float, config: Configuration,
             fields: list[str] | None = None) -> dict[str, any] | None:
-        # TODO: cache this somehow - especially because our grid (both geographically and temporally) will be relatively
-        # large
 
         # convert to date number
         date_num = self._get_date_number(day, hours, config)
@@ -267,20 +268,31 @@ class SpaceTimeData(object):
         lon_idx = (np.abs(self.lon - lon)).argmin()
         time_idx = (np.abs(self.times[:] - date_num)).argmin()
 
-        # aggregate variables
-        variables: dict[str, any] = {}
+        # we use a cache to store previously calculated values, because accessing indexes in the NETCDF file is quite
+        # slow
+        return self.get_variables_by_index(lat_idx, lon_idx, time_idx, fields)
 
-        for field in fields:
-            if field in self.variables:
-                value = self.variables[field][time_idx][lat_idx][lon_idx]
+    def get_variables_by_index(self, lat_idx: int, lon_idx: int, time_idx: int, fields: list[str]) -> dict[str, any]:
+        key = (lat_idx, lon_idx, time_idx)
+        if key not in self._cache:
+            # aggregate variables
+            variables: dict[str, any] = {}
 
-                # apply offset, if it exists
-                if field in self.offsets:
-                    value += self.offsets[field]
+            for field in fields:
+                if field in self.variables:
+                    value = self.variables[field][time_idx][lat_idx][lon_idx]
 
-                variables[field] = value
+                    # apply offset, if it exists
+                    if field in self.offsets:
+                        value += self.offsets[field]
 
-        return variables
+                    variables[field] = value
+
+            self._cache[key] = variables
+
+            return variables
+        else:
+            return self._cache[key]
 
 
 class Context(object):
