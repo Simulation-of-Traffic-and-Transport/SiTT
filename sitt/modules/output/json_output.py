@@ -79,10 +79,19 @@ class JSONOutput(OutputInterface):
         # add nodes and paths
         nodes, paths = self._graph_to_data()
 
-        # TODO add more data from configuration and context
+        # convert start date to string
+        start_date = ""
+        if self.config.start_date:
+            start_date = str(self.config.start_date)
+
+        # create result dictionary
         return {
             "simulation_start": self.config.simulation_start,
             "simulation_end": self.config.simulation_end,
+            "simulation_route": self.config.simulation_route,
+            "simulation_route_reverse": self.config.simulation_route_reverse,
+            "start_date": start_date,
+            "break_simulation_after": self.config.break_simulation_after,
             "agents_finished": agents_finished,
             "agents_cancelled": agents_cancelled,
             "history": list(history.values()),
