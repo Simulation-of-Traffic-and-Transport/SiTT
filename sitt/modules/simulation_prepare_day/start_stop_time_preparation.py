@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-xxxx
+This preparation will add a certain padding to the agent's start and stop time.
 """
 import logging
 import datetime as dt
@@ -11,7 +11,7 @@ from shapely import Point
 from dateutil import tz
 from sitt import SimulationPrepareDayInterface, Configuration, Context, Agent
 from timezonefinder import TimezoneFinder
-from suntime import Sun, SunTimeException
+from suntime import Sun
 
 logger = logging.getLogger()
 
@@ -19,6 +19,10 @@ logger = logging.getLogger()
 TO_RAD = math.pi/180.0
 
 class StartStopTimePreparation(SimulationPrepareDayInterface):
+    """
+    This preparation will add a certain padding to the agent's start and stop time.
+    It uses the timezonefinder library to get the timezone of the agent's hub.
+    """
     def __init__(self, day_start_padding: float = 0.5, day_end_padding: float = 1.):
         super().__init__()
         self.day_start_padding: float = day_start_padding
@@ -43,6 +47,10 @@ class StartStopTimePreparation(SimulationPrepareDayInterface):
             current_dt = dt.datetime(current_day.year, current_day.month, current_day.day, 0, 0, 0, 0, time_zone)
             sunrise = sun.get_sunrise_time(current_dt, time_zone)
             sunset = sun.get_sunset_time(current_dt, time_zone)
+
+            # remove dst offset to make statistics a bit more straightforward
+            sunrise -= dt.timedelta(seconds=sunrise.dst().seconds)
+            sunset -= dt.timedelta(seconds=sunset.dst().seconds)
 
             # adjust with deltas for sunrise and sunset
             sunrise += dt.timedelta(hours=self.day_start_padding)
