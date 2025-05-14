@@ -16,13 +16,11 @@ import logging
 from enum import Enum
 from typing import Dict, List
 
-import geopandas as gpd
 import igraph as ig
 import nanoid
 import netCDF4 as nc
 import numpy as np
 import yaml
-import functools
 
 __all__ = [
     "SkipStep",
