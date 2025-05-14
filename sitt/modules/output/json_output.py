@@ -82,7 +82,7 @@ class JSONOutput(OutputInterface):
         # convert start date to string
         start_date = ""
         if self.config.start_date:
-            start_date = str(self.config.start_date)
+            start_date = str(self.config.start_date)[0:10]
 
         # create result dictionary
         return {
