@@ -44,7 +44,10 @@ def get_height_for_coordinate(coord: tuple[float, float]) -> float:
     # get height for coordinate
     xx, yy = transformer.transform(coord[0], coord[1])
     x, y = rds.index(xx, yy)
-    height = band[x, y]
+    try:
+        height = band[x, y]
+    except IndexError:
+        height = -1001.  # default to -1001 if no height is available
 
     # Fallback?
     if height < -1000. and args.google_api_key:
@@ -122,7 +125,7 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--input-file', dest='file', required=True, type=str, help='input file (GeoTIFF)')
     parser.add_argument('-b', '--band', dest='band', default=1, type=int, help='band to use from GeoTIFF')
     parser.add_argument('-k', '--keep', dest='keep_existing', default=True, type=bool,
-                        help='keep existing coordinates (overwrite otherwise)')
+                        help='keep existing heights (overwrite otherwise)')
     parser.add_argument('-S', '--create-segments', dest='create_segments', default=False, type=bool,
                         help='create new input coordinates for roads by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
     parser.add_argument('--google-api-key', dest='google_api_key', default='', type=str, help='Google API key for elevation data (if needed)')
