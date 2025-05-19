@@ -92,4 +92,5 @@ SEGMENTS-->WIDTHS-->FLOWS
   have to check each point. This takes quite a while, so go get some lunch while this is calculating.
 * [calculate_river_widths.py](calculate_river_widths.py): This is a script to calculate river width per point on the segments. It uses the
   river lines as base reference, takes the closest point and tries to find an opposite point within a certain angle.
-* [calculate_river_flows.py](calculate_river_flows.py): TODO
+* [calculate_river_flows.py](calculate_river_flows.py): This script will take all the data from the scripts above and
+  calculate the rivers' flows.
