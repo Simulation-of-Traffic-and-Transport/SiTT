@@ -20,7 +20,7 @@ This will be our schema to hold some tables we can delete after we have finished
 Import data:
 
 ```shell
-ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=supersecret" -nln "water_wip.all_water_body" Shapefile.shp 
+ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=supersecret" -t_srs EPSG:4326 -nln "water_wip.all_water_body" Shapefile.shp 
 ```
 
 ## Rivers, Islands, and Lakes
@@ -28,9 +28,9 @@ ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=su
 If you have different shapefiles, like river, islands, and lakes, you can do the following:
 
 ```shell
-ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_rivers" Rivers.shp
-ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_lakes" Lakes.shp
-ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -nln "water_wip.raw_islands" Islands.shp
+ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -t_srs EPSG:4326 -nln "water_wip.raw_rivers" Rivers.shp
+ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -t_srs EPSG:4326 -nln "water_wip.raw_lakes" Lakes.shp
+ogr2ogr -f "PostgreSQL" PG:"host=localhost dbname=sitt user=postgres password=12345" -t_srs EPSG:4326 -nln "water_wip.raw_islands" Islands.shp
 ```
 
 You can now create proper data by joining, cutting and splitting the geo data. First, create a union of water bodies and islands.
