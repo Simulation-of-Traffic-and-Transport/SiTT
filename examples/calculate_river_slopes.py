@@ -11,8 +11,10 @@ import argparse
 import numpy as np
 import pandas as pd
 import psycopg2
+from openpyxl.worksheet.dimensions import Dimension
 from pyproj import Transformer
 from shapely import wkb, Point
+from shapely.errors import DimensionError
 from shapely.ops import transform
 
 if __name__ == "__main__":
@@ -41,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('-ht', '--hub-table', dest='hub_table', default='topology.rechubs', type=str, help='hub table to check')
     parser.add_argument('-hc', '--hub-id-column', dest='hub_id_column', default='rechubid', type=str, help='hub id column')
     parser.add_argument('-hg', '--hub-geo-column', dest='hub_geo_column', default='geom', type=str, help='hub geometry column')
+    parser.add_argument('-hh', '--hub-height-column', dest='hub_height_column', default='', type=str, help='hub height column (if applicable, takes height from geometry, if empty)')
 
     # projection settings
     parser.add_argument('--crs-source', dest='crs_source', default=4326, type=int, help='projection source')
@@ -76,29 +79,47 @@ if __name__ == "__main__":
     # gather list of slopes
     slopes = []
 
+    # prepare SQL query for hub heights
+    if args.hub_height_column:
+        query = f"SELECT {args.hub_geo_column}, {args.hub_height_column} FROM {args.hub_table} WHERE {args.hub_id_column} = %s"
+    else:
+        query = f"SELECT {args.hub_geo_column} FROM {args.hub_table} WHERE {args.hub_id_column} = %s"
+
     cur.execute(stmt)
     for data in cur:
         # get heights from hub
-        cur1.execute(f"select {args.hub_geo_column} from {args.hub_table} WHERE {args.hub_id_column} = %s", (data[1],))
+        cur1.execute(query, (data[1],))
         res = cur1.fetchone()
         if res is None:
             print(f"Hub {data[1]} not found in hub table - hub a of {data[0]}!")
             continue  # skip if hub bid not found in rechubs table
         point_a: Point = wkb.loads(res[0])
+        if args.hub_height_column:
+            height_a: float = float(res[1])
+        else:
+            height_a: float = point_a.z
 
-        cur1.execute(f"select {args.hub_geo_column} from {args.hub_table} WHERE {args.hub_id_column} = %s", (data[2],))
+        cur1.execute(query, (data[2],))
         res = cur1.fetchone()
         if res is None:
             print(f"Hub {data[2]} not found in hub table - hub b of {data[0]}!")
             continue  # skip if hub bid not found in rechubs table
         point_b: Point = wkb.loads(res[0])
+        if args.hub_height_column:
+            height_b: float = float(res[1])
+        else:
+            height_b: float = point_a.z
 
         # calculate length of river section by projecting and calculating distance
         length: float = transform(project_forward, wkb.loads(data[3])).length
 
-        slope = abs(point_a.z - point_b.z) / length
-        print(f"{data[0]} => Hub A: {point_a.z}, Hub B: {point_b.z}, length: {length}, slope: {slope}")
-        cur1.execute(f"UPDATE {args.river_table} SET {args.river_slope_column} = %s WHERE {args.river_id_column} = %s", (slope, data[0],))
+        try:
+            slope = abs(height_a - height_b) / length
+            print(f"{data[0]} => Hub A: {height_a}, Hub B: {height_b}, length: {length}, slope: {slope}")
+            cur1.execute(f"UPDATE {args.river_table} SET {args.river_slope_column} = %s WHERE {args.river_id_column} = %s", (slope, data[0],))
+        except DimensionError as e:
+            print(f"Invalid geometry for river {data[0]} {e}: Point A {point_a} ({data[1]}, height: {height_a}),  Point B {point_b} ({data[2]}, height: {height_b})!")
+            exit(0)
 
         slopes.append(slope)
 
