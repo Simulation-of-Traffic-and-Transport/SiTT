@@ -264,6 +264,8 @@ if __name__ == "__main__":
                     we.record("depth is negative")
                 else:
                     we.record("vm is NaN")
+                # fix for import
+                vm = 0.
 
             # write to shapefile
             w.point(coords[0], coords[1])
