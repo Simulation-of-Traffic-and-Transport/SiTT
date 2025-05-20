@@ -166,6 +166,10 @@ if __name__ == "__main__":
     # load all river paths
     cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column} from {args.river_table}")
     for data in cur:
+        if data[2] is None or data[3] is None or data[4] is None or data[5] is None:
+            print(f"Skipping {data[0]} (missing data)")
+            continue
+
         recroadid: str = data[0]
         path: LineString = wkb.loads(data[1])
         segments: LineString = wkb.loads(data[2])
