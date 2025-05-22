@@ -67,10 +67,10 @@ if __name__ == "__main__":
 
         if data[3] == 'downwards':
             if point_a.z < point_b.z:
-                print(data[0], data[3], point_a.z, point_b.z)
+                print("Problematic flow", data[0], data[3], point_a.z, "=>", point_b.z)
         elif data[3] == 'upwards':
             if point_a.z > point_b.z:
-                print(data[0], data[3], point_a.z, point_b.z)
+                print("Problematic flow", data[0], data[3], point_a.z, "<=", point_b.z)
         else:
             print(f"Invalid direction {data[3]} for hub {data[1]} in {data[0]}")
 
