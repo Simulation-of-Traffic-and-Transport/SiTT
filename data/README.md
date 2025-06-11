@@ -5,6 +5,8 @@ In this folder, there are some scripts and explanations on hot to get example da
 
 ## Copernicus data (weather data)
 
+We use the ERA5 hourly data on single levels: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels
+
 To get the Copernicus data, you need to install cdsapi and create a `.cdsapirc` file on your machine, see:  
 https://cds.climate.copernicus.eu/api-how-to
 or
