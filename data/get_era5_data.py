@@ -11,24 +11,38 @@
 
 import cdsapi
 
-c = cdsapi.Client()
+variables = [
+    '2m_temperature',
+    'convective_rain_rate',
+    'convective_snowfall_rate_water_equivalent',
+    'snow_depth',
+    'precipitation_type', # type table of precipitation (rain, snow, etc.)
+    '10m_u_component_of_wind', # to calculate wind speed
+    '10m_v_component_of_wind', # to calculate wind speed
+    'k_index', # probability of severe weather (thunderstorms)
+]
 
-variables = ['2m_temperature', 'convective_rain_rate', 'convective_snowfall_rate_water_equivalent', 'snow_depth']
+## TODO: maybe take mean values?
+
+years = [
+    '1990', '1991', '1992',
+    '1993', '1994', '1995',
+    '1996', '1997', '1998',
+    '1999',
+]
 
 for variable in variables:
-    print(variable)
+    for year in years:
+        print(variable, year)
 
-    c.retrieve(
-        'reanalysis-era5-single-levels',
-        {
-            'product_type': 'reanalysis',
-            'format': 'netcdf',
-            'variable': variable,
+        dataset = "reanalysis-era5-single-levels"
+        request = {
+            "product_type": ["reanalysis"],
+            "variable": [
+                variable
+            ],
             'year': [
-                '1990', '1991', '1992',
-                '1993', '1994', '1995',
-                '1996', '1997', '1998',
-                '1999',
+                year
             ],
             'month': [
                 '01', '02', '03',
@@ -63,5 +77,9 @@ for variable in variables:
                 49, 9, 46,
                 17,
             ],
-        },
-        'era5_data_' + variable + '.nc')
+            "data_format": "netcdf",
+            "download_format": "unarchived",
+        }
+
+        client = cdsapi.Client()
+        client.retrieve(dataset, request, "era5_data_" + variable + "_" + year + ".nc")
