@@ -3,45 +3,25 @@
 
 # Merge data retrieved by get_era5_data.py into one file. This speeds up data retrieval by a large amount.
 
-import netCDF4 as nc
+import glob
 
-variables = ['2m_temperature', 'convective_rain_rate', 'convective_snowfall_rate_water_equivalent', 'snow_depth']
+import xarray as xr
 
-rootgrp = nc.Dataset("era5_data.nc", "w", format="NETCDF4")
-first = True
+# Load all data files and merge them into one xarray dataset.
+# You need to install dask for this to work: pip install dask (already satisfied in requirements.txt)
+data = xr.merge([xr.open_mfdataset(f, decode_times=False) for f in glob.glob('*[0-9][0-9][0-9][0-9].nc')])
+# we also rename "valid_time" to "time" for consistency with other data sources - this has been changed in the ERA5 data
+# in 2014, also see: https://forum.ecmwf.int/t/new-time-format-in-era5-netcdf-files/3796/5
+data = (data.rename_dims({"valid_time": "time"})
+        .rename_vars({"valid_time": "time"})
+        .drop_vars(["expver", "number"], errors="ignore")
+        )
+print(data)
+data.to_netcdf("era5_data.nc")
 
-for variable in variables:
-    data = nc.Dataset("era5_data_" + variable + ".nc", "r", format="NETCDF4")
-
-    # copy dimensions and base variables from first
-    if first:
-        for dimension in data.dimensions:
-            rootgrp.createDimension(dimension, data.dimensions[dimension].size)
-
-        latitudes = rootgrp.createVariable("latitude", "f4", ("latitude",))
-        latitudes.units = 'degrees_north'
-        longitudes = rootgrp.createVariable("longitude", "f4", ("longitude",))
-        longitudes.units = 'degrees_east'
-        times = rootgrp.createVariable("time", "i4", ("time",))
-        times.units = 'hours since 1900-01-01 00:00:00.0'
-        times.calendar = 'gregorian'
-
-        # copy data
-        longitudes[:] = data.variables["longitude"][:]
-        latitudes[:] = data.variables["latitude"][:]
-        times[:] = data.variables["time"][:]
-
-        first = False
-
-    # copy data
-    for var in data.variables:
-        if var in ['longitude', 'latitude', 'time']:
-            continue
-
-        my_var = rootgrp.createVariable(var, "i2", data.variables[var].dimensions, fill_value=data.variables[var].getncattr('_FillValue'))
-        for attr in data.variables[var].ncattrs():
-            if attr != '_FillValue':
-                my_var.setncattr(attr, data.variables[var].getncattr(attr))
-        my_var[:] = data.variables[var][:]
-
-print(rootgrp)
+# xarray changes the internal formats of the data into 64/32bit equivalents. This creates far bigger files, which
+# might be something we have to address in the future.
+#
+# The original data format in Copernicus data is int16 for values and float32 for coordinates. Saving values in these
+# formats would save about half of the disk space, but I have experienced precision loss when converting values back to
+# int16, so we leave it as such for now.

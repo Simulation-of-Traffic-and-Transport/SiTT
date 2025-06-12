@@ -16,10 +16,10 @@ variables = [
     'convective_rain_rate',
     'convective_snowfall_rate_water_equivalent',
     'snow_depth',
-    'precipitation_type', # type table of precipitation (rain, snow, etc.)
-    '10m_u_component_of_wind', # to calculate wind speed
-    '10m_v_component_of_wind', # to calculate wind speed
-    'k_index', # probability of severe weather (thunderstorms)
+    'precipitation_type',  # type table of precipitation (rain, snow, etc.)
+    '10m_u_component_of_wind',  # to calculate wind speed
+    '10m_v_component_of_wind',  # to calculate wind speed
+    'k_index',  # probability of severe weather (thunderstorms)
 ]
 
 ## TODO: maybe take mean values?
