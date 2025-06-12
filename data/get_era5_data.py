@@ -31,6 +31,8 @@ years = [
     '1999',
 ]
 
+client = cdsapi.Client()
+
 for variable in variables:
     for year in years:
         print(variable, year)
@@ -74,12 +76,11 @@ for variable in variables:
                 '21:00', '22:00', '23:00',
             ],
             'area': [
-                49, 9, 46,
+                49, 9, 45,
                 17,
             ],
             "data_format": "netcdf",
             "download_format": "unarchived",
         }
 
-        client = cdsapi.Client()
         client.retrieve(dataset, request, "era5_data_" + variable + "_" + year + ".nc")
