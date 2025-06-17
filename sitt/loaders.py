@@ -14,7 +14,7 @@ from typing import Any
 import yaml
 
 from sitt import Configuration, SkipStep, PreparationInterface, OutputInterface, \
-    SimulationPrepareDayInterface, SimulationDefineStateInterface, SimulationStepInterface
+    SimulationPrepareDayInterface, SimulationDefineStateInterface, SimulationStepInterface, SimulationStepHookInterface
 
 
 def load_configuration_from_yaml(yaml_stream: Any) -> Configuration:
@@ -98,6 +98,9 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
     _step_data = _parse_step_data('simulation_step', data, config)
     if _step_data:
         config.simulation_step = _step_data
+    _step_data = _parse_step_data('simulation_step_hook', data, config)
+    if _step_data:
+        config.simulation_step_hook = _step_data
     _step_data = _parse_step_data('output', data, config)
     if _step_data:
         config.output = _step_data
@@ -106,7 +109,7 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
 
 
 def _parse_step_data(key: str, data: dict, config: Configuration) -> list[
-                                                                         PreparationInterface | SimulationPrepareDayInterface | SimulationDefineStateInterface | SimulationStepInterface | OutputInterface] | None:
+                                                                         PreparationInterface | SimulationPrepareDayInterface | SimulationDefineStateInterface | SimulationStepInterface | SimulationStepHookInterface | OutputInterface] | None:
     """
     Helper to parse input data from steps. Throws exception if "class" key is not defined or the classes cannot be
     found.

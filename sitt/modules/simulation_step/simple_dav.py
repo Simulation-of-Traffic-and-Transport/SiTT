@@ -54,14 +54,12 @@ class SimpleDAV(SimulationStepInterface):
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
                      is_reversed: bool) -> State:
-        state = agent.state
-
         # precalculate next hub
         path_id = agent.route_key
         if not next_leg:
             logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
-            return state
+            return agent.state
 
         # traverse and calculate time taken for this leg of the journey
         time_taken = 0.
@@ -73,6 +71,13 @@ class SimpleDAV(SimulationStepInterface):
             r = reversed(r)
 
         for i in r:
+            # run hooks
+            (time_taken, cancelled) = self.run_hooks(config, context, agent, next_leg, next_leg['geom'].coords[i], time_taken)
+            if cancelled:
+                if logger.level <= logging.DEBUG:
+                    logger.debug(f"SimulationInterface hooks run, cancelled state")
+                return agent.state
+
             length = next_leg['legs'][i]  # length is in meters
             m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
 
@@ -88,15 +93,15 @@ class SimpleDAV(SimulationStepInterface):
             time_taken += calculated_time
 
         # save things in state
-        state.time_taken = time_taken
-        state.time_for_legs = time_for_legs
+        agent.state.time_taken = time_taken
+        agent.state.time_for_legs = time_for_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
                 f"SimulationInterface SimpleDAV run, from {agent.this_hub} to {agent.next_hub} "
                 "via {agent.route_key}, time taken = {state.time_taken:.2f}")
 
-        return state
+        return agent.state
 
     def __repr__(self):
         return yaml.dump(self)

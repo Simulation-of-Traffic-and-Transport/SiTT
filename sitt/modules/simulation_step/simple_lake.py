@@ -39,6 +39,12 @@ class SimpleLake(SimulationStepInterface):
             r = reversed(r)
 
         for i in r:
+            # run hooks
+            if not self.run_hooks(config, context, agent, next_leg, next_leg['geom'].coords[i], time_taken):
+                if logger.level <= logging.DEBUG:
+                    logger.debug(f"SimulationInterface hooks run, day {agent.day_cancelled} cancelled")
+                return agent.state
+
             length = next_leg['legs'][i]  # length is in meters
             # determine speed
             current_speed = self.speed

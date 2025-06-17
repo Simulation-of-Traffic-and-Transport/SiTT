@@ -33,6 +33,7 @@ __all__ = [
     "PreparationInterface",
     "SimulationPrepareDayInterface",
     "SimulationDefineStateInterface",
+    "SimulationStepHookInterface",
     "SimulationStepInterface",
     "OutputInterface",
 ]
@@ -98,7 +99,8 @@ class Configuration:
         self.simulation_prepare_day: List[SimulationPrepareDayInterface] = []
         """simulation hook classes that are executed on each agent at the start of the day"""
         self.simulation_define_state: List[SimulationDefineStateInterface] = []
-        """simulation hook classes that are executed on each agent at the start of the day"""
+        """simulation hook classes that are executed on each agent at each node"""
+        self.simulation_step_hook: List[SimulationStepHookInterface] = []
 
         self.simulation_step: List[SimulationStepInterface] = []
         """
@@ -151,6 +153,17 @@ class Configuration:
 
         return state
 
+    def get_agent_date(self, agent: Agent, additional_offset: float = 0.) -> dt.datetime:
+        # get start date as datetime object
+        current_date: dt.datetime = (dt.datetime.combine(self.start_date, dt.datetime.min.time()))
+
+        # calculate current day and time
+        current_date += dt.timedelta(days=agent.current_day - 1, hours=agent.current_time)
+
+        # add additional offset
+        current_date += dt.timedelta(hours=additional_offset)
+
+        return current_date
 
 ########################################################################################################################
 # Context
@@ -208,29 +221,18 @@ class SpaceTimeData(object):
         self.min_times = times.min()
         self.max_times = times.max()
 
-    def _get_date_number(self, day: int, hours: float, config: Configuration) -> float | None:
+    def _get_date_number(self, date: dt.datetime | None) -> float | None:
         """
-        Returns date number for given day and configuration - returns none if datetimes have not been set
+        Returns date number for given date - returns none if datetimes have not been set
 
-        :param day: day offset (starts with 1)
-        :param hours: time offset in day (hours)
-        :param config: configuration
+        :param date: date
 
         :return: date number or None
         """
-        # own or global date?
-        if self.start_date is not None:
-            start_date = self.start_date
-        else:
-            start_date = config.start_date
-
-        if start_date is None:
+        if date is None:
             return None
 
-        my_datetime = dt.datetime(start_date.year, start_date.month, start_date.day) + dt.timedelta(days=day - 1,
-                                                                                                    hours=hours)
-
-        return nc.date2num(my_datetime, self.times.units, calendar=self.times.calendar, has_year_zero=False)
+        return nc.date2num(date, self.times.units, calendar=self.times.calendar, has_year_zero=False)
 
     def _in_bounds(self, lat: float, lon: float, date_number: float) -> bool:
         """
@@ -245,11 +247,10 @@ class SpaceTimeData(object):
 
         return False
 
-    def get(self, lat: float, lon: float, day: int, hours: float, config: Configuration,
-            fields: list[str] | None = None) -> dict[str, any] | None:
+    def get(self, lat: float, lon: float, date: dt.datetime, fields: list[str] | None = None) -> dict[str, any] | None:
 
         # convert to date number
-        date_num = self._get_date_number(day, hours, config)
+        date_num = self._get_date_number(date)
         if date_num is None:
             return None
 
@@ -636,6 +637,76 @@ class SimulationStepInterface(abc.ABC):
         :param next_leg: next leg (Edge)
         :param is_reversed: true if the leg is reversed
         :return: updated state object
+        """
+        pass
+
+    @staticmethod
+    def run_hooks(config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple,
+                  time_offset: float) -> tuple[float, bool]:
+        """
+        Call hooks for a simulation step
+
+        :param config:
+        :param context:
+        :param agent:
+        :param next_leg:
+        :param coords:
+        :param time_offset:
+        :return: tuple of new time offset and whether the simulation was cancelled
+        """
+        for hook in config.simulation_step_hook:
+            (time_offset, cancelled) = hook.run_hook(config, context, agent, next_leg, coords, time_offset)
+            if cancelled:
+                # update agent state
+                agent.state.signal_stop_here = True
+                return time_offset, True
+        return time_offset, False
+
+
+class SimulationStepHookInterface(abc.ABC):
+    """
+    Simulation step hook module interface - used for hooks called by simulation steps
+    """
+    # def __init__(self):
+    #     # runtime settings
+    #     self.skip: bool = False
+    #     self.conditions: dict[str, any] = {}
+    #
+    # def check_conditions(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
+    #     """Checks conditions for this step"""
+    #     # skip set to true?
+    #     if self.skip:
+    #         return False
+    #
+    #     # no conditions?
+    #     if not self.conditions or len(self.conditions) == 0:
+    #         return True
+    #
+    #     # check conditions
+    #     if 'types' in self.conditions and len(self.conditions['types']) > 0:
+    #         # check type of route ahead
+    #         if next_leg['type'] not in self.conditions['types']:
+    #             return False
+    #
+    #     if 'not_types' in self.conditions and len(self.conditions['not_types']) > 0:
+    #         # check type of route ahead
+    #         if next_leg['type'] in self.conditions['not_types']:
+    #             return False
+    #
+    #     return True
+
+    @abc.abstractmethod
+    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple, time_offset: float) -> tuple[float, bool]:
+        """
+        Run the hook - to be implemented by specific classes
+
+        :param config:
+        :param context:
+        :param agent:
+        :param next_leg:
+        :param coords:
+        :param time_offset:
+        :return: tuple of new time offset and a boolean indicating if the day was cancelled
         """
         pass
 

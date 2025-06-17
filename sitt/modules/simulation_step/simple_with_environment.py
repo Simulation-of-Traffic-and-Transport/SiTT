@@ -84,8 +84,7 @@ class SimpleWithEnvironment(SimulationStepInterface):
 
             if len(context.space_time_data):
                 for key in context.space_time_data:
-                    values = context.space_time_data[key].get(coords[1], coords[0], agent.current_day,
-                                                              agent.current_time + time_taken, config)
+                    values = context.space_time_data[key].get(coords[1], coords[0], config.get_agent_date(agent, time_taken))
                     for value in values:
                         space_time_data[value] = values[value]
 

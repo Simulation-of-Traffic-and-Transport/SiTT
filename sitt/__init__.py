@@ -23,6 +23,7 @@ from sitt.base import (
     PreparationInterface,
     SimulationPrepareDayInterface,
     SimulationDefineStateInterface,
+    SimulationStepHookInterface,
     SimulationStepInterface,
     OutputInterface
 )
@@ -48,6 +49,7 @@ __all__ = [
     "PreparationInterface",
     "SimulationPrepareDayInterface",
     "SimulationDefineStateInterface",
+    "SimulationStepHookInterface",
     "SimulationStepInterface",
     "OutputInterface",
     "Core",

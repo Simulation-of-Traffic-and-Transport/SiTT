@@ -47,6 +47,12 @@ class SimpleRiver(SimulationStepInterface):
             flows.reverse() # also reverse flow
 
         for i in r:
+            # run hooks
+            if not self.run_hooks(config, context, agent, next_leg, next_leg['geom'].coords[i], time_taken):
+                if logger.level <= logging.DEBUG:
+                    logger.debug(f"SimulationInterface hooks run, day {agent.day_cancelled} cancelled")
+                return agent.state
+
             length = next_leg['legs'][i]  # length is in meters
 
             # river speed - we take this and the next point's flow rate to calculate the speed
