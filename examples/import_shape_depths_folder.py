@@ -102,7 +102,7 @@ if __name__ == "__main__":
                     # if geopandas does not convert points properly, convert it here
                     #print(f"Warning: Skipping row {row.Index} with missing geometry.", row)
                     point = transform(project_forward, Point(row.field_1, row.field_2, row[args.depth_field_index]))
-                elif row[args.depth_field_index] or row.geometry.has_z is False:
+                elif row[args.depth_field_index] and row.geometry.has_z is False:
                     point = force_3d(Point(row.geometry.x, row.geometry.y, row[args.depth_field_index]))  # assume z is the third field in the shapefile
                 else:
                     point = row.geometry
