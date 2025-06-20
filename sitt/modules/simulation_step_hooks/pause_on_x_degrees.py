@@ -34,7 +34,7 @@ class PauseOnXDegrees(SimulationStepHookInterface):
                     break
 
         # too hot, add a pause and wait for the next full hour
-        if temperature >= self.pause_threshold:
+        if temperature is not None and temperature >= self.pause_threshold:
             # update time offset to the next full hour
             next_hour = current_day + dt.timedelta(hours=1, minutes=-current_day.minute, seconds=-current_day.second,
                                                    microseconds=-current_day.microsecond)
