@@ -339,6 +339,7 @@ class State(object):
         """Environmental data for each leg"""
         self.signal_stop_here: bool = False
         """Signal forced stop here"""
+        self.last_coordinate_after_stop: tuple[float, float] | None = None
 
     def reset(self) -> State:
         """Prepare state for new day"""
@@ -393,9 +394,11 @@ class Agent(object):
         self.day_cancelled: int = -1
         """cancelled at this day"""
         self.tries: int = 0
-        """internal value for tries at this hub - will break at 100"""
+        """internal value for tries at this hub - will break at a defined number"""
         self.last_resting_place: str = this_hub
         """keep track of last resting place"""
+        self.furthest_coordinates: list[tuple[float, float]] = []
+        """furthest coordinate visited"""
 
         self.route_data: ig.Graph = ig.Graph(directed=True)
         """keeps route taken (multidigrapjh)"""

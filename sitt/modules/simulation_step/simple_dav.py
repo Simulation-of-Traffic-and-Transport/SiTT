@@ -71,8 +71,9 @@ class SimpleDAV(SimulationStepInterface):
             r = reversed(r)
 
         for i in r:
+            coords = next_leg['geom'].coords[i]
             # run hooks
-            (time_taken, cancelled) = self.run_hooks(config, context, agent, next_leg, next_leg['geom'].coords[i], time_taken)
+            (time_taken, cancelled) = self.run_hooks(config, context, agent, next_leg, coords, time_taken)
             if cancelled:
                 if logger.level <= logging.DEBUG:
                     logger.debug(f"SimulationInterface hooks run, cancelled state")
@@ -91,6 +92,12 @@ class SimpleDAV(SimulationStepInterface):
 
             time_for_legs.append(calculated_time)
             time_taken += calculated_time
+
+            # check if time taken exceeds max_time - should finish today
+            if agent.current_time + time_taken > agent.max_time:
+                agent.state.last_coordinate_after_stop = coords
+                agent.state.signal_stop_here = True
+                break
 
         # save things in state
         agent.state.time_taken = time_taken

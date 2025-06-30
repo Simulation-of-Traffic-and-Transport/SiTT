@@ -156,7 +156,7 @@ class JSONOutput(OutputInterface):
                     "agents": hub['agents'],
                 }
 
-        agent = {
+        agent_data = {
             "uid": agent.uid,
             "uids": list(uids),
             "status": status,
@@ -164,7 +164,10 @@ class JSONOutput(OutputInterface):
             "hour": agent.current_time,
         }
 
-        return agent, history
+        if status == 'cancelled':
+            agent_data['furthest_coordinates'] = agent.furthest_coordinates
+
+        return agent_data, history
 
     def _merge_history_lists(self, list1: Dict[str, Dict[str, any]], list2: Dict[str, Dict[str, any]]) -> Dict[str, Dict[str, any]]:
         """Helper to merge agent lists"""
