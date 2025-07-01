@@ -347,6 +347,7 @@ class State(object):
         self.time_for_legs = []
         self.data_for_legs = []
         self.signal_stop_here = False
+        self.last_coordinate_after_stop = None
 
         return self
 
@@ -422,6 +423,7 @@ class Agent(object):
         self.max_time = max_time
         self.last_possible_resting_place = self.this_hub
         self.last_possible_resting_time = self.current_time
+        self.furthest_coordinates = []
         self.state = self.state.reset()
 
         # add overnight stays
