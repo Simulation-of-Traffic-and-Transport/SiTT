@@ -3,8 +3,6 @@
 
 # Merge data retrieved by get_era5_data.py into one file. This speeds up data retrieval by a large amount.
 
-import glob
-
 import xarray as xr
 
 # Load all data files and merge them into one xarray dataset.
