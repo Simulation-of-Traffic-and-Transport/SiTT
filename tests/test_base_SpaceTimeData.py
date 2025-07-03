@@ -6,7 +6,8 @@ import datetime as dt
 import netCDF4 as nc
 import numpy as np
 
-from sitt.base import SpaceTimeData, Configuration
+from sitt.base import Configuration
+from sitt.spatio_temporal_data import SpaceTimeData
 
 test_data = nc.Dataset('test.nc', 'r', format='NETCDF4')
 

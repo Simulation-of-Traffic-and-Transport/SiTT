@@ -15,7 +15,9 @@ from sitt.__about__ import (
 from sitt.base import (
     SkipStep,
     Configuration,
+    SpatioTemporalInterface,
     SpaceTimeData,
+    SpaceData,
     Context,
     State,
     Agent,
@@ -42,6 +44,8 @@ __all__ = [
     "SkipStep",
     "Configuration",
     "SpaceTimeData",
+    "SpaceData",
+    "SpatioTemporalInterface",
     "Context",
     "State",
     "Agent",

@@ -66,7 +66,7 @@ import logging
 
 from netCDF4 import Dataset
 
-from sitt import Configuration, Context, PreparationInterface, SpaceTimeData
+from sitt import Configuration, Context, PreparationInterface, SpaceTimeData, SpaceData
 
 logger = logging.getLogger()
 
@@ -107,8 +107,11 @@ class LoadDataFromNETCDF(PreparationInterface):
         if logger.level <= logging.DEBUG:
             logger.debug("Variables in dataset: " + ', '.join(dataset.variables.keys()))
 
-        # create space_time_data object
-        context.space_time_data[self.name] = SpaceTimeData(dataset, self.variables, self.latitude, self.longitude,
-                                                           self.time, self.start_date)
+        if self.time:
+            # create space_time_data object
+            context.space_time_data[self.name] = SpaceTimeData(dataset, self.variables, self.latitude, self.longitude,
+                                                               self.time, self.start_date)
+        else:
+            context.space_time_data[self.name] = SpaceData(dataset, self.variables, self.latitude, self.longitude)
 
         return context
