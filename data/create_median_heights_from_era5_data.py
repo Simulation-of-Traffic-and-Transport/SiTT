@@ -22,7 +22,7 @@ lons = ds.longitude.values
 diff_lat = np.abs(lats[1] - lats[0])/2
 diff_lon = np.abs(lons[1] - lons[0])/2
 
-# create a new dataset that will store the median heights
+# create a new dataset that will store the mean heights
 mean_heights = np.zeros((len(lats), len(lons)))
 
 # now calculate median height for each pixel in the new dataset
