@@ -14,7 +14,7 @@ logger = logging.getLogger()
 
 
 class PauseOnXDegrees(SimulationStepHookInterface):
-    def __init__(self, pause_threshold=25., adjust_temp_with_height=True, adjust_temp_step = 1.):
+    def __init__(self, pause_threshold=25., adjust_temp_with_height=True, adjust_temp_step = 0.65):
         super().__init__()
         self.pause_threshold: float = pause_threshold
         """Temperature threshold at which the agent should pause."""
