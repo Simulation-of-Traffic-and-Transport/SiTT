@@ -34,6 +34,9 @@ class SimpleLoadingState(SimulationDefineStateInterface):
 
         # types are not equal => add time to consider reloading goods from one vehicle type to another
         if last_route_type != current_route_type:
+            # add rest point
+            agent.add_rest(self.add_time)
+
             # calculate new time
             new_time = agent.current_time + self.add_time
             # update history

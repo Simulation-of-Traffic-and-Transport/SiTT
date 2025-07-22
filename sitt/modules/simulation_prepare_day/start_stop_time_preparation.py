@@ -58,7 +58,8 @@ class StartStopTimePreparation(SimulationPrepareDayInterface):
             # technically, sunset will be different at the destination - on the other hand, this will hardly make a
             # difference in a real-world scenario (a few minutes at most).
 
-            agent.current_time = sunrise.hour + sunrise.minute/60
+            agent.start_time = sunrise.hour + sunrise.minute/60
+            agent.current_time = agent.start_time
             agent.max_time = sunset.hour + sunset.minute/60
         except Exception as ex:
             print(ex)

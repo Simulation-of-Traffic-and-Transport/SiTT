@@ -14,7 +14,7 @@ import abc
 import datetime as dt
 import logging
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Generator
 
 import igraph as ig
 import nanoid
@@ -204,7 +204,7 @@ class Context(object):
 ########################################################################################################################
 
 class State(object):
-    """State class - this will take information on the current state of a simulation agent, it will be reset each day"""
+    """State class - this will take information on the current state of a simulation agent, it will be reset each step"""
 
     def __init__(self):
         self.uid: str = generate_nanoid()
@@ -219,9 +219,11 @@ class State(object):
         self.signal_stop_here: bool = False
         """Signal forced stop here"""
         self.last_coordinate_after_stop: tuple[float, float] | None = None
+        """Saves last coordinate after stop - for logging purposes"""
+
 
     def reset(self) -> State:
-        """Prepare state for new day"""
+        """Prepare state for new step"""
         self.time_taken = 0.
         self.time_for_legs = []
         self.data_for_legs = []
@@ -268,6 +270,8 @@ class Agent(object):
         """Current time stamp of agent during this day"""
         self.max_time: float = max_time
         """Current maximum timestamp for this day"""
+        self.start_time: float = current_time
+        """Keep start time of today"""
 
         self.day_finished: int = -1
         """finished at this day"""
@@ -287,6 +291,10 @@ class Agent(object):
         self.last_possible_resting_time: float = current_time
         """keeps timestamp of last resting place"""
 
+        # rest history
+        self.rest_history: list[tuple[float, float]] = []
+        """History of rests, each entry is (time, length in hours)"""
+
     def prepare_for_new_day(self, current_day: int = 1, current_time: float = 8., max_time: float = 16.):
         """
         reset to defaults for a day
@@ -299,10 +307,12 @@ class Agent(object):
         # set values for new day
         self.current_day = current_day
         self.current_time = current_time
+        self.start_time = current_time
         self.max_time = max_time
         self.last_possible_resting_place = self.this_hub
         self.last_possible_resting_time = self.current_time
         self.furthest_coordinates = []
+        self.rest_history = []
         self.state = self.state.reset()
 
         # add overnight stays
@@ -397,6 +407,55 @@ class Agent(object):
                 logging.warning(f"Stop-over for agent {uid} already exists in hub {hub_id}: {hub['agents'][uid]}, wanted: {start_day} {start_time} - {end_day} {end_time}")
         except:
             logging.error(f"Hub {self.this_hub} not found in route_data for add_history.")
+
+
+    def add_rest(self, length: float, time: float = -1) -> None:
+        """
+        Add rest event to history
+        :param length: length of rest in hours
+        :param time: time point (hour/minute) - if not set or below 0, use current time of agent
+        """
+        if time < 0:
+            time = self.current_time
+
+        self.rest_history.append((time, length))
+
+    def get_longest_rest_time_within(self, current_time: float, length: float) -> float | None:
+        """
+        Return longest rest time within given time and length
+        :param current_time: current time (hour/minute)
+        :param length: length in hours to check back
+        :return: longest rest time within given time and length in hours
+        """
+        # calculate start time
+        start_time = current_time - length
+
+        min_time: float | None = None
+
+        # now go back the rest history
+        for ts in self.get_rest_times_within(start_time):
+            if start_time <= ts[0]:
+                min_time = ts[1]
+
+        return min_time
+
+    def get_rest_times_within(self, start_time) -> Generator[tuple[float, float], None, None]:
+        # go back the rest history
+        for time, length in reversed(self.rest_history):
+            if time >= start_time:
+                yield time, length
+            else:
+                break
+
+    def get_most_recent_rest_time(self) -> float | None:
+        """
+        Return the most recent rest time
+        :return: most recent rest time in hours
+        """
+        if self.rest_history and len(self.rest_history) > 0:
+            return self.rest_history[-1][0]
+        else:
+            return None
 
 
 ########################################################################################################################
