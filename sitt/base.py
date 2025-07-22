@@ -295,6 +295,9 @@ class Agent(object):
         self.rest_history: list[tuple[float, float]] = []
         """History of rests, each entry is (time, length in hours)"""
 
+        # keeps any additional data
+        self.additional_data: Dict[str, any] = {}
+
     def prepare_for_new_day(self, current_day: int = 1, current_time: float = 8., max_time: float = 16.):
         """
         reset to defaults for a day
@@ -313,6 +316,7 @@ class Agent(object):
         self.last_possible_resting_time = self.current_time
         self.furthest_coordinates = []
         self.rest_history = []
+        self.additional_data = {}
         self.state = self.state.reset()
 
         # add overnight stays
@@ -434,7 +438,9 @@ class Agent(object):
 
         # now go back the rest history
         for ts in self.get_rest_times_within(start_time):
-            if start_time <= ts[0]:
+            if ts[0] < start_time:
+                break
+            if min_time is None or ts[1] > min_time:
                 min_time = ts[1]
 
         return min_time

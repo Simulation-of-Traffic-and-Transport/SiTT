@@ -39,17 +39,20 @@ class Resting(SimulationStepHookInterface):
         now = agent.current_time + time_offset
 
         # Check if it's noon
-        if self.is_noon(now):
+        if self.is_noon(now) and not agent.additional_data.get('noon_rest', False):
             min_gap = self.noon_gap_min_gap / 60.0
             most_recent_rest = agent.get_most_recent_rest_time()
             if most_recent_rest is None or most_recent_rest <= now - min_gap:
                 after = self.noon_gap_to_last_rest / 60.0
                 max_pause = self.noon_gap_max_pause / 60.0
                 rest_length = agent.get_longest_rest_time_within(now, after)
-                if rest_length is None or rest_length <= max_pause:
+                if rest_length is None or rest_length < max_pause:
+                    # do noon rest
                     pause = self.noon_pause_minutes / 60.
                     agent.add_rest(pause, time=now)
                     time_offset += pause
+                    # set flag
+                    agent.additional_data['noon_rest'] = True
                     return time_offset, False
 
         # Check if it's a resting time
