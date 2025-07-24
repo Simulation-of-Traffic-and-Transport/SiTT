@@ -40,7 +40,7 @@ for i in range(len(lats)):
             # clip raster to current pixel bounding box
             data = raster_new.rio.clip_box(minx=min_x, maxx=max_x, miny=min_y, maxy=max_y)
             # calculate and store median height for current pixel - it is the mean of all non-NaN values in the clipped raster
-            h = float(data.mean().values)
+            h = float(data.median().values)
         except:
             # some of the pixels in the raster may not cover the current pixel bounding box, so we set the median height to NaN
             h = np.nan
@@ -59,4 +59,4 @@ mean_heights_data = xr.Dataset(
     coords={'latitude': lats, 'longitude': lons}
 )
 
-mean_heights_data.to_netcdf('mean_heights_data.nc')
+mean_heights_data.to_netcdf('median_heights_data.nc')
