@@ -150,7 +150,7 @@ if __name__ == "__main__":
             except:
                 print("FAIL:", data[0])
 
-            heights_str = "{" + list(heights).__str__()[1:-1] + "}"
+            heights_str = "{" + ','.join([str(element) for element in heights]) + "}"
             updated_geom = LineString(new_geom).wkt
             conn.execute(text(f"UPDATE {args.river_table} SET {args.river_depths_column} = '{heights_str}', {args.river_geo_column} = ST_GeomFromText('{updated_geom}') WHERE {args.river_id_column} = '{data[0]}'"))
 
