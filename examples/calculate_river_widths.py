@@ -278,7 +278,7 @@ if __name__ == "__main__":
             widths[i-1] = np.float64(width)
 
         # update river width in database
-        widths_str = "{" + list(widths).__str__()[1:-1] + "}"
+        widths_str = "{" + ','.join([str(element) for element in widths]) + "}"
         cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_width_column} = '{widths_str}' WHERE {args.river_id_column} = '{recroadid}'")
         conn.commit()
 
