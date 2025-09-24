@@ -2,19 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 """
-
+This is an example how to validate river routes - are all points part of river shapes? Errors are collected in a
+shape file for easy correction.
 """
 import argparse
 
-import numpy as np
-import pandas as pd
 import psycopg2
-from openpyxl.worksheet.dimensions import Dimension
-from pyproj import Transformer
-from shapely import wkb, Point, LineString
-from shapely.errors import DimensionError
-from shapely.ops import transform
 import shapefile
+from shapely import wkb, Point, LineString
 
 if __name__ == "__main__":
     # parse arguments
