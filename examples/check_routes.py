@@ -7,10 +7,8 @@ must have a start and end point in the network, for example (only outgoing or in
 """
 import argparse
 
-import psycopg2
-import shapefile
-from shapely import wkb, Point, LineString
 import igraph as ig
+import psycopg2
 
 if __name__ == "__main__":
     # parse arguments
