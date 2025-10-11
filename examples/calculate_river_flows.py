@@ -279,7 +279,7 @@ if __name__ == "__main__":
         new_coords = LineString(flow_coordinates).wkt
 
         # update river width in database
-        flows_str = "{" + list(flows).__str__()[1:-1] + "}"
+        flows_str = "{" + ','.join([str(flow) for flow in flows]) + "}"
         cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}', {args.river_flow_geometry_column} = st_geomfromewkt('SRID={args.crs_source};{new_coords}') WHERE {args.river_id_column} = '{recroadid}'")
         conn.commit()
 
