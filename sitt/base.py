@@ -21,7 +21,7 @@ import nanoid
 import yaml
 
 # import directly and export to __init__.py
-from spatio_temporal_data import SpatioTemporalInterface, SpaceTimeData, SpaceData
+from .spatio_temporal_data import SpatioTemporalInterface, SpaceTimeData, SpaceData
 
 __all__ = [
     "SkipStep",
