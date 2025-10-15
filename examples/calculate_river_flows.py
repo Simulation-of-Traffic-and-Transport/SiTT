@@ -219,6 +219,8 @@ if __name__ == "__main__":
 
             # calculate average depth and width for this river segment - use weights from sections
             average_depth = -np.average(depth_sections[i], weights=section_weights)
+            if average_depth <= 0.:
+                average_depth = 0.2 # set depth to 0.2 m if depth is negative
             average_width = np.average(width_sections[i], weights=section_weights)
             if i == 0:
                 # take first point of starting point
