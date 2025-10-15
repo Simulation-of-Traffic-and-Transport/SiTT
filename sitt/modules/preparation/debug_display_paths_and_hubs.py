@@ -15,10 +15,9 @@ logger = logging.getLogger()
 
 
 class DebugDisplayPathsAndHubs(PreparationInterface):
-    def __init__(self, route: str | None = None, draw_network: bool = True, show_network: bool = True, save_network: bool = False,
+    def __init__(self, draw_network: bool = True, show_network: bool = True, save_network: bool = False,
                  save_network_name: str = 'network', save_network_type: str = 'png', display_routes: bool = True,
-                 start: str | None = None, end: str | None = None, save_shapefile: bool = False,
-                 save_shapefile_name: str = 'network', route_reversed: bool = False) -> None:
+                 save_shapefile: bool = False, save_shapefile_name: str = 'network') -> None:
         super().__init__()
         self.draw_network: bool = draw_network
         """draw the network graph"""
@@ -31,26 +30,14 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
         """possible values are eps, jpeg, jpg, pdf, pgf, png, ps, raw, rgba, svg, svgz, tif, tiff"""
         self.display_routes: bool = display_routes
         """Calculate example routes"""
-        self.start: str | None = start
-        """start hub id of example route"""
-        self.end: str | None = end
-        """end hub id of example route"""
-        self.route: str | None = route
-        """Route to be considered - required"""
-        self.route_reversed: bool = route_reversed
-        """Is route reversed?"""
         self.save_shapefile: bool = save_shapefile
         """save network as shapefile"""
         self.save_shapefile_name: str = save_shapefile_name
         """Name of the shapefile to save"""
 
     def run(self, config: Configuration, context: Context) -> Context:
-        if self.route is None:
-            logger.error("No route specified.")
-            return context
-
         # convert route to lower case for case-insensitive comparison
-        route = self.route.lower()
+        route = config.simulation_route.lower()
 
         if context.graph and self.draw_network:
             logger.info("Displaying paths and hubs")
@@ -87,7 +74,7 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
 
             p = gpd.GeoSeries(gpd.points_from_xy(x=v_x, y=v_y))
             p.plot(ax=ax,markersize=2)
-            plt.title(self.route)
+            plt.title(config.simulation_route)
 
             if self.show_network:
                 plt.show()
@@ -109,7 +96,7 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
                 if 'directions' in es.attribute_names() and route in es['directions'] and es['directions'][route] != 0:
                     direction = es['directions'][route]
                     # reversed route?
-                    if self.route_reversed:
+                    if config.simulation_route_reverse:
                         if direction == 1:
                             direction = -1
                         elif direction == -1:

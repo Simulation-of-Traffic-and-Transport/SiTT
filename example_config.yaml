@@ -36,11 +36,11 @@ quiet: false
 # break simulation step after this number of iterations, defaults to 100
 # break_simulation_after: 100
 
-# Simulation start and end points
-simulation_start: &simulation_start START_HUB_ID
-simulation_end: &simulation_end END_HUB_ID
+# Simulation start and end points (detect automatically)
+simulation_starts: &simulation_starts []
+simulation_ends: &simulation_ends []
 # Route/Direction to be considered (will be converted to lowercase to match db fields)
-simulation_route: &simulation_route TeurniaVirunum
+simulation_route: &simulation_route Teurnia_Virunum
 # Is route reversed?
 simulation_route_reverse: &simulation_route_reverse false
 
@@ -121,10 +121,6 @@ preparation:
   - class: DebugDisplayPathsAndHubs
     module: modules.preparation
     args:
-      start: *simulation_start
-      end: *simulation_end
-      route: *simulation_route
-      route_reversed: *simulation_route_reverse
       draw_network: false
       show_network: false
       save_network: true
