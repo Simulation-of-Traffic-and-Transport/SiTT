@@ -108,7 +108,13 @@ if __name__ == "__main__":
         for col_name in list(gdf.columns):
             # column must be integer (not float) and not "id"
             if col_name != "id" and type(gdf.dtypes[col_name]) == np.dtypes.Int64DType:
-                args.directions.append(col_name)
+                # get unique values and check if they are within reasonable range
+                unique_values = gdf[col_name].unique()
+                vmin = gdf[col_name].min()
+                vmax = gdf[col_name].max()
+                # if unique values are within reasonable range and less than or equal to 4, it's probably a direction field
+                if len(unique_values) <= 4 and vmin >= -1 and vmax <= 2:
+                    args.directions.append(col_name)
 
     # transform hubs format
     for _, row in gdf.iterrows():
