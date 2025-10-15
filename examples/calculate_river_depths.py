@@ -147,6 +147,10 @@ if __name__ == "__main__":
                     if tempZ > 0.:
                         print("Positive depth:", tempZ)
                         tempZ = np.float64(-0.2)
+                    # set channels to 4 meters
+                    if "CHAN" in data[0]:
+                        tempZ = np.float64(-4.0)
+                        print("Fixed channel depth:", tempZ)
                     heights[idx]=tempZ
                     new_geom[idx, 2] = tempZ
 
