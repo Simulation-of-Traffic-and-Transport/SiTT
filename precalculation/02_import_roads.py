@@ -35,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('--source-schema', dest='source_schema', default='topology', type=str, help='source schema name (recroads table)')
     parser.add_argument('-d', '--data-fields', dest='fields', nargs='*', help='data fields to import from recroads')
     parser.add_argument('-b', '--boolean-fields', dest='boolean_fields', nargs='*', help='data fields that have boolean values like "y" or true')
-    parser.add_argument('-dir', '--direction-fields', dest='directions', nargs='*', help='direction fields to import from recroads')
+    parser.add_argument('-dir', '--direction-fields', dest='directions', nargs='*', help='direction fields to import from recroads (if empty, automatically detected)')
     parser.add_argument('--id-field', dest='id_field', default='recroadid', type=str, help='field containing unique identifier')
     parser.add_argument('--hub-a-field', dest='huba_field', default='hubaid', type=str, help='field containing from hub id')
     parser.add_argument('--hub-b-field', dest='hubb_field', default='hubbid', type=str, help='field containing to hub id')
@@ -101,6 +101,14 @@ if __name__ == "__main__":
 
     # read original table
     gdf = gpd.read_postgis(f"SELECT * FROM {args.source_schema}.recroads", conn, geom_col=args.geom_field)
+
+    # check if directions are given - detect if needed
+    if not args.directions or len(args.directions) == 0:
+        args.directions = []
+        for col_name in list(gdf.columns):
+            # column must be integer (not float) and not "id"
+            if col_name != "id" and type(gdf.dtypes[col_name]) == np.dtypes.Int64DType:
+                args.directions.append(col_name)
 
     # transform hubs format
     for _, row in gdf.iterrows():
