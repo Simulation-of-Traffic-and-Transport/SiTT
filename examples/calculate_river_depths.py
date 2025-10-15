@@ -143,6 +143,10 @@ if __name__ == "__main__":
                     if np.isnan(float(tempZ)):
                         # nans are converted to 0s
                         tempZ = np.float64(0.)
+                    # correct positive depths to 20 cm depths
+                    if tempZ > 0.:
+                        print("Positive depth:", tempZ)
+                        tempZ = np.float64(-0.2)
                     heights[idx]=tempZ
                     new_geom[idx, 2] = tempZ
 
