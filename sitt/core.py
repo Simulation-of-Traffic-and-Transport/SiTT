@@ -198,19 +198,19 @@ class Simulation(BaseClass):
         ok = True
 
         # Checking start and stop hubs
-        if not self.config.simulation_start:
-            logger.error("simulation_start is empty - simulation failed!")
+        if not self.config.simulation_starts or len(self.config.simulation_starts) == 0:
+            logger.error("simulation_starts is empty - simulation failed!")
             ok = False
-        if not self.config.simulation_end:
-            logger.error("simulation_end is empty - simulation failed!")
+        if not self.config.simulation_ends or len(self.config.simulation_ends) == 0:
+            logger.error("simulation_ends is empty - simulation failed!")
             ok = False
         if not self.context.routes:
             logger.error("routes is empty - simulation failed!")
             ok = False
 
         if logger.level <= logging.INFO:
-            logger.info("start:  " + self.config.simulation_start)
-            logger.info("end:    " + self.config.simulation_end)
+            logger.info("starts:  " + ", ".join(self.config.simulation_starts))
+            logger.info("ends:    " + ", ".join(self.config.simulation_ends))
 
         return ok
 
@@ -323,7 +323,9 @@ class Simulation(BaseClass):
             return results
 
         # create initial set of agents to run
-        agents = self.create_agents_on_node(self.config.simulation_start, first_day=True)
+        agents = []
+        for hub in self.config.simulation_starts:
+            agents.extend(self.create_agents_on_node(hub, first_day=True))
         # reset day counter
         self.current_day = 1
 
@@ -448,8 +450,8 @@ class Simulation(BaseClass):
             next_hub = self.context.graph.vs.find(name=agent.next_hub)
             has_overnight_hub = 'overnight_hub' in next_hub.attribute_names()
 
-            if agent.next_hub == self.config.simulation_end:
-                agent.this_hub = self.config.simulation_end
+            if agent.next_hub in self.config.simulation_ends:
+                agent.this_hub = agent.next_hub
                 agent.next_hub = ''
                 agent.route_key = ''
                 agent.day_finished = self.current_day

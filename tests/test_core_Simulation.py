@@ -23,8 +23,8 @@ def test_check():
     sim = Simulation(config, context)
 
     assert not sim.check()
-    config.simulation_start = 'TEST1'
-    config.simulation_end = 'TEST2'
+    config.simulation_starts = ['TEST1']
+    config.simulation_ends = ['TEST2']
     context.routes = ig.Graph(directed=True)
     context.routes.add_vertices(['TEST1', 'TEST2'])
     assert sim.check()

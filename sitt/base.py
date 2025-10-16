@@ -14,7 +14,7 @@ import abc
 import datetime as dt
 import logging
 from enum import Enum
-from typing import Dict, List, Generator
+from typing import Generator
 
 import igraph as ig
 import nanoid
@@ -95,28 +95,28 @@ class Configuration:
         """
         Skip certain steps in the execution
         """
-        self.preparation: List[PreparationInterface] = []
+        self.preparation: list[PreparationInterface] = []
         """
         Preparation step classes to execute
         """
-        self.simulation_prepare_day: List[SimulationPrepareDayInterface] = []
+        self.simulation_prepare_day: list[SimulationPrepareDayInterface] = []
         """simulation hook classes that are executed on each agent at the start of the day"""
-        self.simulation_define_state: List[SimulationDefineStateInterface] = []
+        self.simulation_define_state: list[SimulationDefineStateInterface] = []
         """simulation hook classes that are executed on each agent at each node"""
-        self.simulation_step_hook: List[SimulationStepHookInterface] = []
+        self.simulation_step_hook: list[SimulationStepHookInterface] = []
 
-        self.simulation_step: List[SimulationStepInterface] = []
+        self.simulation_step: list[SimulationStepInterface] = []
         """
         Simulation step classes to execute
         """
-        self.output: List[OutputInterface] = []
+        self.output: list[OutputInterface] = []
         """
         Output step classes to execute
         """
-        self.simulation_start: str | None = None
-        """"Start hub for simulation"""
-        self.simulation_end: str | None = None
-        """"End hub for simulation"""
+        self.simulation_starts: list[str] | None = None
+        """"Starting hubs for simulation"""
+        self.simulation_ends: list[str] | None = None
+        """"End hubs for simulation"""
         self.simulation_route: str | None = None
         """Route key for simulation - should be lowercase"""
         self.simulation_route_reverse: bool = False
@@ -184,7 +184,7 @@ class Context(object):
         Path to be traversed from start to end - it is a directed version of the graph above. Used by the simulation to
         find the correct route. It is a multidigraph containing possible routes.
         """
-        self.space_time_data: Dict[str, SpatioTemporalInterface] = {}
+        self.space_time_data: dict[str, SpatioTemporalInterface] = {}
 
     def get_path_by_id(self, path_id: str) -> ig.Edge | None:
         """Get path by id"""
@@ -212,9 +212,9 @@ class State(object):
 
         self.time_taken: float = 0.
         """Time taken in this step"""
-        self.time_for_legs: List[float] = []
+        self.time_for_legs: list[float] = []
         """Time taken for all legs of this step"""
-        self.data_for_legs: List[Dict[str, any]] = []
+        self.data_for_legs: list[dict[str, any]] = []
         """Environmental data for each leg"""
         self.signal_stop_here: bool = False
         """Signal forced stop here"""
@@ -296,7 +296,7 @@ class Agent(object):
         """History of rests, each entry is (time, length in hours)"""
 
         # keeps any additional data
-        self.additional_data: Dict[str, any] = {}
+        self.additional_data: dict[str, any] = {}
 
     def prepare_for_new_day(self, current_day: int = 1, current_time: float = 8., max_time: float = 16.):
         """
@@ -472,9 +472,9 @@ class SetOfResults:
     """Set of results represents the results of a simulation"""
 
     def __init__(self):
-        self.agents_finished: List[Agent] = []
+        self.agents_finished: list[Agent] = []
         """keeps list of finished agents"""
-        self.agents_cancelled: List[Agent] = []
+        self.agents_cancelled: list[Agent] = []
         """keeps list of cancelled agents"""
 
     def __repr__(self) -> str:

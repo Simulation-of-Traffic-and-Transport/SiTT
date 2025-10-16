@@ -86,8 +86,8 @@ class JSONOutput(OutputInterface):
 
         # create result dictionary
         return {
-            "simulation_start": self.config.simulation_start,
-            "simulation_end": self.config.simulation_end,
+            "simulation_starts": self.config.simulation_starts,
+            "simulation_ends": self.config.simulation_ends,
             "simulation_route": self.config.simulation_route,
             "simulation_route_reverse": self.config.simulation_route_reverse,
             "start_date": start_date,

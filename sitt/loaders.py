@@ -65,10 +65,10 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
         config.skip_step = SkipStep.OUTPUT
 
     # start and end hubs
-    if 'simulation_start' in data and data['simulation_start']:
-        config.simulation_start = data['simulation_start']
-    if 'simulation_end' in data and data['simulation_end']:
-        config.simulation_end = data['simulation_end']
+    if 'simulation_starts' in data and data['simulation_starts']:
+        config.simulation_starts = data['simulation_starts']
+    if 'simulation_ends' in data and data['simulation_ends']:
+        config.simulation_ends = data['simulation_ends']
     if 'simulation_route' in data and data['simulation_route']:
         config.simulation_route = data['simulation_route'].lower()
     if 'simulation_route_reverse' in data and data['simulation_route_reverse']:
