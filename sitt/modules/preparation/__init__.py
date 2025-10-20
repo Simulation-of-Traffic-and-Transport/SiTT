@@ -7,6 +7,7 @@ from .psql_base import PSQLBase
 from .conditional_module import ConditionalModule
 from .create_routes import CreateRoutes
 from .debug_display_paths_and_hubs import DebugDisplayPathsAndHubs
+from .debug_statistics import DebugStatistics
 from .dummy import Dummy
 from .graph_load import GraphLoad
 from .load_data_from_netcdf import LoadDataFromNETCDF
@@ -16,6 +17,7 @@ __all__ = [
     'ConditionalModule',
     'CreateRoutes',
     'DebugDisplayPathsAndHubs',
+    'DebugStatistics',
     'Dummy',
     'GraphLoad',
     'LoadDataFromNETCDF',
