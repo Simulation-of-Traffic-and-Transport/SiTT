@@ -4,7 +4,6 @@
 """Print statistics about a given data set"""
 import logging
 
-import igraph as ig
 import numpy as np
 import yaml
 
