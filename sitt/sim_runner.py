@@ -68,8 +68,6 @@ def run_simulation(state: State, config: Configuration, context: Context, pickle
         for module in config.simulation:
             state = module.run_after(config, context, state)
 
-        # TODO: persist step for history
-
         # finished?
         if state.status == Status.FINISHED and logger.level <= logging.INFO:
             logger.info(
