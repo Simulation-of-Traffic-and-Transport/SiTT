@@ -215,7 +215,7 @@ class Simulation(BaseClass):
         return ok
 
     def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None, first_day: bool = False,
-                              current_time: float = 8., max_time: float = 16.) -> List[Agent]:
+                              current_time: float = 8., max_time: float = 16., next_hubs_to_try: set[str] | None = None) -> List[Agent]:
         """
         Create a number of virtual agents on a given node.
 
@@ -224,6 +224,7 @@ class Simulation(BaseClass):
         :param first_day: First day of simulation?
         :param current_time: Current time
         :param max_time: Maximum time this day
+        :param next_hubs_to_try: Next hubs to try - may be None to try all hubs
         :return:
         """
         agents: List[Agent] = []
@@ -236,6 +237,10 @@ class Simulation(BaseClass):
         for edge in self.context.routes.incident(hub):
             e = self.context.routes.es[edge]
             target = e.target_vertex['name']
+
+            # skip this node if it is not in the next hubs_to_try set
+            if next_hubs_to_try is not None and target in next_hubs_to_try:
+                continue
 
             # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
             try:
@@ -456,7 +461,7 @@ class Simulation(BaseClass):
                 agent.route_key = ''
                 agent.day_finished = self.current_day
                 results.agents_finished.append(agent)
-            elif next_hub['overnight'] == 'y' or (has_overnight_hub and next_hub['overnight_hub']):
+            elif next_hub['overnight'] or (has_overnight_hub and next_hub['overnight_hub']):
                 # proceed to new hub -> it is an overnight stay
                 if has_overnight_hub and next_hub['overnight_hub'] and agent.next_hub != next_hub['overnight_hub']:
                     agent.last_possible_resting_place = agent.next_hub
@@ -503,19 +508,23 @@ class Simulation(BaseClass):
             results.agents_cancelled.append(agent)
         else:
             # traceback to last possible resting place, if needed
-            if self.context.graph.vs.find(name=agent.this_hub)['overnight'] == 'n':
+            if self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
                 # compile entries to delete from graph
                 hubs_to_delete: set[int] = set()
+                # gather vertex ids to try out tomorrow
+                next_hubs_to_try: set[str] = set()
 
                 # gather vertex ids to delete
                 for path in agent.route_data.get_all_simple_paths(agent.last_possible_resting_place, agent.this_hub):
                     hubs_to_delete.update(path[1:])
+                    # add the next hub to try out
+                    next_hubs_to_try.add(agent.route_data.vs[path[1]]['name'])
 
                 # actually delete hubs from graph
                 agent.route_data.delete_vertices(list(hubs_to_delete))
 
                 agents_finished_for_today.extend(
-                    self.create_agents_on_node(agent.last_possible_resting_place, agent))
+                    self.create_agents_on_node(agent.last_possible_resting_place, agent, next_hubs_to_try=next_hubs_to_try))
             else:
                 agents_finished_for_today.append(agent)
 
