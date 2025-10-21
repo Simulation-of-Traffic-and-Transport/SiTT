@@ -239,7 +239,7 @@ class Simulation(BaseClass):
             target = e.target_vertex['name']
 
             # skip this node if it is not in the next hubs_to_try set
-            if next_hubs_to_try is not None and target in next_hubs_to_try:
+            if next_hubs_to_try is not None and target not in next_hubs_to_try:
                 continue
 
             # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
