@@ -576,6 +576,12 @@ class Simulation(BaseClass):
                 # actually delete hubs from graph
                 agent.route_data.delete_vertices(list(hubs_to_delete))
 
+                # delete rest history that is more than or same as the maximum last resting time
+                for i in range(len(agent.rest_history)):
+                    if agent.rest_history[i][0] >= agent.last_possible_resting_time:
+                        agent.rest_history = agent.rest_history[:i]
+                        break
+
                 agents_finished_for_today.extend(
                     self.create_agents_on_node(agent.last_possible_resting_place, agent, next_hubs_to_try=next_hubs_to_try))
             else:
