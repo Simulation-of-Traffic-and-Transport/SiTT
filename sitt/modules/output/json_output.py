@@ -4,7 +4,7 @@
 """Create basic json output"""
 import json
 import logging
-from typing import Dict, List, Tuple
+from typing import Any
 
 from shapely.geometry import mapping
 
@@ -67,7 +67,7 @@ class JSONOutput(OutputInterface):
 
         return result
 
-    def create_dict_from_data(self, set_of_results: SetOfResults) -> Dict[str, any]:
+    def create_dict_from_data(self, set_of_results: SetOfResults) -> dict[str, Any]:
         """create a dict from passed data"""
 
         agents_finished, history = self._agent_list_to_data(set_of_results.agents_finished)
@@ -99,10 +99,10 @@ class JSONOutput(OutputInterface):
             "paths": paths,
         }
 
-    def _agent_list_to_data(self, agents: List[Agent]) -> Tuple[List[dict], Dict[str, Dict[str, any]]]:
+    def _agent_list_to_data(self, agents: list[Agent]) -> tuple[list[dict], dict[str, dict[str, Any]]]:
         """converts a list of agents to raw data"""
-        main_agent_list: List[dict] = []
-        agent_list: Dict[str, Dict[str, any]] = {}
+        main_agent_list: list[dict] = []
+        agent_list: dict[str, dict[str, Any]] = {}
 
         for agent in agents:
             # get data, is a dict of agent data and list of agents
@@ -115,7 +115,7 @@ class JSONOutput(OutputInterface):
 
         return main_agent_list, agent_list
 
-    def _agent_to_data(self, agent: Agent) -> Tuple[dict, Dict[str, Dict[str, any]]]:
+    def _agent_to_data(self, agent: Agent) -> tuple[dict, dict[str, dict[str, Any]]]:
         """converts a single agent to raw data, it is a dict of agent data and the agent list with leg data"""
 
         status: str = 'undefined'
@@ -127,7 +127,7 @@ class JSONOutput(OutputInterface):
             status = 'finished'
             day = agent.day_finished
 
-        history: Dict[str, Dict[str, any]] = {}
+        history: dict[str, dict[str, Any]] = {}
         # keeps unique list of agent ids
         uids: set = {agent.uid}
 
@@ -169,7 +169,7 @@ class JSONOutput(OutputInterface):
 
         return agent_data, history
 
-    def _merge_history_lists(self, list1: Dict[str, Dict[str, any]], list2: Dict[str, Dict[str, any]]) -> Dict[str, Dict[str, any]]:
+    def _merge_history_lists(self, list1: dict[str, dict[str, Any]], list2: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
         """Helper to merge agent lists"""
 
         for key in list2:
@@ -185,9 +185,9 @@ class JSONOutput(OutputInterface):
 
         return list1
 
-    def _graph_to_data(self) -> Tuple[List[dict], List[dict]]:
-        nodes: List[dict] = []
-        paths: List[dict] = []
+    def _graph_to_data(self) -> tuple[list[dict], list[dict]]:
+        nodes: list[dict] = []
+        paths: list[dict] = []
 
         # aggregate node data
         for node in self.context.routes.vs:

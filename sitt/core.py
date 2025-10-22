@@ -13,7 +13,7 @@ import copy
 import logging
 import math
 import os.path
-from typing import Dict, List
+from typing import Any
 
 import geopandas as gpd
 import igraph as ig
@@ -44,7 +44,7 @@ class Core:
         """
         self.config: Configuration = config
 
-    def run(self) -> List[any] | None:
+    def run(self) -> list[Any] | None:
         """
         Run simulation.
 
@@ -103,7 +103,7 @@ class BaseClass(abc.ABC):
 
         return False
 
-    def condition_ok(self, key: str, condition: str, data: any, module: object, context: Context = None) -> bool:
+    def condition_ok(self, key: str, condition: str, data: Any, module: object, context: Context = None) -> bool:
         """Handle single condition"""
         if key == 'file_must_exist':
             return os.path.exists(data)
@@ -215,7 +215,7 @@ class Simulation(BaseClass):
         return ok
 
     def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None, first_day: bool = False,
-                              current_time: float = 8., max_time: float = 16., next_hubs_to_try: set[str] | None = None) -> List[Agent]:
+                              current_time: float = 8., max_time: float = 16., next_hubs_to_try: set[str] | None = None) -> list[Agent]:
         """
         Create a number of virtual agents on a given node.
 
@@ -227,7 +227,7 @@ class Simulation(BaseClass):
         :param next_hubs_to_try: Next hubs to try - may be None to try all hubs
         :return:
         """
-        agents: List[Agent] = []
+        agents: list[Agent] = []
 
         # create new agent if none is defined
         if agent_to_clone is None:
@@ -270,14 +270,14 @@ class Simulation(BaseClass):
 
         return agents
 
-    def _prune_agent_list(self, agent_list: List[Agent]) -> List[Agent]:
+    def _prune_agent_list(self, agent_list: list[Agent]) -> list[Agent]:
         """
         Prune the agent list to reduce the number of agents in a list to include only unique ones.
 
         :param agent_list: old agent list
         :return: new agent list
         """
-        hashed_agents: Dict[str, Agent] = {}
+        hashed_agents: dict[str, Agent] = {}
 
         for agent in agent_list:
             hash_id = agent.hash()
@@ -313,7 +313,7 @@ class Simulation(BaseClass):
 
         return list(hashed_agents.values())
 
-    def _remove_dangling_agents(self, agents: List[Agent]) -> List[Agent]:
+    def _remove_dangling_agents(self, agents: list[Agent]) -> list[Agent]:
         """
         Removes agents that represent failed paths if a successful alternative path exists. This will prevent agents
         from "hanging back" and trying to travel the same path again and again if other agent variants have been
@@ -404,7 +404,7 @@ class Simulation(BaseClass):
         :param results: set of results to fill into (mutated)
         :return: new list of agents (can be empty list at the end)
         """
-        agents_finished_for_today: List[Agent] = []
+        agents_finished_for_today: list[Agent] = []
         """keeps finished agents for this day"""
 
         # prepare context for single day
@@ -425,7 +425,7 @@ class Simulation(BaseClass):
 
         # do single day loop - this is the inner loop for the simulation (per day)
         while len(agents):
-            agents_proceed: List[Agent] = []
+            agents_proceed: list[Agent] = []
             """keeps list of agents that proceed today"""
 
             # do single step for each agent
@@ -439,8 +439,8 @@ class Simulation(BaseClass):
 
         return agents_finished_for_today
 
-    def _run_single_step(self, agent: Agent, results: SetOfResults, agents_proceed: List[Agent],
-                         agents_finished_for_today: List[Agent]):
+    def _run_single_step(self, agent: Agent, results: SetOfResults, agents_proceed: list[Agent],
+                         agents_finished_for_today: list[Agent]):
         """
         Run single stop for a specific agent - all parameters will be mutated in this method!
 
@@ -542,7 +542,7 @@ class Simulation(BaseClass):
             # time exceeded, end day
             self._end_day(agent, results, agents_finished_for_today)
 
-    def _end_day(self, agent: Agent, results: SetOfResults, agents_finished_for_today: List[Agent]):
+    def _end_day(self, agent: Agent, results: SetOfResults, agents_finished_for_today: list[Agent]):
         """
         End this day for agent.
 
@@ -650,7 +650,7 @@ class Output(BaseClass):
         self.context = context
         self.set_of_results = set_of_results
 
-    def run(self) -> List[any]:
+    def run(self) -> list[Any]:
         """
         Run the output
 
@@ -658,7 +658,7 @@ class Output(BaseClass):
         """
         logger.info("******** Output: started ********")
 
-        outputs: List[any] = []
+        outputs: list[Any] = []
 
         # run modules
         for module in self.config.output:
