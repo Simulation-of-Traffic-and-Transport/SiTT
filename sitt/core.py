@@ -358,6 +358,9 @@ class Simulation(BaseClass):
                 else:
                     kept_agents.append(agent)
 
+        if removed > 0 and logger.level <= logging.DEBUG:
+            logger.debug(f"Removed {removed} danging agent(s).")
+
         return kept_agents
 
     def run(self) -> SetOfResults:
