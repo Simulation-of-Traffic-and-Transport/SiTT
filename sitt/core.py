@@ -270,99 +270,6 @@ class Simulation(BaseClass):
 
         return agents
 
-    def _prune_agent_list(self, agent_list: list[Agent]) -> list[Agent]:
-        """
-        Prune the agent list to reduce the number of agents in a list to include only unique ones.
-
-        :param agent_list: old agent list
-        :return: new agent list
-        """
-        hashed_agents: dict[str, Agent] = {}
-
-        for agent in agent_list:
-            hash_id = agent.hash()
-            if hash_id not in hashed_agents:
-                hashed_agents[hash_id] = agent
-            else:
-                # merge graphs - we want to have all possible graphs at the end
-
-                # we start with copying/merging hub data
-                for hub in agent.route_data.vs:
-                    if 'agents' in hub.attribute_names():
-                        try:
-                            data = hashed_agents[hash_id].route_data.vs.find(name=hub['name'])
-                            if 'agents' not in data.attribute_names():
-                                data['agents'] = {}
-                            for uid in hub['agents']:
-                                if uid not in data['agents']:
-                                    data['agents'][uid] = hub['agents'][uid]
-                        except:
-                            hashed_agents[hash_id].route_data.add_vertices(1, attributes=hub.attributes())
-
-                # now connect edges
-                for edge in agent.route_data.es:
-                    try:
-                        data = hashed_agents[hash_id].route_data.es.find(key=edge['key'])
-                        if 'agents' not in data.attribute_names():
-                            data['agents'] = {}
-                        for uid in edge['agents']:
-                            if uid not in data['agents']:
-                                data['agents'][uid] = edge['agents'][uid]
-                    except:
-                        hashed_agents[hash_id].route_data.add_edge(edge.source_vertex['name'], edge.target_vertex['name'], agents=edge['agents'], key=edge['key'])
-
-        return list(hashed_agents.values())
-
-    def _remove_dangling_agents(self, agents: list[Agent]) -> list[Agent]:
-        """
-        Removes agents that represent failed paths if a successful alternative path exists. This will prevent agents
-        from "hanging back" and trying to travel the same path again and again if other agent variants have been
-        successful.
-
-        This function is used to prune the list of agents at the beginning of a day.
-        It identifies agents that failed on the previous day (tries > 0) and checks
-        if another agent that did not fail (tries == 0) provides an alternative route.
-        If a successful alternative exists, the "dangling" agent representing the
-        failed attempt is removed to avoid re-exploring dead ends.
-
-        :param agents: The list of agents to be pruned.
-        :return: A new list of agents with dangling ones removed.
-        """
-        if len(agents[0].route_data.es) == 0:
-            return agents
-
-        kept_agents: list[Agent] = []
-        ok_agents: set[str] = set()
-
-        # gather agents that have proceeded in the last day and take their route data
-        for agent in agents:
-            if agent.tries == 0:
-                kept_agents.append(agent)
-                for v in agent.route_data.vs:
-                    if 'agents' in v.attribute_names():
-                        for uid in v['agents']:
-                            ok_agents.add(uid)
-
-        # check if this agent has an alternative route
-        removed = 0
-        for agent in agents:
-            if agent.tries > 0:
-                has_alternative_route = False
-                # get key of this hub - these are all the keys that led to this agent, so we check if it is singular
-                for key in agent.route_data.vs.find(name=agent.this_hub)['agents'].keys():
-                    if key in ok_agents:
-                        has_alternative_route = True
-                        break
-                if has_alternative_route:
-                    removed += 1
-                else:
-                    kept_agents.append(agent)
-
-        if removed > 0 and logger.level <= logging.DEBUG:
-            logger.debug(f"Removed {removed} danging agent(s).")
-
-        return kept_agents
-
     def run(self) -> SetOfResults:
         """
         Run the simulation
@@ -407,18 +314,20 @@ class Simulation(BaseClass):
         agents_finished_for_today: list[Agent] = []
         """keeps finished agents for this day"""
 
-        # prepare context for single day
+        # prepare context for single day - run pre functions
+        for pre_prep_day in self.config.pre_simulation_prepare_day:
+            agents = pre_prep_day.prepare_for_new_day(self.config, self.context, agents, results)
+
+        # prepare context for single day - run for each agent
         for agent in agents:
             agent.prepare_for_new_day(current_day=self.current_day)
             # run SimulationPrepareDayInterfaces
             for prep_day in self.config.simulation_prepare_day:
                 prep_day.prepare_for_new_day(self.config, self.context, agent)
 
-        # Prune list, because we might have agents that start on the same position now
-        agents = self._prune_agent_list(agents)
-
-        # Remove dangling agents
-        agents = self._remove_dangling_agents(agents)
+        # prepare context for single day - run post functions
+        for post_prep_day in self.config.post_simulation_prepare_day:
+            agents = post_prep_day.prepare_for_new_day(self.config, self.context, agents, results)
 
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")

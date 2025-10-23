@@ -55,11 +55,6 @@ def test_create_agents_on_node():
         assert a.uid != agent.uid
 
 
-def test_prune_agent_list():
-    # TODO: implement!
-    pass
-
-
 def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop_at_node: None | str = None) -> tuple[
     Simulation, SetOfResults, list[Agent], list[Agent]]:
     config: Configuration = Configuration()

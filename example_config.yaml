@@ -158,8 +158,16 @@ preparation:
 ########################################################################################################################
 # simulation - is a bit more complicated, because there are several hooks to add modules to
 
-# steps that are run at the start of each day
+# steps that are run at the start of each day (not for each agent but for whole simulation)
+pre_simulation_prepare_day: []
+# steps that are run at the start of each day for each agent
 simulation_prepare_day: []
+# steps run after simulation_prepare_day has been run each day (not for each agent but for whole simulation)
+post_simulation_prepare_day:
+  - class: PruneAgentList
+    module: modules.simulation_pre_post_prepare_day
+  - class: RemoveDanglingAgents
+    module: modules.simulation_pre_post_prepare_day
 # steps that are run at each step to define the state
 simulation_define_state: []
 # steps run during simulation phase - these will update the state and calculate time taken, etc.

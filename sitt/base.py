@@ -99,8 +99,12 @@ class Configuration:
         """
         Preparation step classes to execute
         """
+        self.pre_simulation_prepare_day: list[SimulationPrePostPrepareDayInterface] = []
+        """simulation hook classes that are run on whole data before simulation_prepare_day has been called"""
         self.simulation_prepare_day: list[SimulationPrepareDayInterface] = []
         """simulation hook classes that are executed on each agent at the start of the day"""
+        self.post_simulation_prepare_day: list[SimulationPrePostPrepareDayInterface] = []
+        """simulation hook classes that are run on whole data after simulation_prepare_day has been called"""
         self.simulation_define_state: list[SimulationDefineStateInterface] = []
         """simulation hook classes that are executed on each agent at each node"""
         self.simulation_step_hook: list[SimulationStepHookInterface] = []
@@ -512,7 +516,7 @@ class PreparationInterface(abc.ABC):
 
 class SimulationPrepareDayInterface(abc.ABC):
     """
-    Simulation module interface for hooks starting at a new day
+    Simulation module interface for hooks starting at a new day - per agent
     """
 
     def __init__(self):
@@ -522,6 +526,21 @@ class SimulationPrepareDayInterface(abc.ABC):
 
     @abc.abstractmethod
     def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent):
+        pass
+
+
+class SimulationPrePostPrepareDayInterface(abc.ABC):
+    """
+    Simulation module interface for hooks starting at a new day - for while list of agents and results
+    """
+
+    def __init__(self):
+        # runtime settings
+        self.skip: bool = False
+        self.conditions: list[str] = []
+
+    @abc.abstractmethod
+    def prepare_for_new_day(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults) -> list[Agent]:
         pass
 
 

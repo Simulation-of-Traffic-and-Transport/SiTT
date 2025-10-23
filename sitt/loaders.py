@@ -86,27 +86,16 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
             config.start_date = dt.datetime.fromisoformat(data['start_date'])
 
     # step configuration
-    _step_data = _parse_step_data('preparation', data, config)
-    if _step_data:
-        config.preparation = _step_data
-    _step_data = _parse_step_data('simulation_prepare_day', data, config)
-    if _step_data:
-        config.simulation_prepare_day = _step_data
-    _step_data = _parse_step_data('simulation_define_state', data, config)
-    if _step_data:
-        config.simulation_define_state = _step_data
-    _step_data = _parse_step_data('simulation_step', data, config)
-    if _step_data:
-        config.simulation_step = _step_data
-    _step_data = _parse_step_data('simulation_step_hook', data, config)
-    if _step_data:
-        config.simulation_step_hook = _step_data
-    _step_data = _parse_step_data('output', data, config)
-    if _step_data:
-        config.output = _step_data
+    for key in ['preparation', 'pre_simulation_prepare_day','simulation_prepare_day', 'post_simulation_prepare_day',
+                'simulation_define_state', 'simulation_step', 'simulation_step_hook', 'output']:
+        _set_config_data_if_set(config, key, data)
 
     return config
 
+def _set_config_data_if_set(config: Configuration, key: str, data: Any) -> None:
+    _step_data = _parse_step_data(key, data, config)
+    if _step_data:
+        config.__setattr__(key, _step_data)
 
 def _parse_step_data(key: str, data: dict, config: Configuration) -> list[
                                                                          PreparationInterface | SimulationPrepareDayInterface | SimulationDefineStateInterface | SimulationStepInterface | SimulationStepHookInterface | OutputInterface] | None:
