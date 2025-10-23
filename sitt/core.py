@@ -470,7 +470,7 @@ class Simulation(BaseClass):
             results.agents_cancelled.append(agent)
         else:
             # traceback to last possible resting place, if needed
-            if self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
+            if self.config.overnight_trace_back and self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
                 # compile entries to delete from graph
                 hubs_to_delete: set[int] = set()
                 # gather vertex ids to try out tomorrow

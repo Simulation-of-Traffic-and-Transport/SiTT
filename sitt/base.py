@@ -117,6 +117,8 @@ class Configuration:
         """
         Output step classes to execute
         """
+        self.overnight_trace_back: bool = True
+        """Trace back to last hub with overnight stay"""
         self.simulation_starts: list[str] | None = None
         """"Starting hubs for simulation"""
         self.simulation_ends: list[str] | None = None

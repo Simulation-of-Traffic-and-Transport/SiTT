@@ -85,6 +85,10 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
         else:
             config.start_date = dt.datetime.fromisoformat(data['start_date'])
 
+    # Other settings
+    if 'overnight_trace_back' in data:
+        config.overnight_trace_back = data['overnight_trace_back']
+
     # step configuration
     for key in ['preparation', 'pre_simulation_prepare_day','simulation_prepare_day', 'post_simulation_prepare_day',
                 'simulation_define_state', 'simulation_step', 'simulation_step_hook', 'output']:
