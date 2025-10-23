@@ -460,6 +460,9 @@ class Simulation(BaseClass):
         :param agents_finished_for_today:  list of agents that have finished for today (mutated)
         """
 
+        if logger.level <= logging.DEBUG:
+            logging.debug(f"Agent {agent.uid}: ending day")
+
         # break if tries are exceeded
         agent.tries += 1
         # set the furthest hub reached
