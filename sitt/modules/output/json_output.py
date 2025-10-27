@@ -37,7 +37,7 @@ class JSONOutput(OutputInterface):
         if self.skip:
             return ''
 
-        logger.info("OutputInterface JSONOutput run")
+        logger.info(f"OutputInterface JSONOutput run: {self.filename}")
 
         self.config = config
         self.context = context
