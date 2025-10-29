@@ -39,7 +39,7 @@ class JSONOutput(OutputInterface):
 
         # replace some stuff in filename
         filename = self.filename
-        filename = filename.replace('${OUTPUT_FILENAME}', config.simulation_route)
+        filename = filename.replace('${ROUTE}', config.simulation_route)
 
         logger.info(f"OutputInterface JSONOutput run: {filename}")
 
