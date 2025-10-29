@@ -37,7 +37,11 @@ class JSONOutput(OutputInterface):
         if self.skip:
             return ''
 
-        logger.info(f"OutputInterface JSONOutput run: {self.filename}")
+        # replace some stuff in filename
+        filename = self.filename
+        filename = filename.replace('${OUTPUT_FILENAME}', config.simulation_route)
+
+        logger.info(f"OutputInterface JSONOutput run: {filename}")
 
         self.config = config
         self.context = context
@@ -55,7 +59,7 @@ class JSONOutput(OutputInterface):
             logger.log(logger.level, result)
 
         if self.save_output:
-            file = open(self.filename, 'w')
+            file = open(filename, 'w')
 
             # already converted to string?
             if self.to_string:
