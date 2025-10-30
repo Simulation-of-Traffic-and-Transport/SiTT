@@ -332,6 +332,7 @@ class Simulation(BaseClass):
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
 
+        step = 1
         # do single day loop - this is the inner loop for the simulation (per day)
         while len(agents):
             agents_proceed: list[Agent] = []
@@ -342,6 +343,10 @@ class Simulation(BaseClass):
                 self._run_single_step(agent, results, agents_proceed, agents_finished_for_today)
 
             agents = agents_proceed
+
+        if logger.level <= logging.DEBUG:
+            logger.debug(f" - step {step} {len(agents)} {len(agents_finished_for_today)}")
+            step += 1
 
         # increase day
         self.current_day += 1
