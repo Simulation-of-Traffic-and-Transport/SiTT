@@ -74,7 +74,7 @@ def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop
     context.routes.add_edges([('START', 'PASS'), ('START', 'STAY'), ('PASS', 'STOP'), ('STAY', 'STOP')])
     context.routes.es['name'] = ['START-PASS', 'START-STAY', 'PASS-STOP', 'STAY-STOP']
 
-    results: SetOfResults = SetOfResults()
+    results: SetOfResults = SetOfResults(context.routes)
     agents_proceed: list[Agent] = []
     agents_finished_for_today: list[Agent] = []
     sim: Simulation = Simulation(config, context)
@@ -86,7 +86,6 @@ def test_run_single_step_start_pass1():
     # this is the simplest test case for the single day loop
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
     agent = Agent('START', 'PASS', -1, current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -107,7 +106,6 @@ def test_run_single_step_start_pass2():
     # test exceeds max time so agent should end and be reset to current state
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8.1)
     agent = Agent('START', 'PASS', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -125,7 +123,6 @@ def test_run_single_step_start_pass3():
     # test is exactly max time - agent should end day as special case
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs()
     agent = Agent('START', 'PASS', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -143,7 +140,6 @@ def test_run_single_step_start_stay1():
     # copy of simple run, only we take the other route and proceed to stay
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
     agent = Agent('START', 'STAY', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -164,7 +160,6 @@ def test_run_single_step_start_stay2():
     # test exceeds max time so agent should end and be reset to current state
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8.1)
     agent = Agent('START', 'STAY', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -182,7 +177,6 @@ def test_run_single_step_start_stay3():
     # test is exactly max time - agent should end day as special case, stay overnight, ok
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs()
     agent = Agent('START', 'STAY', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -203,7 +197,6 @@ def test_run_single_step_arrival1():
     # text arrival at end point - agent should not try to continue
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0)
     agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -223,7 +216,6 @@ def test_run_single_step_arrival2():
     # text arrival at end point - agent should not try to continue - exact match should also work!
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs()
     agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -243,7 +235,6 @@ def test_run_single_step_forced_stop1():
     # test forced stop
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(4.0, 'STAY')
     agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None
@@ -264,7 +255,6 @@ def test_run_single_step_forced_stop2():
     # test forced stop - exact time
     sim, results, agents_proceed, agents_finished_for_today = _create_simulation_for_test_runs(8., 'STAY')
     agent = Agent('STAY', 'STOP', '', current_time=8., max_time=16.)
-    agent.add_first_route_data_entry()  # init correct data
 
     # simply test running the simulation without other definitions
     assert sim._run_single_step(agent, results, agents_proceed, agents_finished_for_today) is None

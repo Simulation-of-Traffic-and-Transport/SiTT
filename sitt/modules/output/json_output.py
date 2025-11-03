@@ -4,6 +4,7 @@
 """Create basic json output"""
 import json
 import logging
+from shutil import register_unpack_format
 from typing import Any
 
 from shapely.geometry import mapping
@@ -74,14 +75,14 @@ class JSONOutput(OutputInterface):
     def create_dict_from_data(self, set_of_results: SetOfResults) -> dict[str, Any]:
         """create a dict from passed data"""
 
-        agents_finished, history = self._agent_list_to_data(set_of_results.agents_finished)
-        agents_cancelled, merge_history = self._agent_list_to_data(set_of_results.agents_cancelled)
-
-        # merge full list
-        history = self._merge_history_lists(history, merge_history)
+        # agents_finished, history = self._agent_list_to_data(set_of_results.agents_finished)
+        # agents_cancelled, merge_history = self._agent_list_to_data(set_of_results.agents_cancelled)
+        #
+        # # merge full list
+        # history = self._merge_history_lists(history, merge_history)
 
         # add nodes and paths
-        nodes, paths = self._graph_to_data()
+        nodes, paths = self._graph_to_data(set_of_results)
 
         # convert start date to string
         start_date = ""
@@ -96,9 +97,9 @@ class JSONOutput(OutputInterface):
             "simulation_route_reverse": self.config.simulation_route_reverse,
             "start_date": start_date,
             "break_simulation_after": self.config.break_simulation_after,
-            "agents_finished": agents_finished,
-            "agents_cancelled": agents_cancelled,
-            "history": list(history.values()),
+            # "agents_finished": agents_finished,
+            # "agents_cancelled": agents_cancelled,
+            # "history": list(history.values()),
             "nodes": nodes,
             "paths": paths,
         }
@@ -189,12 +190,12 @@ class JSONOutput(OutputInterface):
 
         return list1
 
-    def _graph_to_data(self) -> tuple[list[dict], list[dict]]:
+    def _graph_to_data(self, set_of_results: SetOfResults) -> tuple[list[dict], list[dict]]:
         nodes: list[dict] = []
         paths: list[dict] = []
 
         # aggregate node data
-        for node in self.context.routes.vs:
+        for node in set_of_results.route.vs:
             data = {'id': node['name']}
 
             for key in node.attribute_names():
@@ -202,13 +203,22 @@ class JSONOutput(OutputInterface):
                     data['geom'] = mapping(node['geom'])
                 elif key == 'overnight':
                     data['overnight'] = is_truthy(node['overnight'])
+                elif key == 'arrival':
+                    if len(node['arrival']) > 0:
+                        data['arrival'] = self._format_departure_arrival_times(node['arrival'])
+                elif key == 'departure':
+                    if len(node['departure']) > 0:
+                        data['departure'] = self._format_departure_arrival_times(node['departure'])
                 else:
                     data[key] = node[key]
 
             nodes.append(data)
 
         # aggregate path data
-        for path in self.context.routes.es:
+        for path in set_of_results.route.es:
+            leg_times = []
+            for leg_time in path['leg_times']:
+                leg_times.append(self._format_departure_arrival_times(leg_time, False) if len(leg_time) > 0 else [])
             paths.append({
                 'id': path['name'],
                 "from": path['from'],
@@ -216,9 +226,30 @@ class JSONOutput(OutputInterface):
                 'type': path["type"],
                 'length_m': path['length_m'],
                 'geom': mapping(path['geom']),
+                'leg_times': leg_times,
             })
 
         return nodes, paths
+
+    def _format_departure_arrival_times(self, data: list[tuple[tuple[int, float], str, str]], add_reasons: bool = True) -> list[dict]:
+        result = {}
+        for entry in data:
+            if entry[0] not in result:
+                result[entry[0]] = {
+                    "t": (entry[0][0]-1)*24. + entry[0][1],
+                    "agents": [],
+                }
+                if add_reasons:
+                    result[entry[0]]['reasons'] = []
+            result[entry[0]]['agents'].append(entry[1])
+            if add_reasons:
+                result[entry[0]]['reasons'].append(entry[2])
+
+        # sort result by time
+        result = list(result.values())
+        sorted(result, key=lambda x: x['t'])
+
+        return result
 
     def __repr__(self):
         return json.dumps(self)

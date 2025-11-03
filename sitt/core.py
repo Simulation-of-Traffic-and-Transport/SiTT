@@ -215,7 +215,7 @@ class Simulation(BaseClass):
         return ok
 
     def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None, first_day: bool = False,
-                              current_time: float = 8., max_time: float = 16., next_hubs_to_try: set[str] | None = None) -> list[Agent]:
+                              current_time: float = 8., max_time: float = 16.) -> list[Agent]:
         """
         Create a number of virtual agents on a given node.
 
@@ -224,7 +224,6 @@ class Simulation(BaseClass):
         :param first_day: First day of simulation?
         :param current_time: Current time
         :param max_time: Maximum time this day
-        :param next_hubs_to_try: Next hubs to try - may be None to try all hubs
         :return:
         """
         agents: list[Agent] = []
@@ -233,25 +232,29 @@ class Simulation(BaseClass):
         if agent_to_clone is None:
             agent_to_clone = Agent(hub, '', '', current_time=current_time, max_time=max_time)
 
+        # add current hub to visited ones
+        agent_to_clone.visited_hubs.add(hub)
+        # set current hub
+        agent_to_clone.this_hub = hub
+
         # create new agent for each outbound edge
         for edge in self.context.routes.incident(hub):
             e = self.context.routes.es[edge]
             target = e.target_vertex['name']
 
-            # skip this node if it is not in the next hubs_to_try set
-            if next_hubs_to_try is not None and target not in next_hubs_to_try:
-                continue
+            # do we have a forced route?
+            if len(agent_to_clone.forced_route) > 0:
+                # skip if names do not match
+                if e['name'] != agent_to_clone.forced_route[0]:
+                    continue
+                # ok, forced route is defined, shorten in for the next step
+                agent_to_clone.forced_route = agent_to_clone.forced_route[1:]
 
             # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
-            try:
-                agent_to_clone.route_data.vs.find(name=target)
-                if logger.level <= logging.DEBUG:
-                    logger.debug(f"Skipping {agent_to_clone} on {target}, already visited!")
-                continue
-            except:
+            if target not in agent_to_clone.visited_hubs:
                 # create new agent for each option
                 new_agent = copy.deepcopy(agent_to_clone)
-                new_agent.this_hub = hub
+                new_agent.parent = agent_to_clone.uid  # parent uid
                 new_agent.next_hub = target
                 new_agent.route_key = e['name']  # name of edge
 
@@ -261,12 +264,6 @@ class Simulation(BaseClass):
         if len(agents) > 1:
             for agent in agents:
                 agent.generate_uid()
-
-        # first day?
-        if first_day:
-            for agent in agents:
-                # Add node information
-                agent.add_first_route_data_entry()
 
         return agents
 
@@ -278,7 +275,7 @@ class Simulation(BaseClass):
         """
         logger.info("******** Simulation: started ********")
 
-        results = SetOfResults()
+        results = SetOfResults(self.context.routes)
 
         # check settings
         if not self.check():
@@ -388,35 +385,20 @@ class Simulation(BaseClass):
                 # run state update
                 agent.state = sim_step.update_state(self.config, self.context, agent, next_leg, is_reversed)
 
+        # calculate times
+        start_time = agent.current_time
+        end_time = agent.current_time + agent.state.time_taken
+
         # proceed or stop here?
-        if not agent.state.signal_stop_here and agent.state.time_taken >= 0 and agent.current_time + agent.state.time_taken <= agent.max_time:
-            # add hub history
-            agent.add_hub_history()
-
+        if not agent.state.signal_stop_here and agent.state.time_taken >= 0 and end_time <= agent.max_time:
             # proceed..., first add time
-            start_time = agent.current_time
-            agent.current_time += agent.state.time_taken
-            agent.last_route = last_key
+            # add hub and vertex history (this will add the vertex to the agent's history)
+            agent.set_hub_departure(agent.this_hub, (agent.current_day, start_time))
+            agent.set_hub_arrival(agent.next_hub, (agent.current_day, end_time))
+            agent.add_vertex_history(agent.route_key, agent.this_hub, agent.next_hub, self.current_day, start_time, self.current_day, end_time, agent.state.time_for_legs)
 
-            # add next vertex, if needed
-            try:
-                agent.route_data.vs.find(name=agent.next_hub)
-            except:
-                agent.route_data.add_vertex(name=agent.next_hub, agents={})
-            # add route data
-            attrs = {'key': agent.route_key,
-                     'agents': {agent.uid: {
-                         'start': {
-                             'day': self.current_day,
-                             'time': start_time,
-                         },
-                         'end': {
-                             'day': self.current_day,
-                             'time': agent.current_time,
-                         },
-                         'leg_times': agent.state.time_for_legs
-                     }}}
-            agent.route_data.add_edge(agent.this_hub, agent.next_hub, **attrs)
+            agent.current_time = end_time
+            agent.last_route = last_key
 
             # finished?
             next_hub = self.context.graph.vs.find(name=agent.next_hub)
@@ -466,32 +448,41 @@ class Simulation(BaseClass):
         """
 
         if logger.level <= logging.DEBUG:
-            logging.debug(f"Agent {agent.uid}: ending day")
+            logging.debug(f"Agent {agent.uid} [{agent.this_hub}]: ending day")
 
         # break if tries are exceeded
         agent.tries += 1
+
         # set the furthest hub reached
         if agent.state.last_coordinate_after_stop is not None:
             agent.furthest_coordinates.append(agent.state.last_coordinate_after_stop)
+
+        # if tries exceeded, move agent to cancelled list
         if agent.tries > self.config.break_simulation_after:
             agent.day_cancelled = self.current_day - self.config.break_simulation_after
             results.agents_cancelled.append(agent)
         else:
+            # reset forced route data
+            agent.forced_route = []
+
             # traceback to last possible resting place, if needed
             if self.config.overnight_trace_back and self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
-                # compile entries to delete from graph
+                # get hub ids that start from the last possible resting place to the current hub
                 hubs_to_delete: set[int] = set()
-                # gather vertex ids to try out tomorrow
-                next_hubs_to_try: set[str] = set()
 
-                # gather vertex ids to delete
-                for path in agent.route_data.get_all_simple_paths(agent.last_possible_resting_place, agent.this_hub):
-                    hubs_to_delete.update(path[1:])
-                    # add the next hub to try out
-                    next_hubs_to_try.add(agent.route_data.vs[path[1]]['name'])
+                for edge_id in agent.route_data.get_shortest_path(agent.last_possible_resting_place, agent.this_hub, output="epath"):
+                    e = agent.route_data.es[edge_id]
+                    agent.forced_route.append(e['name'])
+                    hubs_to_delete.add(e.target)
+                    # delete from visited hubs
+                    agent.visited_hubs.remove(e.target_vertex['name'])
 
                 # actually delete hubs from graph
                 agent.route_data.delete_vertices(list(hubs_to_delete))
+
+                # delete departure time in target hub
+                hub = agent.route_data.vs.find(name=agent.last_possible_resting_place)
+                hub['departure'] = None
 
                 # delete rest history that is more than or same as the maximum last resting time
                 for i in range(len(agent.rest_history)):
@@ -500,7 +491,7 @@ class Simulation(BaseClass):
                         break
 
                 agents_finished_for_today.extend(
-                    self.create_agents_on_node(agent.last_possible_resting_place, agent, next_hubs_to_try=next_hubs_to_try))
+                    self.create_agents_on_node(agent.last_possible_resting_place, agent))
             else:
                 agents_finished_for_today.append(agent)
 
@@ -508,6 +499,45 @@ class Simulation(BaseClass):
             if agent.last_resting_place != agent.this_hub:
                 agent.last_resting_place = agent.this_hub
                 agent.tries = 0
+
+        # save to statistics
+        self._save_statistics(agent, results)
+
+
+    def _save_statistics(self, agent: Agent, results: SetOfResults):
+        """Saves the agent's travel statistics to the main results object.
+
+        This method iterates through the agent's personal route data (`agent.route_data`)
+        and appends the arrival and departure times for each visited hub (vertex) and
+        traversed route (edge) to the corresponding elements in the global `results.route`
+        graph. This aggregates the data from a single agent into the overall simulation
+        results.
+
+        Args:
+            agent (Agent): The agent whose statistics are to be saved.
+            results (SetOfResults): The main results object, which is mutated by
+                this method to include the agent's statistics.
+        """
+        # traverse the route
+        for v in agent.route_data.vs:
+            reason = v['reason'] if v['reason'] is not None else ""
+
+            hub = results.route.vs.find(name=v['name'])
+            if v['arrival'] is not None:
+                hub['arrival'].append((v['arrival'], agent.uid, reason,))
+            if v['departure'] is not None:
+                hub['departure'].append((v['departure'], agent.uid, reason,))
+            # should only be one outbound edge...
+            for e in v.incident(mode='out'):
+                edge = results.route.es.find(name=e['name'])
+                edge['arrival'].append((e['arrival'], agent.uid, reason,))
+                edge['departure'].append((e['departure'], agent.uid, reason,))
+                for i in range(len(edge['leg_times'])):
+                    if i == 0:
+                        edge['leg_times'][0].append((e['departure'], agent.uid))
+                    else:
+                        edge['leg_times'][i].append((e['leg_times'][i-1], agent.uid))
+
 
     def _end_simulation(self, results: SetOfResults):
         """
@@ -529,18 +559,18 @@ class Simulation(BaseClass):
         # round up max_time
         max_time = math.ceil(max_time)
 
-        # add stay over at end
-        for agent in results.agents_finished:
-            agent.route_data.add_vertex(agent.this_hub, agents={agent.uid: {
-                'start': {
-                    'day': agent.current_day,
-                    'time': agent.current_time,
-                },
-                'end': {
-                    'day': max_day,
-                    'time': max_time,
-                }
-            }})
+        # # add stay over at end
+        # for agent in results.agents_finished:
+        #     agent.route_data.add_vertex(agent.this_hub, agents={agent.uid: {
+        #         'start': {
+        #             'day': agent.current_day,
+        #             'time': agent.current_time,
+        #         },
+        #         'end': {
+        #             'day': max_day,
+        #             'time': max_time,
+        #         }
+        #     }})
 
         # TODO: handle unfinished agents, too?
 

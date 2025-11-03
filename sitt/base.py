@@ -18,6 +18,7 @@ from typing import Generator
 
 import igraph as ig
 import nanoid
+import numpy as np
 import yaml
 
 # import directly and export to __init__.py
@@ -269,6 +270,8 @@ class Agent(object):
         """Key id of next/current route between hubs ("name" attribute of edge)"""
         self.last_route: str | None = None
         """Key if of last route taken"""
+        self.parent: str | None = None
+        """UID of parent agent (if any)"""
 
         self.current_day: int = 1
         """Current day of agent - copied from simulation"""
@@ -290,8 +293,12 @@ class Agent(object):
         self.furthest_coordinates: list[tuple[float, float]] = []
         """furthest coordinate visited"""
 
+        self.visited_hubs: set[str] = set()
+        """keeps visited hubs (for all days)"""
+        self.forced_route: list[str] = []
+        """force route for this agent for next day"""
         self.route_data: ig.Graph = ig.Graph(directed=True)
-        """keeps route taken (multidigrapjh)"""
+        """keep current route taken (per day)"""
         self.last_possible_resting_place: str = this_hub
         """keeps last possible resting place"""
         self.last_possible_resting_time: float = current_time
@@ -324,28 +331,9 @@ class Agent(object):
         self.rest_history = []
         self.additional_data = {}
         self.state = self.state.reset()
-
-        # add overnight stays
-        if len(self.route_data.vs):
-            vertex = self.route_data.vs.find(self.this_hub)
-
-            if 'agents' not in vertex.attribute_names():
-                vertex['agents'] = {}
-
-            for edge in vertex.in_edges():
-                for uid in edge['agents']:
-                    ag = edge['agents'][uid]
-
-                    vertex['agents'][uid] = {
-                        "start": {
-                            "day": ag['end']['day'],
-                            "time": ag['end']['time'],
-                        },
-                        "end": {
-                            "day": self.current_day,
-                            "time": self.current_time,
-                        }
-                    }
+        # clear route data and add current hub
+        self.route_data.clear()
+        self.set_hub_departure(self.this_hub, (self.current_day, self.current_time))
 
     def __repr__(self) -> str:
         if self.day_finished >= 0:
@@ -366,57 +354,38 @@ class Agent(object):
         self.uid = generate_id()
         return self.uid
 
-    def add_first_route_data_entry(self):
-        """
-        Initialize route data (history) by adding first vertex.
-        """
-        self.route_data.add_vertex(name=self.this_hub, agents={})
-
-    def add_hub_history(self, uid: str | None = None, hub_id: str | None = None, start_day: int | None = None,
-                    start_time: float | None = None, end_day: int | None = None, end_time: float | None = None):
-        # set defaults if not provided
-        if uid is None:
-            uid = self.uid
-        if hub_id is None:
-            hub_id = self.this_hub
-        if start_day is None:
-            start_day = self.current_day
-        if start_time is None:
-            start_time = self.current_time
-        if end_day is None:
-            end_day = self.current_day
-        if end_time is None:
-            end_time = self.current_time
-
+    def set_hub_departure(self, hub: str, departure: tuple[int, float], reason: str | None = None):
+        departure = (departure[0], np.round(departure[1], decimals=1))
         try:
-            # get hub from history
-            hub = self.route_data.vs.find(name=hub_id)
-            # test data structure and add it, if it doesn't exist
-            if 'agents' not in hub.attribute_names():
-                hub['agents'] = {}
-            # add stop-over if not added already
-            if uid not in hub['agents']:
-                hub['agents'][uid] = {
-                    'start': {
-                        'day': start_day,
-                        'time': start_time,
-                    },
-                    'end': {
-                        'day': end_day,
-                        'time': end_time,
-                    },
-                }
-            elif hub['agents'][uid]['end']['day'] < end_day or (hub['agents'][uid]['end']['day'] == end_day and hub['agents'][uid]['end']['time'] > end_time):
-                # adjust end time
-                hub['agents'][uid]['end'] = {
-                    'day': end_day,
-                    'time': end_time,
-                }
-            elif hub['agents'][uid]['end']['day'] != end_day or hub['agents'][uid]['end']['time'] != end_time:
-                # log warning if stop-over already exists and we want to adjust it in some weird way
-                logging.warning(f"Stop-over for agent {uid} already exists in hub {hub_id}: {hub['agents'][uid]}, wanted: {start_day} {start_time} - {end_day} {end_time}")
+            hub = self.route_data.vs.find(name=hub)
+            hub['departure'] = departure
+            if reason is not None:
+                hub['reason'] = reason
         except:
-            logging.error(f"Hub {self.this_hub} not found in route_data for add_history.")
+            self.route_data.add_vertex(name=hub, arrival=None, departure=departure, reason=reason)
+
+    def set_hub_arrival(self, hub: str, arrival: tuple[int, float], reason: str | None = None):
+        arrival = (arrival[0], np.round(arrival[1], decimals=1))
+        try:
+            hub = self.route_data.vs.find(name=hub)
+            hub['arrival'] = arrival
+            if reason is not None:
+                hub['reason'] = reason
+        except:
+            self.route_data.add_vertex(name=hub, arrival=arrival, departure=None, reason=reason)
+
+    def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_day: int, start_time: float, end_day: int, end_time: float, leg_times: list[float]):
+        current_day = start_day
+        current_time = start_time
+        times = []
+
+        for leg_time in leg_times:
+            current_time += leg_time
+            if current_time > 24.:
+                current_day += 1
+                current_time -= 24.
+            times.append((current_day, np.round(current_time, decimals=1),)) # we round off to 1 decimal place, because this is accurate enough
+        self.route_data.add_edge(from_hub, to_hub, name=route_key, departure=(start_day, np.round(start_time, decimals=1)), arrival=(end_day, np.round(end_time, decimals=2)), leg_times=times)
 
 
     def add_rest(self, length: float, time: float = -1) -> None:
@@ -477,11 +446,27 @@ class Agent(object):
 class SetOfResults:
     """Set of results represents the results of a simulation"""
 
-    def __init__(self):
+    def __init__(self, graph: ig.Graph):
         self.agents_finished: list[Agent] = []
         """keeps list of finished agents"""
         self.agents_cancelled: list[Agent] = []
         """keeps list of cancelled agents"""
+        if graph.is_directed():
+            self.route: ig.Graph = graph.copy()
+        else:
+            self.route = graph.copy().as_directed()
+        """keeps route data/statistics - must be a directed graph!"""
+        # define some data
+        for v in self.route.vs:
+            v['arrival'] = []
+            v['departure'] = []
+        for e in self.route.es:
+            e['arrival'] = []
+            e['departure'] = []
+            # create this in a loop to create independent arrays in memory
+            e['leg_times'] = []
+            for i in range(len(e['legs'])+1):
+                e['leg_times'].append([])
 
     def __repr__(self) -> str:
         return yaml.dump(self)
