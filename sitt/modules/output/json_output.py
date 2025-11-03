@@ -169,9 +169,6 @@ class JSONOutput(OutputInterface):
             "hour": agent.current_time,
         }
 
-        if status == 'cancelled':
-            agent_data['furthest_coordinates'] = agent.furthest_coordinates
-
         return agent_data, history
 
     def _merge_history_lists(self, list1: dict[str, dict[str, Any]], list2: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:

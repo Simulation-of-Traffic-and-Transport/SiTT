@@ -453,10 +453,6 @@ class Simulation(BaseClass):
         # break if tries are exceeded
         agent.tries += 1
 
-        # set the furthest hub reached
-        if agent.state.last_coordinate_after_stop is not None:
-            agent.furthest_coordinates.append(agent.state.last_coordinate_after_stop)
-
         # if tries exceeded, move agent to cancelled list
         if agent.tries > self.config.break_simulation_after:
             agent.day_cancelled = self.current_day - self.config.break_simulation_after

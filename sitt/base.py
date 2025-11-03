@@ -290,8 +290,6 @@ class Agent(object):
         """internal value for tries at this hub - will break at a defined number"""
         self.last_resting_place: str = this_hub
         """keep track of last resting place"""
-        self.furthest_coordinates: list[tuple[float, float]] = []
-        """furthest coordinate visited"""
 
         self.visited_hubs: set[str] = set()
         """keeps visited hubs (for all days)"""
@@ -327,7 +325,6 @@ class Agent(object):
         self.max_time = max_time
         self.last_possible_resting_place = self.this_hub
         self.last_possible_resting_time = self.current_time
-        self.furthest_coordinates = []
         self.rest_history = []
         self.additional_data = {}
         self.state = self.state.reset()
