@@ -38,30 +38,30 @@ class PruneAgentList(SimulationPrePostPrepareDayInterface):
                 # merge graphs - we want to have all possible graphs at the end
 
                 # we start with copying/merging hub data
-                for hub in agent.route_data.vs:
+                for hub in agent.route_day.vs:
                     if 'agents' in hub.attribute_names():
                         try:
-                            data = hashed_agents[hash_id].route_data.vs.find(name=hub['name'])
+                            data = hashed_agents[hash_id].route_day.vs.find(name=hub['name'])
                             if 'agents' not in data.attribute_names():
                                 data['agents'] = {}
                             for uid in hub['agents']:
                                 if uid not in data['agents']:
                                     data['agents'][uid] = hub['agents'][uid]
                         except:
-                            hashed_agents[hash_id].route_data.add_vertices(1, attributes=hub.attributes())
+                            hashed_agents[hash_id].route_day.add_vertices(1, attributes=hub.attributes())
 
                 # now connect edges
-                for edge in agent.route_data.es:
+                for edge in agent.route_day.es:
                     try:
-                        data = hashed_agents[hash_id].route_data.es.find(key=edge['key'])
+                        data = hashed_agents[hash_id].route_day.es.find(key=edge['key'])
                         if 'agents' not in data.attribute_names():
                             data['agents'] = {}
                         for uid in edge['agents']:
                             if uid not in data['agents']:
                                 data['agents'][uid] = edge['agents'][uid]
                     except:
-                        hashed_agents[hash_id].route_data.add_edge(edge.source_vertex['name'],
-                                                                   edge.target_vertex['name'], agents=edge['agents'],
-                                                                   key=edge['key'])
+                        hashed_agents[hash_id].route_day.add_edge(edge.source_vertex['name'],
+                                                                  edge.target_vertex['name'], agents=edge['agents'],
+                                                                  key=edge['key'])
 
         return list(hashed_agents.values())

@@ -11,5 +11,5 @@ def test_agent():
     assert agent.this_hub == 'A'
     assert agent.next_hub == 'B'
     assert agent.route_key == 'A-B'
-    assert type(agent.route_data) == ig.Graph
-    assert agent.route_data.is_directed()
+    assert type(agent.route_day) == ig.Graph
+    assert agent.route_day.is_directed()

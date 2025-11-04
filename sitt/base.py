@@ -295,8 +295,10 @@ class Agent(object):
         """keeps visited hubs (for all days)"""
         self.forced_route: list[str] = []
         """force route for this agent for next day"""
-        self.route_data: ig.Graph = ig.Graph(directed=True)
+        self.route_day: ig.Graph = ig.Graph(directed=True)
         """keep current route taken (per day)"""
+        self.route_data: ig.Graph = ig.Graph(directed=True)
+        """keep complete route taken for all days"""
         self.last_possible_resting_place: str = this_hub
         """keeps last possible resting place"""
         self.last_possible_resting_time: float = current_time
@@ -328,8 +330,7 @@ class Agent(object):
         self.rest_history = []
         self.additional_data = {}
         self.state = self.state.reset()
-        # clear route data and add current hub
-        self.route_data.clear()
+        self.persist_route_data()
         self.set_hub_departure(self.this_hub, (self.current_day, self.current_time))
 
     def __repr__(self) -> str:
@@ -354,22 +355,22 @@ class Agent(object):
     def set_hub_departure(self, hub: str, departure: tuple[int, float], reason: str | None = None):
         departure = (departure[0], np.round(departure[1], decimals=1))
         try:
-            hub = self.route_data.vs.find(name=hub)
+            hub = self.route_day.vs.find(name=hub)
             hub['departure'] = departure
             if reason is not None:
                 hub['reason'] = reason
         except:
-            self.route_data.add_vertex(name=hub, arrival=None, departure=departure, reason=reason)
+            self.route_day.add_vertex(name=hub, arrival=None, departure=departure, reason=reason)
 
     def set_hub_arrival(self, hub: str, arrival: tuple[int, float], reason: str | None = None):
         arrival = (arrival[0], np.round(arrival[1], decimals=1))
         try:
-            hub = self.route_data.vs.find(name=hub)
+            hub = self.route_day.vs.find(name=hub)
             hub['arrival'] = arrival
             if reason is not None:
                 hub['reason'] = reason
         except:
-            self.route_data.add_vertex(name=hub, arrival=arrival, departure=None, reason=reason)
+            self.route_day.add_vertex(name=hub, arrival=arrival, departure=None, reason=reason)
 
     def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_day: int, start_time: float, end_day: int, end_time: float, leg_times: list[float]):
         current_day = start_day
@@ -382,8 +383,7 @@ class Agent(object):
                 current_day += 1
                 current_time -= 24.
             times.append((current_day, np.round(current_time, decimals=1),)) # we round off to 1 decimal place, because this is accurate enough
-        self.route_data.add_edge(from_hub, to_hub, name=route_key, departure=(start_day, np.round(start_time, decimals=1)), arrival=(end_day, np.round(end_time, decimals=2)), leg_times=times)
-
+        self.route_day.add_edge(from_hub, to_hub, name=route_key, departure=(start_day, np.round(start_time, decimals=1)), arrival=(end_day, np.round(end_time, decimals=2)), leg_times=times)
 
     def add_rest(self, length: float, time: float = -1) -> None:
         """
@@ -435,6 +435,14 @@ class Agent(object):
         else:
             return None
 
+    def persist_route_data(self) -> None:
+        # copy day route into complete route data
+        if len(self.route_data.vs) == 0:
+            self.route_data = self.route_day.copy()
+        elif len(self.route_day.vs):
+            self.route_data = self.route_data.union(self.route_day)
+        # clear route data and add current hub
+        self.route_day.clear()
 
 ########################################################################################################################
 # Set of Results
@@ -444,10 +452,12 @@ class SetOfResults:
     """Set of results represents the results of a simulation"""
 
     def __init__(self, graph: ig.Graph):
-        self.agents_finished: list[Agent] = []
-        """keeps list of finished agents"""
-        self.agents_cancelled: list[Agent] = []
-        """keeps list of cancelled agents"""
+        self.min_dt: tuple[int, float] = (0, 0.)
+        """minimum departure time of agents (day, time)"""
+        self.max_dt: tuple[int, float] = (0, 0.)
+        """maximum arrival time of agents (day, time)"""
+        self.agents: ig.Graph = ig.Graph(directed=True)
+        """general list of agents - as list of descend from starting hubs to ending ones"""
         if graph.is_directed():
             self.route: ig.Graph = graph.copy()
         else:
@@ -464,6 +474,14 @@ class SetOfResults:
             e['leg_times'] = []
             for i in range(len(e['legs'])+1):
                 e['leg_times'].append([])
+
+    def add_agent(self, agent: Agent) -> None:
+        # persist route data
+        agent.persist_route_data()
+        # add vertex
+        self.agents.add_vertex(name=agent.uid, agent=agent)
+        if agent.parent is not None:
+            self.agents.add_edge(agent.parent, agent.uid, name=agent.route_key)
 
     def __repr__(self) -> str:
         return yaml.dump(self)

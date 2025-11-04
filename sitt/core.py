@@ -11,7 +11,6 @@
 import abc
 import copy
 import logging
-import math
 import os.path
 from typing import Any
 
@@ -189,7 +188,9 @@ class Simulation(BaseClass):
         """
         super().__init__(config)
         self.context: Context = context
-
+        """Context object for the simulation"""
+        self.results = SetOfResults(self.context.routes)
+        """Set of results for the simulation"""
         self.current_day: int = 1
         """Current day of simulation"""
 
@@ -227,10 +228,12 @@ class Simulation(BaseClass):
         :return:
         """
         agents: list[Agent] = []
+        is_dummy_agent = False
 
         # create new agent if none is defined
         if agent_to_clone is None:
             agent_to_clone = Agent(hub, '', '', current_time=current_time, max_time=max_time)
+            is_dummy_agent = True
 
         # add current hub to visited ones
         agent_to_clone.visited_hubs.add(hub)
@@ -254,7 +257,7 @@ class Simulation(BaseClass):
             if target not in agent_to_clone.visited_hubs:
                 # create new agent for each option
                 new_agent = copy.deepcopy(agent_to_clone)
-                new_agent.parent = agent_to_clone.uid  # parent uid
+                new_agent.route_data = ig.Graph(directed=True)
                 new_agent.next_hub = target
                 new_agent.route_key = e['name']  # name of edge
 
@@ -262,8 +265,14 @@ class Simulation(BaseClass):
 
         # create new uids, if agents have split
         if len(agents) > 1:
+            # save old agent to history
+            if not is_dummy_agent:
+                self.results.add_agent(agent_to_clone)
             for agent in agents:
                 agent.generate_uid()
+                # set parent, if not a dummy agent
+                if not is_dummy_agent:
+                    agent.parent = agent_to_clone.uid  # parent uid
 
         return agents
 
@@ -275,11 +284,9 @@ class Simulation(BaseClass):
         """
         logger.info("******** Simulation: started ********")
 
-        results = SetOfResults(self.context.routes)
-
         # check settings
         if not self.check():
-            return results
+            return self.results
 
         # create initial set of agents to run
         agents = []
@@ -291,21 +298,20 @@ class Simulation(BaseClass):
         # do the loop - this is the outer loop for the whole simulation
         # it will run until there are no agents left
         while len(agents):
-            agents = self._run_single_day(agents, results)
+            agents = self._run_single_day(agents)
 
         # end simulation - do some history and statistics
-        self._end_simulation(results)
+        self._end_simulation()
 
         logger.info("******** Simulation: finished ********")
 
-        return results
+        return self.results
 
-    def _run_single_day(self, agents: list[Agent], results: SetOfResults) -> list[Agent]:
+    def _run_single_day(self, agents: list[Agent]) -> list[Agent]:
         """
         Run single day - called in the outer loop of run
 
         :param agents: list of agents
-        :param results: set of results to fill into (mutated)
         :return: new list of agents (can be empty list at the end)
         """
         agents_finished_for_today: list[Agent] = []
@@ -313,7 +319,7 @@ class Simulation(BaseClass):
 
         # prepare context for single day - run pre functions
         for pre_prep_day in self.config.pre_simulation_prepare_day:
-            agents = pre_prep_day.prepare_for_new_day(self.config, self.context, agents, results)
+            agents = pre_prep_day.prepare_for_new_day(self.config, self.context, agents, self.results)
 
         # prepare context for single day - run for each agent
         for agent in agents:
@@ -324,7 +330,7 @@ class Simulation(BaseClass):
 
         # prepare context for single day - run post functions
         for post_prep_day in self.config.post_simulation_prepare_day:
-            agents = post_prep_day.prepare_for_new_day(self.config, self.context, agents, results)
+            agents = post_prep_day.prepare_for_new_day(self.config, self.context, agents, self.results)
 
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
@@ -337,7 +343,7 @@ class Simulation(BaseClass):
 
             # do single step for each agent
             for agent in agents:
-                self._run_single_step(agent, results, agents_proceed, agents_finished_for_today)
+                self._run_single_step(agent, agents_proceed, agents_finished_for_today)
 
             agents = agents_proceed
 
@@ -350,13 +356,12 @@ class Simulation(BaseClass):
 
         return agents_finished_for_today
 
-    def _run_single_step(self, agent: Agent, results: SetOfResults, agents_proceed: list[Agent],
+    def _run_single_step(self, agent: Agent, agents_proceed: list[Agent],
                          agents_finished_for_today: list[Agent]):
         """
         Run single stop for a specific agent - all parameters will be mutated in this method!
 
         :param agent: agent to run results for (mutated)
-        :param results: set of results to fill into (mutated)
         :param agents_proceed: list of agents that proceed today (mutated)
         :param agents_finished_for_today:  list of agents that have finished for today (mutated)
         """
@@ -409,7 +414,7 @@ class Simulation(BaseClass):
                 agent.next_hub = ''
                 agent.route_key = ''
                 agent.day_finished = self.current_day
-                results.agents_finished.append(agent)
+                self.results.add_agent(agent)
             elif next_hub['overnight'] or (has_overnight_hub and next_hub['overnight_hub']):
                 # proceed to new hub -> it is an overnight stay
                 if has_overnight_hub and next_hub['overnight_hub'] and agent.next_hub != next_hub['overnight_hub']:
@@ -430,20 +435,19 @@ class Simulation(BaseClass):
                 if agent.state.signal_stop_here or agent.current_time == agent.max_time:
                     # very special case that should not occur often: we arrive at the node exactly on maximum
                     # time, end day - this will increase test timer
-                    self._end_day(agent, results, agents_finished_for_today)
+                    self._end_day(agent, agents_finished_for_today)
                 else:
                     # normal case just proceed
                     agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
         else:
             # time exceeded, end day
-            self._end_day(agent, results, agents_finished_for_today)
+            self._end_day(agent, agents_finished_for_today)
 
-    def _end_day(self, agent: Agent, results: SetOfResults, agents_finished_for_today: list[Agent]):
+    def _end_day(self, agent: Agent, agents_finished_for_today: list[Agent]):
         """
         End this day for agent.
 
         :param agent: agent to run results for (mutated)
-        :param results: set of results to fill into (mutated)
         :param agents_finished_for_today:  list of agents that have finished for today (mutated)
         """
 
@@ -456,7 +460,7 @@ class Simulation(BaseClass):
         # if tries exceeded, move agent to cancelled list
         if agent.tries > self.config.break_simulation_after:
             agent.day_cancelled = self.current_day - self.config.break_simulation_after
-            results.agents_cancelled.append(agent)
+            self.results.add_agent(agent)
         else:
             # reset forced route data
             agent.forced_route = []
@@ -466,18 +470,18 @@ class Simulation(BaseClass):
                 # get hub ids that start from the last possible resting place to the current hub
                 hubs_to_delete: set[int] = set()
 
-                for edge_id in agent.route_data.get_shortest_path(agent.last_possible_resting_place, agent.this_hub, output="epath"):
-                    e = agent.route_data.es[edge_id]
+                for edge_id in agent.route_day.get_shortest_path(agent.last_possible_resting_place, agent.this_hub, output="epath"):
+                    e = agent.route_day.es[edge_id]
                     agent.forced_route.append(e['name'])
                     hubs_to_delete.add(e.target)
                     # delete from visited hubs
                     agent.visited_hubs.remove(e.target_vertex['name'])
 
                 # actually delete hubs from graph
-                agent.route_data.delete_vertices(list(hubs_to_delete))
+                agent.route_day.delete_vertices(list(hubs_to_delete))
 
                 # delete departure time in target hub
-                hub = agent.route_data.vs.find(name=agent.last_possible_resting_place)
+                hub = agent.route_day.vs.find(name=agent.last_possible_resting_place)
                 hub['departure'] = None
 
                 # delete rest history that is more than or same as the maximum last resting time
@@ -497,10 +501,10 @@ class Simulation(BaseClass):
                 agent.tries = 0
 
         # save to statistics
-        self._save_statistics(agent, results)
+        self._save_statistics(agent)
 
 
-    def _save_statistics(self, agent: Agent, results: SetOfResults):
+    def _save_statistics(self, agent: Agent):
         """Saves the agent's travel statistics to the main results object.
 
         This method iterates through the agent's personal route data (`agent.route_data`)
@@ -511,21 +515,19 @@ class Simulation(BaseClass):
 
         Args:
             agent (Agent): The agent whose statistics are to be saved.
-            results (SetOfResults): The main results object, which is mutated by
-                this method to include the agent's statistics.
         """
         # traverse the route
-        for v in agent.route_data.vs:
+        for v in agent.route_day.vs:
             reason = v['reason'] if v['reason'] is not None else ""
 
-            hub = results.route.vs.find(name=v['name'])
+            hub = self.results.route.vs.find(name=v['name'])
             if v['arrival'] is not None:
                 hub['arrival'].append((v['arrival'], agent.uid, reason,))
             if v['departure'] is not None:
                 hub['departure'].append((v['departure'], agent.uid, reason,))
             # should only be one outbound edge...
             for e in v.incident(mode='out'):
-                edge = results.route.es.find(name=e['name'])
+                edge = self.results.route.es.find(name=e['name'])
                 edge['arrival'].append((e['arrival'], agent.uid, reason,))
                 edge['departure'].append((e['departure'], agent.uid, reason,))
                 for i in range(len(edge['leg_times'])):
@@ -535,40 +537,31 @@ class Simulation(BaseClass):
                         edge['leg_times'][i].append((e['leg_times'][i-1], agent.uid))
 
 
-    def _end_simulation(self, results: SetOfResults):
+    def _end_simulation(self):
         """
         Run end simluation tasks
-
-        :param results: set of results
         """
-        max_day: float = 0.
-        max_time: float = 0.
+        max_day: int = 0
+        max_time: float = 0
+        min_day: int = 9999999
+        min_time: float = float('inf')
 
         # first, determine max_time and max_day
-        for agent in results.agents_finished:
+        for agent in self.results.agents.vs['agent']:
             if agent.current_day > max_day:
                 max_day = agent.current_day
                 max_time = agent.current_time
             elif agent.current_day == max_day and agent.current_time > max_time:
                 max_time = agent.current_time
 
-        # round up max_time
-        max_time = math.ceil(max_time)
+            if agent.current_day < min_day:
+                min_day = agent.current_day
+                min_time = agent.current_time
+            elif agent.current_day == min_day and agent.current_time < min_time:
+                min_time = agent.current_time
 
-        # # add stay over at end
-        # for agent in results.agents_finished:
-        #     agent.route_data.add_vertex(agent.this_hub, agents={agent.uid: {
-        #         'start': {
-        #             'day': agent.current_day,
-        #             'time': agent.current_time,
-        #         },
-        #         'end': {
-        #             'day': max_day,
-        #             'time': max_time,
-        #         }
-        #     }})
-
-        # TODO: handle unfinished agents, too?
+        self.results.max_dt = (max_day, max_time)
+        self.results.min_dt = (min_day, min_time)
 
 
 ########################################################################################################################

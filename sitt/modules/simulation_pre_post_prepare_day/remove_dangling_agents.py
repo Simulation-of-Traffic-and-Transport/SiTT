@@ -32,7 +32,7 @@ class RemoveDanglingAgents(SimulationPrePostPrepareDayInterface):
         :param agents: The list of agents to be pruned.
         :return: A new list of agents with dangling ones removed.
         """
-        if len(agents[0].route_data.es) == 0:
+        if len(agents[0].route_day.es) == 0:
             return agents
 
         kept_agents: list[Agent] = []
@@ -42,7 +42,7 @@ class RemoveDanglingAgents(SimulationPrePostPrepareDayInterface):
         for agent in agents:
             if agent.tries == 0:
                 kept_agents.append(agent)
-                for v in agent.route_data.vs:
+                for v in agent.route_day.vs:
                     if 'agents' in v.attribute_names():
                         for uid in v['agents']:
                             ok_agents.add(uid)
@@ -53,7 +53,7 @@ class RemoveDanglingAgents(SimulationPrePostPrepareDayInterface):
             if agent.tries > 0:
                 has_alternative_route = False
                 # get key of this hub - these are all the keys that led to this agent, so we check if it is singular
-                for key in agent.route_data.vs.find(name=agent.this_hub)['agents'].keys():
+                for key in agent.route_day.vs.find(name=agent.this_hub)['agents'].keys():
                     if key in ok_agents:
                         has_alternative_route = True
                         break
