@@ -248,9 +248,15 @@ class JSONOutput(OutputInterface):
             "uid": agent.uid,
             "hubs": agent.route_data.vs['name'],
             "edges": agent.route_data.es['name'],
-            "start": _dt_to_hours(agent.route_data.vs[0]['departure']),
-            "end": _dt_to_hours(agent.route_data.vs[-1]['arrival']),
         }
+
+        # get first and last hub
+        start_hub = agent.route_data.vs[0]
+        end_hub = agent.route_data.vs[-1]
+        if 'departure' in start_hub.attributes():
+            agent_data['start'] = _dt_to_hours(start_hub['departure'])
+        if 'arrival' in end_hub.attributes():
+            agent_data['end'] = _dt_to_hours(end_hub['arrival'])
 
         if agent.day_cancelled >= 0:
             agent_data['cancelled'] = True
