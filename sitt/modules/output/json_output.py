@@ -98,6 +98,8 @@ class JSONOutput(OutputInterface):
         # replace some stuff in filename
         filename = self.filename
         filename = filename.replace('${ROUTE}', config.simulation_route)
+        if config.start_date is not None:
+            filename = filename.replace('${SIMULATION_START}', config.start_date.strftime('%Y-%m-%d'))
 
         logger.info(f"OutputInterface JSONOutput run: {filename}")
 
