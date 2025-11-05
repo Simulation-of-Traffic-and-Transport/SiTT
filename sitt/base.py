@@ -18,7 +18,6 @@ from typing import Generator
 
 import igraph as ig
 import nanoid
-import numpy as np
 import yaml
 
 # import directly and export to __init__.py
@@ -353,7 +352,7 @@ class Agent(object):
         return self.uid
 
     def set_hub_departure(self, hub: str, departure: tuple[int, float], reason: str | None = None):
-        departure = (departure[0], np.round(departure[1], decimals=1))
+        departure = (departure[0], departure[1])
         try:
             hub = self.route_day.vs.find(name=hub)
             hub['departure'] = departure
@@ -363,7 +362,7 @@ class Agent(object):
             self.route_day.add_vertex(name=hub, arrival=None, departure=departure, reason=reason)
 
     def set_hub_arrival(self, hub: str, arrival: tuple[int, float], reason: str | None = None):
-        arrival = (arrival[0], np.round(arrival[1], decimals=1))
+        arrival = (arrival[0], arrival[1])
         try:
             hub = self.route_day.vs.find(name=hub)
             hub['arrival'] = arrival
@@ -372,18 +371,18 @@ class Agent(object):
         except:
             self.route_day.add_vertex(name=hub, arrival=arrival, departure=None, reason=reason)
 
-    def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_day: int, start_time: float, end_day: int, end_time: float, leg_times: list[float]):
+    def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_day: int, start_time: float, leg_times: list[float]):
         current_day = start_day
         current_time = start_time
-        times = []
+        times = [(current_day, current_time)]
 
         for leg_time in leg_times:
             current_time += leg_time
             if current_time > 24.:
                 current_day += 1
                 current_time -= 24.
-            times.append((current_day, np.round(current_time, decimals=1),)) # we round off to 1 decimal place, because this is accurate enough
-        self.route_day.add_edge(from_hub, to_hub, name=route_key, departure=(start_day, np.round(start_time, decimals=1)), arrival=(end_day, np.round(end_time, decimals=2)), leg_times=times)
+            times.append((current_day, current_time))
+        self.route_day.add_edge(from_hub, to_hub, name=route_key, times=times)
 
     def add_rest(self, length: float, time: float = -1) -> None:
         """
@@ -451,29 +450,13 @@ class Agent(object):
 class SetOfResults:
     """Set of results represents the results of a simulation"""
 
-    def __init__(self, graph: ig.Graph):
+    def __init__(self):
         self.min_dt: tuple[int, float] = (0, 0.)
         """minimum departure time of agents (day, time)"""
         self.max_dt: tuple[int, float] = (0, 0.)
         """maximum arrival time of agents (day, time)"""
         self.agents: ig.Graph = ig.Graph(directed=True)
         """general list of agents - as list of descend from starting hubs to ending ones"""
-        if graph.is_directed():
-            self.route: ig.Graph = graph.copy()
-        else:
-            self.route = graph.copy().as_directed()
-        """keeps route data/statistics - must be a directed graph!"""
-        # define some data
-        for v in self.route.vs:
-            v['arrival'] = []
-            v['departure'] = []
-        for e in self.route.es:
-            e['arrival'] = []
-            e['departure'] = []
-            # create this in a loop to create independent arrays in memory
-            e['leg_times'] = []
-            for i in range(len(e['legs'])+1):
-                e['leg_times'].append([])
 
     def add_agent(self, agent: Agent) -> None:
         # persist route data

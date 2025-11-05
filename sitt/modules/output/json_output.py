@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 import igraph as ig
+import numpy as np
 from shapely.geometry import mapping
 
 from sitt import Agent, Configuration, Context, OutputInterface, SetOfResults, is_truthy
@@ -150,7 +151,9 @@ class JSONOutput(OutputInterface):
                 results, including metadata, agent journeys, and graph
                 topology with traversal data.
         """
-        agents = self._agent_graph_to_data(set_of_results.agents)
+        agents, min_dt, max_dt = self._agent_graph_to_data(set_of_results.agents)
+
+        time_slices = self._agents_to_time_slices(set_of_results.agents, min_dt, max_dt)
 
         # add nodes and paths
         nodes, paths = self._graph_to_data(set_of_results)
@@ -173,9 +176,10 @@ class JSONOutput(OutputInterface):
             "agents": agents,
             "nodes": nodes,
             "paths": paths,
+            "time_slices": time_slices,
         }
 
-    def _agent_graph_to_data(self, agents: ig.Graph) -> list[dict]:
+    def _agent_graph_to_data(self, agents: ig.Graph) -> tuple[list[dict], float, float]:
         """Converts a graph of agents into a list of serializable dictionaries.
 
         This method iterates through each vertex in the provided agent graph,
@@ -191,46 +195,19 @@ class JSONOutput(OutputInterface):
                 the data of a single agent.
         """
         list_of_agents: list[dict] = []
+        min_dt = float('inf')
+        max_dt = float('-inf')
 
         for v in agents.vs:
-            list_of_agents.append(self._agent_to_data(v['agent']))
+            agent = self._agent_to_data(v['agent'])
+            list_of_agents.append(agent)
+            if 'start' in agent and agent['start'] < min_dt:
+                min_dt = agent['start']
+            if 'end' in agent and agent['end'] > max_dt:
+                max_dt = agent['end']
 
-        return list_of_agents
-
-    def _agent_list_to_data(self, agents: list[Agent]) -> tuple[list[dict], dict[str, dict[str, Any]]]:
-        """Converts a single agent object into a serializable dictionary format.
-
-        This method processes an Agent object to extract its summary data and
-        the history of its traversal through the graph for a given day. It
-        captures the agent's final status, the graph elements (nodes and edges)
-        it interacted with, and any other agents it was grouped with.
-
-        Args:
-            agent (Agent): The agent object to be converted.
-
-        Returns:
-            tuple[dict, dict[str, dict[str, Any]]]: A tuple containing two dictionaries:
-                - The first dictionary holds the agent's summary data, including its
-                  UID, final status ('finished' or 'cancelled'), the day and hour
-                  of completion/cancellation, and a list of all associated agent
-                  UIDs it may have merged with.
-                - The second dictionary represents the traversal history, mapping
-                  node and edge IDs to dictionaries containing their details and
-                  the agents present on them.
-        """
-        main_agent_list: list[dict] = []
-        agent_list: dict[str, dict[str, Any]] = {}
-
-        for agent in agents:
-            # get data, is a dict of agent data and list of agents
-            agent_data, added_list = self._agent_to_data(agent)
-
-            # aggregate agent data
-            agent_list = self._merge_history_lists(agent_list, added_list)
-
-            main_agent_list.append(agent_data)
-
-        return main_agent_list, agent_list
+        list_of_agents = sorted(list_of_agents, key=lambda x: x['uid'])
+        return list_of_agents, min_dt, max_dt
 
     def _agent_to_data(self, agent: Agent) -> dict:
         """Converts a single agent object into a serializable dictionary.
@@ -252,6 +229,10 @@ class JSONOutput(OutputInterface):
             "edges": agent.route_data.es['name'],
         }
 
+        # parent?
+        if agent.parent is not None:
+            agent_data['parent'] = agent.parent
+
         # get first and last hub
         start_hub = agent.route_data.vs[0]
         end_hub = agent.route_data.vs[-1]
@@ -266,6 +247,64 @@ class JSONOutput(OutputInterface):
             agent_data['finished'] = True
 
         return agent_data
+
+    def _agents_to_time_slices(self, agents: ig.Graph, min_dt: float, max_dt: float) -> dict[float, list[dict[str, Any]]]:
+        # initialize time slices dictionary
+        time_data: dict[float, dict[tuple[float, float], list[str]]] = {}
+        # we arrange the slices time 10, so we do not have floating point precision issues
+        for t in np.arange(min_dt*10, max_dt*10+1):
+            t = float(np.round(t/10, decimals=1))
+            time_data[t] = {}
+
+        # now, iterate through agents and add their journeys to time slices
+        for v in agents.vs:
+            time_slices_used: set[float] = set()
+            agent = v['agent']
+            # iterate through vertices and aggregate points
+            for h in agent.route_data.vs:
+                # get hub coordinates
+                hub_geom = self.context.routes.vs.find(name=h['name'])['geom']
+                coords = (hub_geom.x, hub_geom.y)
+                for i, t in enumerate(_enumerate_arrival_departure(h['arrival'] if 'arrival' in h.attributes() else None, h['departure'] if 'departure' in h.attributes() else None)):
+                    # create xy in time slice, if needed
+                    if coords not in time_data[t]:
+                        time_data[t][coords] = []
+                    time_data[t][coords].append(v['name'])
+
+            # iterate through edges and aggregate points
+            for e in agent.route_data.es:
+                # get edge coordinates
+                edge_coords = self.context.routes.es.find(name=e['name'])['geom'].coords
+                # iterate through times
+                for i, t in enumerate(e['times']):
+                    # skip first and last entry, because we add vertices here
+                    if i == 0 or i == len(e['times']) - 1:
+                        continue
+                    t = _dt_to_hours(t)
+                    # we only add the agent to one time slice
+                    if t in time_slices_used:
+                        continue
+                    time_slices_used.add(t)
+                    coord = edge_coords[i]
+                    x = coord[0]
+                    y = coord[1]
+                    # create xy in time slice, if needed
+                    if (x, y) not in time_data[t]:
+                        time_data[t][(x, y)] = []
+                    time_data[t][(x, y)].append(v['name'])
+
+        time_slices = {}
+
+        for t, coords in time_data.items():
+            time_slices[t] = []
+            for coord, agent_list in coords.items():
+                agent_list.sort()
+                time_slices[t].append({
+                    'latLng': [coord[1], coord[0]],
+                    'agents': agent_list,
+                })
+
+        return time_slices
 
     def _graph_to_data(self, set_of_results: SetOfResults) -> tuple[list[dict], list[dict]]:
         """Extracts and formats node and path data from the simulation results graph.
@@ -290,30 +329,25 @@ class JSONOutput(OutputInterface):
         paths: list[dict] = []
 
         # aggregate node data
-        for node in set_of_results.route.vs:
+        for node in self.context.routes.vs:
             data = {'id': node['name']}
 
             for key in node.attribute_names():
                 if key == 'geom':
-                    data['geom'] = mapping(node['geom'])
+                    data['lng'] = node['geom'].x
+                    data['lat'] = node['geom'].y
+                    if node['geom'].has_z and node['geom'].z > 0.:
+                        data['height'] = node['geom'].z
+                    #data['geom'] = mapping(node['geom'])
                 elif key == 'overnight':
                     data['overnight'] = is_truthy(node['overnight'])
-                elif key == 'arrival':
-                    if len(node['arrival']) > 0:
-                        data['arrival'] = self._format_departure_arrival_times(node['arrival'])
-                elif key == 'departure':
-                    if len(node['departure']) > 0:
-                        data['departure'] = self._format_departure_arrival_times(node['departure'])
-                else:
+                elif node[key] is not None:
                     data[key] = node[key]
 
             nodes.append(data)
 
         # aggregate path data
-        for path in set_of_results.route.es:
-            leg_times = []
-            for leg_time in path['leg_times']:
-                leg_times.append(self._format_departure_arrival_times(leg_time, False) if len(leg_time) > 0 else [])
+        for path in self.context.routes.es:
             paths.append({
                 'id': path['name'],
                 "from": path['from'],
@@ -321,7 +355,6 @@ class JSONOutput(OutputInterface):
                 'type': path["type"],
                 'length_m': path['length_m'],
                 'geom': mapping(path['geom']),
-                'leg_times': leg_times,
             })
 
         return nodes, paths
@@ -380,4 +413,42 @@ def _dt_to_hours(dt: tuple[int, float]) -> float:
     """
     if dt is None:
         return 0.
-    return (dt[0]-1)*24. + dt[1]
+    return np.round((dt[0]-1)*24. + dt[1], decimals=1)
+
+def _enumerate_arrival_departure(arrival: tuple[int, float] | None, departure: tuple[int, float] | None) -> list[float]:
+    """Generates a list of time points between an arrival and departure time.
+
+    This function creates a sequence of time points, in total hours, with a
+    0.1-hour resolution, spanning from the arrival time to the departure time,
+    inclusive. It handles cases where one or both times might be None.
+
+    Args:
+        arrival (tuple[int, float] | None): The arrival time as a (day, hour)
+            tuple. If None, and departure is provided, a list with only the
+            departure time is returned.
+        departure (tuple[int, float] | None): The departure time as a (day,
+            hour) tuple. If None, and arrival is provided, a list with only
+            the arrival time is returned.
+
+    Returns:
+        list[float]: A list of time points in total hours. If both arrival
+            and departure are provided, it returns a list of times from
+            arrival to departure in 0.1-hour increments. If only one is
+            provided, it returns a list with that single time. If both are
+            None, it returns an empty list.
+    """
+    # sanity, this should not happen in the best of worlds...
+    if arrival is None and departure is None:
+        return []
+    # either arrival or departure is None
+    if departure is None:
+        return [_dt_to_hours(arrival)]
+    if arrival is None:
+        return [_dt_to_hours(departure)]
+
+    times = []
+
+    for t in np.arange(_dt_to_hours(arrival) * 10, _dt_to_hours(departure) * 10 + 1):
+        times.append(float(np.round(t / 10, decimals=1)))
+
+    return times

@@ -189,7 +189,7 @@ class Simulation(BaseClass):
         super().__init__(config)
         self.context: Context = context
         """Context object for the simulation"""
-        self.results = SetOfResults(self.context.routes)
+        self.results = SetOfResults()
         """Set of results for the simulation"""
         self.current_day: int = 1
         """Current day of simulation"""
@@ -257,7 +257,6 @@ class Simulation(BaseClass):
             if target not in agent_to_clone.visited_hubs:
                 # create new agent for each option
                 new_agent = copy.deepcopy(agent_to_clone)
-                new_agent.route_data = ig.Graph(directed=True)
                 new_agent.next_hub = target
                 new_agent.route_key = e['name']  # name of edge
 
@@ -267,9 +266,13 @@ class Simulation(BaseClass):
         if len(agents) > 1:
             # save old agent to history
             if not is_dummy_agent:
+                agent_to_clone.persist_route_data()
                 self.results.add_agent(agent_to_clone)
             for agent in agents:
                 agent.generate_uid()
+                # create new route graph
+                agent.route_day = ig.Graph(directed=True)
+                agent.route_data = ig.Graph(directed=True)
                 # set parent, if not a dummy agent
                 if not is_dummy_agent:
                     agent.parent = agent_to_clone.uid  # parent uid
@@ -400,7 +403,7 @@ class Simulation(BaseClass):
             # add hub and vertex history (this will add the vertex to the agent's history)
             agent.set_hub_departure(agent.this_hub, (agent.current_day, start_time))
             agent.set_hub_arrival(agent.next_hub, (agent.current_day, end_time))
-            agent.add_vertex_history(agent.route_key, agent.this_hub, agent.next_hub, self.current_day, start_time, self.current_day, end_time, agent.state.time_for_legs)
+            agent.add_vertex_history(agent.route_key, agent.this_hub, agent.next_hub, self.current_day, start_time, agent.state.time_for_legs)
 
             agent.current_time = end_time
             agent.last_route = last_key
@@ -501,42 +504,6 @@ class Simulation(BaseClass):
             if agent.last_resting_place != agent.this_hub:
                 agent.last_resting_place = agent.this_hub
                 agent.tries = 0
-
-        # save to statistics
-        self._save_statistics(agent)
-
-
-    def _save_statistics(self, agent: Agent):
-        """Saves the agent's travel statistics to the main results object.
-
-        This method iterates through the agent's personal route data (`agent.route_data`)
-        and appends the arrival and departure times for each visited hub (vertex) and
-        traversed route (edge) to the corresponding elements in the global `results.route`
-        graph. This aggregates the data from a single agent into the overall simulation
-        results.
-
-        Args:
-            agent (Agent): The agent whose statistics are to be saved.
-        """
-        # traverse the route
-        for v in agent.route_day.vs:
-            reason = v['reason'] if v['reason'] is not None else ""
-
-            hub = self.results.route.vs.find(name=v['name'])
-            if v['arrival'] is not None:
-                hub['arrival'].append((v['arrival'], agent.uid, reason,))
-            if v['departure'] is not None:
-                hub['departure'].append((v['departure'], agent.uid, reason,))
-            # should only be one outbound edge...
-            for e in v.incident(mode='out'):
-                edge = self.results.route.es.find(name=e['name'])
-                edge['arrival'].append((e['arrival'], agent.uid, reason,))
-                edge['departure'].append((e['departure'], agent.uid, reason,))
-                for i in range(len(edge['leg_times'])):
-                    if i == 0:
-                        edge['leg_times'][0].append((e['departure'], agent.uid))
-                    else:
-                        edge['leg_times'][i].append((e['leg_times'][i-1], agent.uid))
 
 
     def _end_simulation(self):

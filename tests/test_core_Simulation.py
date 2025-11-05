@@ -74,7 +74,7 @@ def _create_simulation_for_test_runs(time_taken_per_node: float = 8., force_stop
     context.routes.add_edges([('START', 'PASS'), ('START', 'STAY'), ('PASS', 'STOP'), ('STAY', 'STOP')])
     context.routes.es['name'] = ['START-PASS', 'START-STAY', 'PASS-STOP', 'STAY-STOP']
 
-    results: SetOfResults = SetOfResults(context.routes)
+    results: SetOfResults = SetOfResults()
     agents_proceed: list[Agent] = []
     agents_finished_for_today: list[Agent] = []
     sim: Simulation = Simulation(config, context)
