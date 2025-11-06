@@ -51,7 +51,7 @@ class SimpleRiver(SimulationStepInterface):
             # run hooks
             if not self.run_hooks(config, context, agent, next_leg, coords, time_taken):
                 if logger.level <= logging.DEBUG:
-                    logger.debug(f"SimulationInterface hooks run, day {agent.day_cancelled} cancelled")
+                    logger.debug(f"SimulationInterface hooks run, {agent} cancelled")
                 return agent.state
 
             length = next_leg['legs'][i]  # length is in meters

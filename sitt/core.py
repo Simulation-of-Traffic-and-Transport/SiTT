@@ -416,7 +416,7 @@ class Simulation(BaseClass):
                 agent.this_hub = agent.next_hub
                 agent.next_hub = ''
                 agent.route_key = ''
-                agent.day_finished = self.current_day
+                agent.is_finished = True
                 #agent.persist_route_data() # not needed, done somewhere else
                 self.results.add_agent(agent)
             elif next_hub['overnight'] or (has_overnight_hub and next_hub['overnight_hub']):
@@ -464,7 +464,7 @@ class Simulation(BaseClass):
         # if tries exceeded, move agent to cancelled list
         if agent.tries > self.config.break_simulation_after:
             agent.persist_route_data()
-            agent.day_cancelled = self.current_day - self.config.break_simulation_after
+            agent.is_cancelled = True
             self.results.add_agent(agent)
         else:
             # reset forced route data

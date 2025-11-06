@@ -281,9 +281,9 @@ class Agent(object):
         self.start_time: float = current_time
         """Keep start time of today"""
 
-        self.day_finished: int = -1
+        self.is_finished: bool = False
         """finished at this day"""
-        self.day_cancelled: int = -1
+        self.is_cancelled: bool = False
         """cancelled at this day"""
         self.tries: int = 0
         """internal value for tries at this hub - will break at a defined number"""
@@ -333,10 +333,10 @@ class Agent(object):
         self.set_hub_departure(self.this_hub, (self.current_day, self.current_time))
 
     def __repr__(self) -> str:
-        if self.day_finished >= 0:
-            return f'Agent {self.uid} ({self.this_hub}) - [finished day {self.day_finished}, {self.current_time:.2f}]'
-        if self.day_cancelled >= 0:
-            return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled day {self.day_cancelled}, {self.current_time:.2f}]'
+        if self.is_finished:
+            return f'Agent {self.uid} ({self.this_hub}) - [finished {self.is_finished}, {self.current_time:.2f}]'
+        if self.is_cancelled:
+            return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled {self.is_cancelled}, {self.current_time:.2f}]'
         return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
 
     def __eq__(self, other) -> bool:

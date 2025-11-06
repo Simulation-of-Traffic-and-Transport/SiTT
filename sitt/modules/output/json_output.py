@@ -241,9 +241,9 @@ class JSONOutput(OutputInterface):
         if 'arrival' in end_hub.attributes():
             agent_data['end'] = _dt_to_hours(end_hub['arrival'])
 
-        if agent.day_cancelled >= 0:
+        if agent.is_cancelled:
             agent_data['cancelled'] = True
-        if agent.day_finished >= 0:
+        if agent.is_finished:
             agent_data['finished'] = True
 
         return agent_data

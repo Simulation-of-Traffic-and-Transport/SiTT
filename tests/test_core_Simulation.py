@@ -96,8 +96,8 @@ def test_run_single_step_start_pass1():
     assert agents_proceed[0].this_hub == 'PASS'
     assert agents_proceed[0].next_hub == 'STOP'
     assert agent.tries == 0
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
     assert agent.current_time == 12.0
     assert agent.state.time_taken == 4.0
 
@@ -115,8 +115,8 @@ def test_run_single_step_start_pass2():
     assert len(agents_finished_for_today) == 1
     assert agents_finished_for_today[0] == agent
     assert agent.tries == 1
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
 
 
 def test_run_single_step_start_pass3():
@@ -132,8 +132,8 @@ def test_run_single_step_start_pass3():
     assert len(agents_finished_for_today) == 1
     assert agents_finished_for_today[0] == agent
     assert agent.tries == 1
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
 
 
 def test_run_single_step_start_stay1():
@@ -150,8 +150,8 @@ def test_run_single_step_start_stay1():
     assert agents_proceed[0].this_hub == 'STAY'
     assert agents_proceed[0].next_hub == 'STOP'
     assert agent.tries == 0
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
     assert agent.current_time == 12.0
     assert agent.state.time_taken == 4.0
 
@@ -169,8 +169,8 @@ def test_run_single_step_start_stay2():
     assert len(agents_finished_for_today) == 1
     assert agents_finished_for_today[0] == agent
     assert agent.tries == 1
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
 
 
 def test_run_single_step_start_stay3():
@@ -187,8 +187,8 @@ def test_run_single_step_start_stay3():
     assert agents_finished_for_today[0].this_hub == 'STAY'
     assert agents_finished_for_today[0].next_hub == 'STOP'
     assert agent.tries == 0
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
     assert agent.current_time == 16.
     assert agent.state.time_taken == 8.
 
@@ -207,7 +207,7 @@ def test_run_single_step_arrival1():
     assert agent.tries == 0
     assert agent.current_time == 12.0
     assert agent.state.time_taken == 4.0
-    assert agent.day_finished == 1
+    assert agent.is_finished is True
     assert len(results.agents_finished) == 1
     assert results.agents_finished[0] == agent
 
@@ -226,7 +226,7 @@ def test_run_single_step_arrival2():
     assert agent.tries == 0
     assert agent.current_time == 16.
     assert agent.state.time_taken == 8.
-    assert agent.day_finished == 1
+    assert agent.is_finished is True
     assert len(results.agents_finished) == 1
     assert results.agents_finished[0] == agent
 
@@ -245,8 +245,8 @@ def test_run_single_step_forced_stop1():
     assert agents_finished_for_today[0].this_hub == 'STAY'
     assert agents_finished_for_today[0].next_hub == 'STOP'
     assert agent.tries == 1
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
     assert agent.current_time == 8.
     assert agent.state.time_taken == 0.0
 
@@ -265,8 +265,8 @@ def test_run_single_step_forced_stop2():
     assert agents_finished_for_today[0].this_hub == 'STAY'
     assert agents_finished_for_today[0].next_hub == 'STOP'
     assert agent.tries == 1
-    assert agent.day_finished == -1
-    assert agent.day_cancelled == -1
+    assert agent.is_finished is False
+    assert agent.is_cancelled is False
     assert agent.current_time == 8.
     assert agent.state.time_taken == 0.0
 
