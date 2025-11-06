@@ -35,13 +35,13 @@ class StartStopTimePreparation(SimulationDayHookInterface):
     def run(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults,
             current_day: int) -> list[Agent]:
         for agent in agents:
-            self.prepare_for_new_day(config, context, agent)
+            self.prepare_for_new_day(config, context, agent, current_day)
         return agents
 
-    def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent):
+    def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent, current_day: int):
         try:
-            # calculate current day - fractions of days are ok, so we do not have to worry about daylight saving time changes and the like, just deal with days
-            current_day: dt.date = config.start_date + dt.timedelta(days=agent.current_time/24)
+            # calculate current day
+            current_dt: dt.date = config.start_date + dt.timedelta(days=current_day - 1)
             current_position: Point = context.get_hub_by_id(agent.this_hub)['geom']
 
             # get timezone of current position
@@ -51,7 +51,7 @@ class StartStopTimePreparation(SimulationDayHookInterface):
             sun = Sun(current_position.y, current_position.x)
 
             # Create a date in your machine's local time zone
-            current_dt = dt.datetime(current_day.year, current_day.month, current_day.day, 0, 0, 0, 0, time_zone)
+            current_dt = dt.datetime(current_dt.year, current_dt.month, current_dt.day, 0, 0, 0, 0, time_zone)
             sunrise = sun.get_sunrise_time(current_dt, time_zone)
             sunset = sun.get_sunset_time(current_dt, time_zone)
 
@@ -65,9 +65,9 @@ class StartStopTimePreparation(SimulationDayHookInterface):
             # technically, sunset will be different at the destination - on the other hand, this will hardly make a
             # difference in a real-world scenario (a few minutes at most).
 
-            agent.start_time = sunrise.hour + sunrise.minute/60
+            agent.start_time = sunrise.hour + sunrise.minute / 60 + (current_day - 1) * 24
             agent.current_time = agent.start_time
-            agent.max_time = sunset.hour + sunset.minute/60
+            agent.max_time = sunset.hour + sunset.minute/60 + (current_day - 1) * 24
         except Exception as ex:
             print(ex)
             # ignore exceptions completely

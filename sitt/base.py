@@ -315,7 +315,7 @@ class Agent(object):
         # set values for new day
         self.current_time = (current_day-1) * 24 + current_time
         self.start_time = current_time
-        self.max_time = max_time
+        self.max_time = (current_day-1) * 24 + max_time
         # self.rest_history = [] # keep
         self.additional_data = {}
         self.state = self.state.reset()
