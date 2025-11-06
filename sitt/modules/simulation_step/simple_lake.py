@@ -17,8 +17,7 @@ class SimpleLake(SimulationStepInterface):
         super().__init__()
         self.speed: float = speed
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
-                     is_reversed: bool) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         # skipped?
         if self.skip:
             return agent.state
@@ -35,7 +34,7 @@ class SimpleLake(SimulationStepInterface):
 
         # create range to traverse - might be reversed
         r = range(len(next_leg['legs']))
-        if is_reversed:
+        if agent.state.is_reversed:
             r = reversed(r)
 
         for i in r:

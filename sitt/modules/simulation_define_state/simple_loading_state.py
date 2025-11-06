@@ -30,17 +30,19 @@ class SimpleLoadingState(SimulationDefineStateInterface):
 
         # get route types
         last_route_type = context.get_path_by_id(agent.last_route)['type']
+        if agent.is_finished:
+            print("--- " + agent.route_key, agent.this_hub, "to", agent.next_hub, "---")
         current_route_type = context.get_path_by_id(agent.route_key)['type']
 
         # types are not equal => add time to consider reloading goods from one vehicle type to another
         if last_route_type != current_route_type:
             # add rest point
-            agent.add_rest(self.add_time)
+            agent.add_rest(self.add_time, reason='loading/unloading')
 
             # calculate new time
             new_time = agent.current_time + self.add_time
             # update history
-            agent.set_hub_departure(agent.this_hub, new_time, reason='loading/unloading')
+            agent.set_hub_departure(agent.this_hub, new_time)
             # update current time
             agent.current_time = new_time
 

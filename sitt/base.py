@@ -34,8 +34,7 @@ __all__ = [
     "Agent",
     "SetOfResults",
     "PreparationInterface",
-    "SimulationPrepareDayInterface",
-    "SimulationDefineStateInterface",
+    "SimulationDayHookInterface",
     "SimulationStepHookInterface",
     "SimulationStepInterface",
     "OutputInterface",
@@ -99,12 +98,10 @@ class Configuration:
         """
         Preparation step classes to execute
         """
-        self.pre_simulation_prepare_day: list[SimulationPrePostPrepareDayInterface] = []
-        """simulation hook classes that are run on whole data before simulation_prepare_day has been called"""
-        self.simulation_prepare_day: list[SimulationPrepareDayInterface] = []
-        """simulation hook classes that are executed on each agent at the start of the day"""
-        self.post_simulation_prepare_day: list[SimulationPrePostPrepareDayInterface] = []
-        """simulation hook classes that are run on whole data after simulation_prepare_day has been called"""
+        self.simulation_day_hook_pre: list[SimulationDayHookInterface] = []
+        """simulation hook classes that are run on whole data at the start of the day"""
+        self.simulation_day_hook_post: list[SimulationDayHookInterface] = []
+        """simulation hook classes that are run on whole data at the end of the day"""
         self.simulation_define_state: list[SimulationDefineStateInterface] = []
         """simulation hook classes that are executed on each agent at each node"""
         self.simulation_step_hook: list[SimulationStepHookInterface] = []
@@ -227,6 +224,8 @@ class State(object):
         """Signal forced stop here"""
         self.last_coordinate_after_stop: tuple[float, float] | None = None
         """Saves last coordinate after stop - for logging purposes"""
+        self.is_reversed: bool = False
+        """True, if route is to be traversed in reverse order"""
 
 
     def reset(self) -> State:
@@ -236,6 +235,7 @@ class State(object):
         self.data_for_legs = []
         self.signal_stop_here = False
         self.last_coordinate_after_stop = None
+        self.is_reversed: bool = False
 
         return self
 
@@ -270,8 +270,8 @@ class Agent(object):
         """Key id of next/current route between hubs ("name" attribute of edge)"""
         self.last_route: str | None = None
         """Key if of last route taken"""
-        self.parent: str | None = None
-        """UID of parent agent (if any)"""
+        self.parents: list[str] = []
+        """UIDs of parent agents"""
 
         self.current_time: float = current_time
         """Current time stamp of agent (each 24 is a day)"""
@@ -293,17 +293,11 @@ class Agent(object):
         """keeps visited hubs (for all days)"""
         self.forced_route: list[str] = []
         """force route for this agent for next day"""
-        self.route_day: ig.Graph = ig.Graph(directed=True)
-        """keep current route taken (per day)"""
         self.route_data: ig.Graph = ig.Graph(directed=True)
-        """keep complete route taken for all days"""
-        self.last_possible_resting_place: str = this_hub
-        """keeps last possible resting place"""
-        self.last_possible_resting_time: float = current_time
-        """keeps timestamp of last resting place"""
+        """keep complete route taken for all days, including resting places, etc."""
 
         # rest history
-        self.rest_history: list[tuple[float, float]] = []
+        self.rest_history: list[tuple[float, float, str]] = []
         """History of rests, each entry is (time, length in hours)"""
 
         # keeps any additional data
@@ -322,13 +316,9 @@ class Agent(object):
         self.current_time = (current_day-1) * 24 + current_time
         self.start_time = current_time
         self.max_time = max_time
-        self.last_possible_resting_place = self.this_hub
-        self.last_possible_resting_time = self.current_time
-        self.rest_history = []
+        # self.rest_history = [] # keep
         self.additional_data = {}
         self.state = self.state.reset()
-        self.persist_route_data()
-        self.set_hub_departure(self.this_hub, self.current_time)
 
     def __repr__(self) -> str:
         if self.is_finished:
@@ -348,43 +338,53 @@ class Agent(object):
         self.uid = generate_id()
         return self.uid
 
-    def set_hub_departure(self, hub: str, departure: float, reason: str | None = None):
+    def set_hub_departure(self, hub: str, departure: float):
         try:
-            hub = self.route_day.vs.find(name=hub)
+            hub = self.route_data.vs.find(name=hub)
             hub['departure'] = departure
-            if reason is not None:
-                hub['reason'] = reason
         except:
-            self.route_day.add_vertex(name=hub, arrival=None, departure=departure, reason=reason)
+            self.route_data.add_vertex(name=hub, arrival=None, departure=departure, overnight=False)
 
-    def set_hub_arrival(self, hub: str, arrival: float, reason: str | None = None):
+    def set_hub_arrival(self, hub: str, arrival: float):
         try:
-            hub = self.route_day.vs.find(name=hub)
+            hub = self.route_data.vs.find(name=hub)
             hub['arrival'] = arrival
-            if reason is not None:
-                hub['reason'] = reason
         except:
-            self.route_day.add_vertex(name=hub, arrival=arrival, departure=None, reason=reason)
+            self.route_data.add_vertex(name=hub, arrival=arrival, departure=None, overnight=False)
 
-    def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_time: float, leg_times: list[float]):
-        current_time = start_time
-        times = [current_time]
+    def create_route_data(self, from_hub: str, to_hub: str, route_key: str, departure: float, arrival: float, leg_times: list[float]):
+        # create departure and arrival hubs
+        self.set_hub_departure(from_hub, departure)
+        self.set_hub_arrival(to_hub, arrival)
+
+        # create list of time points in route
+        t = departure
+        times = [t]
 
         for leg_time in leg_times:
-            current_time += leg_time
-            times.append(current_time)
-        self.route_day.add_edge(from_hub, to_hub, name=route_key, times=times)
+            t += leg_time
+            times.append(t)
 
-    def add_rest(self, length: float, time: float = -1) -> None:
+        attr = {'name': route_key, 'times': times}
+        # additional state infos
+        if self.state.is_reversed:
+            attr['is_reversed'] = True
+        if self.state.last_coordinate_after_stop is not None:
+            attr['last_coordinates'] = self.state.last_coordinate_after_stop
+
+        self.route_data.add_edge(from_hub, to_hub, **attr)
+
+    def add_rest(self, length: float, time: float = -1, reason: str = 'resting') -> None:
         """
         Add rest event to history
         :param length: length of rest in hours
         :param time: time point (hour/minute) - if not set or below 0, use current time of agent
+        :param reason: reason for rest
         """
         if time < 0:
             time = self.current_time
 
-        self.rest_history.append((time, length))
+        self.rest_history.append((time, length, reason))
 
     def get_longest_rest_time_within(self, current_time: float, length: float) -> float | None:
         """
@@ -425,14 +425,6 @@ class Agent(object):
         else:
             return None
 
-    def persist_route_data(self) -> None:
-        # copy day route into complete route data
-        if len(self.route_data.vs) == 0:
-            self.route_data = self.route_day.copy()
-        elif len(self.route_day.vs):
-            self.route_data = self.route_data.union(self.route_day)
-        # clear route data and add current hub
-        self.route_day.clear()
 
 ########################################################################################################################
 # Set of Results
@@ -450,12 +442,11 @@ class SetOfResults:
         """general list of agents - as list of descend from starting hubs to ending ones"""
 
     def add_agent(self, agent: Agent) -> None:
-        # persist route data
-        agent.persist_route_data()
         # add vertex
         self.agents.add_vertex(name=agent.uid, agent=agent)
-        if agent.parent is not None:
-            self.agents.add_edge(agent.parent, agent.uid, name=agent.route_key)
+        # add edges from parents to myself
+        for parent in agent.parents:
+            self.agents.add_edge(parent, agent.uid, name=agent.route_key)
 
     def __repr__(self) -> str:
         return yaml.dump(self)
@@ -489,34 +480,17 @@ class PreparationInterface(abc.ABC):
         """
         pass
 
-
-class SimulationPrepareDayInterface(abc.ABC):
+class SimulationDayHookInterface(abc.ABC):
     """
-    Simulation module interface for hooks starting at a new day - per agent
+    Simulation module interface for hooks at the start or the end of a day - expect to return a (new) list of agents
     """
-
     def __init__(self):
         # runtime settings
         self.skip: bool = False
         self.conditions: list[str] = []
 
     @abc.abstractmethod
-    def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent):
-        pass
-
-
-class SimulationPrePostPrepareDayInterface(abc.ABC):
-    """
-    Simulation module interface for hooks starting at a new day - for while list of agents and results
-    """
-
-    def __init__(self):
-        # runtime settings
-        self.skip: bool = False
-        self.conditions: list[str] = []
-
-    @abc.abstractmethod
-    def prepare_for_new_day(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults) -> list[Agent]:
+    def run(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults, current_day: int) -> list[Agent]:
         pass
 
 
@@ -569,17 +543,15 @@ class SimulationStepInterface(abc.ABC):
         return True
 
     @abc.abstractmethod
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
-                     is_reversed: bool) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         """
         Run the simulation module - run at the start of each simulation step, should be used as preparation for the
-        actual simulation.
+        actual simulation. run_hooks must be called within this method.
 
         :param config: configuration (read-only)
         :param context: context (read-only)
         :param agent: current agent (contains state object)
         :param next_leg: next leg (Edge)
-        :param is_reversed: true if the leg is reversed
         :return: updated state object
         """
         pass
@@ -588,7 +560,7 @@ class SimulationStepInterface(abc.ABC):
     def run_hooks(config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple,
                   time_offset: float) -> tuple[float, bool]:
         """
-        Call hooks for a simulation step
+        Call hooks for a simulation step - this method has to be called in update_state in an appropriate position.
 
         :param config:
         :param context:

@@ -117,7 +117,7 @@ class Agent:
 junctions: set[str] = set()
 
 
-def create_agents_on_node(g: ig.Graph, hub: str, agent_to_clone: Agent | None = None, current_time: float = 0.) -> list[
+def clone_agents_on_node(g: ig.Graph, hub: str, agent_to_clone: Agent | None = None, current_time: float = 0.) -> list[
     Agent]:
     global junctions
 
@@ -227,7 +227,7 @@ def weed_out_similar_agents(agents: list[Agent]) -> list[Agent]:
 
 
 # start agents
-agents = create_agents_on_node(sub_graph, from_node)
+agents = clone_agents_on_node(sub_graph, from_node)
 
 # sim loop
 while len(agents) > 0:
@@ -236,7 +236,7 @@ while len(agents) > 0:
     for agent in agents:
         a = advance_agent(sub_graph, agent)
         if a is not None:
-            for new_agent in create_agents_on_node(sub_graph, a.this_hub, a, a.current_time):
+            for new_agent in clone_agents_on_node(sub_graph, a.this_hub, a, a.current_time):
                 agents_continuing.append(new_agent)
         else:
             finished_agents.append(agent)

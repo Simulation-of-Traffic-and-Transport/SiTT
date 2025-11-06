@@ -17,8 +17,7 @@ class DummyFixedSpeed(SimulationStepInterface):
         super().__init__()
         self.speed: float = speed
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
-                     is_reversed: bool) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         # fixed speed in kph
         agent.state.time_taken = next_leg['length_m'] / (self.speed * 1000)
         agent.state.time_for_legs = [agent.state.time_taken]

@@ -30,7 +30,7 @@ def test_check():
     assert sim.check()
 
 
-def test_create_agents_on_node():
+def test_split_agents_on_node():
     config: Configuration = Configuration()
     context: Context = Context()
     context.routes = ig.Graph(directed=True)
@@ -40,13 +40,13 @@ def test_create_agents_on_node():
     sim: Simulation = Simulation(config, context)
 
     # test initial creation of agents
-    assert len(sim.create_agents_on_node('START')) == 3  # ('START', 'N2') is multiple entry and that should work!
-    assert len(sim.create_agents_on_node('N1')) == 1
-    assert len(sim.create_agents_on_node('STOP')) == 0
+    assert len(sim._split_agent_on_hub('START')) == 3  # ('START', 'N2') is multiple entry and that should work!
+    assert len(sim._split_agent_on_hub('N1')) == 1
+    assert len(sim._split_agent_on_hub('STOP')) == 0
 
     # test cloning of existing agents
     agent = Agent('START', '', '', current_time=8., max_time=16.)
-    agents = sim.create_agents_on_node('START')
+    agents = sim._split_agent_on_hub('START')
     for a in agents:
         assert a.current_time == agent.current_time
         assert a.this_hub == agent.this_hub

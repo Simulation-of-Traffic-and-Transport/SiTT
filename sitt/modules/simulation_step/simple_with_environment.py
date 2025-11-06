@@ -48,8 +48,7 @@ class SimpleWithEnvironment(SimulationStepInterface):
         
         This is a list of minimum temperature keys to use this slowdown. It must be defined in ascending order."""
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
-                     is_reversed: bool) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         state = agent.state
 
         # precalculate next hub
@@ -66,7 +65,7 @@ class SimpleWithEnvironment(SimulationStepInterface):
 
         # create range to traverse - might be reversed
         r = range(len(next_leg['legs']))
-        if is_reversed:
+        if state.is_reversed:
             r = reversed(r)
 
         for i in r:

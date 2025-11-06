@@ -230,8 +230,8 @@ class JSONOutput(OutputInterface):
         }
 
         # parent?
-        if agent.parent is not None:
-            agent_data['parent'] = agent.parent
+        if len(agent.parents):
+            agent_data['parents'] = agent.parents
 
         # get first and last hub
         start_hub = agent.route_data.vs[0]

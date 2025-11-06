@@ -9,7 +9,7 @@ import datetime as dt
 import math
 from shapely import Point
 from dateutil import tz
-from sitt import SimulationPrepareDayInterface, Configuration, Context, Agent
+from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
 from timezonefinder import TimezoneFinder
 from suntime import Sun
 
@@ -18,11 +18,12 @@ logger = logging.getLogger()
 # CONSTANT
 TO_RAD = math.pi/180.0
 
-class StartStopTimePreparation(SimulationPrepareDayInterface):
+class StartStopTimePreparation(SimulationDayHookInterface):
     """
     This preparation will add a certain padding to the agent's start and stop time.
     It uses the timezonefinder library to get the timezone of the agent's hub.
     """
+
     def __init__(self, day_start_padding: float = 0.5, day_end_padding: float = 1.):
         super().__init__()
         self.day_start_padding: float = day_start_padding
@@ -30,6 +31,12 @@ class StartStopTimePreparation(SimulationPrepareDayInterface):
         self.day_end_padding: float = day_end_padding
         """add this amount of hours before sunset"""
         self.tf = TimezoneFinder()
+
+    def run(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults,
+            current_day: int) -> list[Agent]:
+        for agent in agents:
+            self.prepare_for_new_day(config, context, agent)
+        return agents
 
     def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent):
         try:

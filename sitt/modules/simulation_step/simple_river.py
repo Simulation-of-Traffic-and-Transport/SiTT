@@ -22,8 +22,7 @@ class SimpleRiver(SimulationStepInterface):
         self.min_speed_down: float = min_speed_down
         self.min_speed_up: float = min_speed_up if min_speed_up >= 0. else self.speed
 
-    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge,
-                     is_reversed: bool) -> State:
+    def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         # skipped?
         if self.skip:
             return agent.state
@@ -42,7 +41,7 @@ class SimpleRiver(SimulationStepInterface):
         r = range(len(next_leg['legs']))
         flows = next_leg['flow'].copy()
 
-        if is_reversed:
+        if agent.state.is_reversed:
             r = reversed(r)
             flows.reverse() # also reverse flow
 

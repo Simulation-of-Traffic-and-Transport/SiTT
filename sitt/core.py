@@ -215,73 +215,9 @@ class Simulation(BaseClass):
 
         return ok
 
-    def create_agents_on_node(self, hub: str, agent_to_clone: Agent | None = None, first_day: bool = False,
-                              current_time: float = 8., max_time: float = 16.) -> list[Agent]:
-        """
-        Create a number of virtual agents on a given node.
-
-        :param hub: Hub to create agents on.
-        :param agent_to_clone: Clone this agent.
-        :param first_day: First day of simulation?
-        :param current_time: Current time
-        :param max_time: Maximum time this day
-        :return:
-        """
-        agents: list[Agent] = []
-        is_dummy_agent = False
-
-        # create new agent if none is defined
-        if agent_to_clone is None:
-            agent_to_clone = Agent(hub, '', '', current_time=current_time, max_time=max_time)
-            is_dummy_agent = True
-
-        # add current hub to visited ones
-        agent_to_clone.visited_hubs.add(hub)
-        # set current hub
-        agent_to_clone.this_hub = hub
-
-        # create new agent for each outbound edge
-        for edge in self.context.routes.incident(hub):
-            e = self.context.routes.es[edge]
-            target = e.target_vertex['name']
-
-            # do we have a forced route?
-            if len(agent_to_clone.forced_route) > 0:
-                # skip if names do not match
-                if e['name'] != agent_to_clone.forced_route[0]:
-                    continue
-                # ok, forced route is defined, shorten in for the next step
-                agent_to_clone.forced_route = agent_to_clone.forced_route[1:]
-
-            # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
-            if target not in agent_to_clone.visited_hubs:
-                # create new agent for each option
-                new_agent = copy.deepcopy(agent_to_clone)
-                new_agent.next_hub = target
-                new_agent.route_key = e['name']  # name of edge
-
-                agents.append(new_agent)
-
-        # create new uids, if agents have split
-        if len(agents) > 1:
-            # save old agent to history
-            if not is_dummy_agent:
-                agent_to_clone.persist_route_data()
-                self.results.add_agent(agent_to_clone)
-            for agent in agents:
-                agent.generate_uid()
-                # create new route graph
-                agent.route_day = ig.Graph(directed=True)
-                agent.route_data = ig.Graph(directed=True)
-                # set parent, if not a dummy agent
-                if not is_dummy_agent:
-                    agent.parent = agent_to_clone.uid  # parent uid
-
-        return agents
-
     def run(self) -> SetOfResults:
         """
-        Run the simulation
+        Run the simulation - this is the entry point to actually start the simulation core
 
         :return: created set of results object
         """
@@ -291,14 +227,10 @@ class Simulation(BaseClass):
         if not self.check():
             return self.results
 
-        # create initial set of agents to run
-        agents = []
-        for hub in self.config.simulation_starts:
-            agents.extend(self.create_agents_on_node(hub, first_day=True))
-        # reset day counter
-        self.current_day = 1
+        # prepare the initial state
+        agents = self._initialize_simulation()
 
-        # do the loop - this is the outer loop for the whole simulation
+        # do the loop - this is the outer loop for the whole simulation (per day)
         # it will run until there are no agents left
         while len(agents):
             agents = self._run_single_day(agents)
@@ -310,30 +242,41 @@ class Simulation(BaseClass):
 
         return self.results
 
+    def _initialize_simulation(self) -> list[Agent]:
+        # set day counter to first day
+        self.current_day = 1
+
+        # create initial set of agents to run
+        agents = []
+        #  for each hub in the start list, create agents on that hub and add them to the list of agents to run
+        for hub in self.config.simulation_starts:
+            # iterate outgoing edges from the hub
+            for edge in self.context.routes.incident(hub):
+                e = self.context.routes.es[edge]
+                target = e.target_vertex['name']
+
+                # create new agent for each outgoing edge and add it to the list
+                agents.append(Agent(hub, target, e['name']))
+
+        return agents
+
     def _run_single_day(self, agents: list[Agent]) -> list[Agent]:
         """
         Run single day - called in the outer loop of run
 
         :param agents: list of agents
-        :return: new list of agents (can be empty list at the end)
+        :return: new list of agents (can be empty list -> this indicates the end of the simulation)
         """
         agents_finished_for_today: list[Agent] = []
         """keeps finished agents for this day"""
 
-        # prepare context for single day - run pre functions
-        for pre_prep_day in self.config.pre_simulation_prepare_day:
-            agents = pre_prep_day.prepare_for_new_day(self.config, self.context, agents, self.results)
-
-        # prepare context for single day - run for each agent
+        # prepare agents for single day - run for each agent
         for agent in agents:
             agent.prepare_for_new_day(current_day=self.current_day)
-            # run SimulationPrepareDayInterfaces
-            for prep_day in self.config.simulation_prepare_day:
-                prep_day.prepare_for_new_day(self.config, self.context, agent)
 
-        # prepare context for single day - run post functions
-        for post_prep_day in self.config.post_simulation_prepare_day:
-            agents = post_prep_day.prepare_for_new_day(self.config, self.context, agents, self.results)
+        # run day hook pre
+        for day_hook_pre in self.config.simulation_day_hook_pre:
+            agents = day_hook_pre.run(self.config, self.context, agents, self.results, self.current_day)
 
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
@@ -354,10 +297,16 @@ class Simulation(BaseClass):
             logger.debug(f" - step {step} {len(agents)} {len(agents_finished_for_today)}")
             step += 1
 
+        # run day hook post
+        for day_hook_post in self.config.simulation_day_hook_post:
+            agents = day_hook_post.run(self.config, self.context, agents, self.results, self.current_day)
+
+        agents_proceeding_tomorrow = self._finish_day(agents_finished_for_today)
+
         # increase day
         self.current_day += 1
 
-        return agents_finished_for_today
+        return agents_proceeding_tomorrow
 
     def _run_single_step(self, agent: Agent, agents_proceed: list[Agent],
                          agents_finished_for_today: list[Agent]):
@@ -371,83 +320,89 @@ class Simulation(BaseClass):
 
         # calculate state of agent at this node
         agent.state.reset()  # reset first
-        # and module calls
+        # and run define state hooks, if any
         for def_state in self.config.simulation_define_state:
             agent.state = def_state.define_state(self.config, self.context, agent)
 
+        # save route_key to variable, so we can set last_route below
+        remembered_route_key = agent.route_key
         # get the next leg from context
-        last_key = agent.route_key
-        next_leg: ig.Edge = self.context.get_path_by_id(last_key)
+        next_leg: ig.Edge = self.context.get_path_by_id(agent.route_key)
 
         # run the actual state update loop
         for sim_step in self.config.simulation_step:
             # conditions are met?
             if sim_step.check_conditions(self.config, self.context, agent, next_leg):
                 # traverse in reversed order?
-                is_reversed = False
                 if agent.this_hub != next_leg['from']:
-                    is_reversed = True
+                    agent.state.is_reversed = True
                     if agent.next_hub != next_leg['from']:
                         print("error!")
 
-                # run state update
-                agent.state = sim_step.update_state(self.config, self.context, agent, next_leg, is_reversed)
+                # run state update - step hooks have to be called in this method
+                agent.state = sim_step.update_state(self.config, self.context, agent, next_leg)
 
         # calculate times
         start_time = agent.current_time
         end_time = agent.current_time + agent.state.time_taken
 
-        # proceed or stop here?
-        if not agent.state.signal_stop_here and agent.state.time_taken >= 0 and end_time <= agent.max_time:
-            # proceed..., first add time
-            # add hub and vertex history (this will add the vertex to the agent's history)
-            agent.set_hub_departure(agent.this_hub, start_time)
-            agent.set_hub_arrival(agent.next_hub, end_time)
-            agent.add_vertex_history(agent.route_key, agent.this_hub, agent.next_hub, start_time, agent.state.time_for_legs)
+        # step has been run, now we have to check certain conditions
 
-            agent.current_time = end_time
-            agent.last_route = last_key
-
-            # finished?
-            next_hub = self.context.graph.vs.find(name=agent.next_hub)
-            has_overnight_hub = 'overnight_hub' in next_hub.attribute_names()
-
-            if agent.next_hub in self.config.simulation_ends:
-                agent.this_hub = agent.next_hub
-                agent.next_hub = ''
-                agent.route_key = ''
-                agent.is_finished = True
-                #agent.persist_route_data() # not needed, done somewhere else
-                self.results.add_agent(agent)
-            elif next_hub['overnight'] or (has_overnight_hub and next_hub['overnight_hub']):
-                # proceed to new hub -> it is an overnight stay
-                if has_overnight_hub and next_hub['overnight_hub'] and agent.next_hub != next_hub['overnight_hub']:
-                    agent.last_possible_resting_place = agent.next_hub
-                    agent.last_possible_resting_time = agent.current_time
-                else:
-                    agent.last_possible_resting_place = agent.next_hub
-                    agent.last_possible_resting_time = agent.current_time
-
-                next_hub_agents = self.create_agents_on_node(agent.next_hub, agent)
-
-                if agent.current_time == agent.max_time:
-                    agents_finished_for_today.extend(next_hub_agents)
-                else:
-                    agents_proceed.extend(next_hub_agents)
-            else:
-                # proceed, but this is not an overnight stay
-                if agent.state.signal_stop_here or agent.current_time == agent.max_time:
-                    # very special case that should not occur often: we arrive at the node exactly on maximum
-                    # time, end day - this will increase test timer
-                    self._end_day(agent, agents_finished_for_today)
-                else:
-                    # normal case just proceed
-                    agents_proceed.extend(self.create_agents_on_node(agent.next_hub, agent))
+        # end day:
+        # case 1) signal to stop day here
+        # case 2) time_taken is negative - brute force signal to stop here
+        # case 3) time reached or exceeded for today
+        if agent.state.signal_stop_here or agent.state.time_taken < 0 or end_time >= agent.max_time:
+            self._agent_end_day(agent, agents_finished_for_today)
         else:
-            # time exceeded, end day
-            self._end_day(agent, agents_finished_for_today)
+            # proceed agent to new hub
 
-    def _end_day(self, agent: Agent, agents_finished_for_today: list[Agent]):
+            # add hub and vertex history (this will add the vertex to the agent's history)
+            agent.create_route_data(agent.this_hub, agent.next_hub, agent.route_key, start_time, end_time, agent.state.time_for_legs)
+
+            # set time and last route
+            agent.current_time = end_time
+            agent.last_route = remembered_route_key
+
+            # case 4) end of simulation reached -> finish agent and add to day finish
+            if agent.next_hub in self.config.simulation_ends:
+                self._agent_finish(agent, agents_finished_for_today)
+            else:
+                # case 5) proceed to next hub
+                self._agent_proceed(agent, agents_proceed, agents_finished_for_today)
+
+    @staticmethod
+    def _agent_finish(agent: Agent, agents_finished_for_today: list[Agent]):
+        agent.this_hub = agent.next_hub
+        agent.next_hub = ''
+        agent.route_key = ''
+        agent.is_finished = True
+        agents_finished_for_today.append(agent)
+
+
+    def _agent_proceed(self, agent: Agent, agents_proceed: list[Agent], agents_finished_for_today: list[Agent]):
+        # if we deal with overnight tracebacks, we want to remember the last possible resting place and time
+        if self.config.overnight_trace_back:
+            # get some data about the hub that was just reached
+            reached_hub = self.context.graph.vs.find(name=agent.next_hub)
+            has_overnight_hub = 'overnight_hub' in reached_hub.attribute_names()
+
+            # save last possible resting place and time, if new hub is an overnight stay
+            if reached_hub['overnight'] or (has_overnight_hub and reached_hub['overnight_hub']):
+                # mark hub as overnight hub
+                agent.route_data.vs.find(name=agent.next_hub)['overnight'] = True
+
+        # add current hub to visited ones
+        agent.visited_hubs.add(agent.next_hub)
+        # update current hub
+        agent.this_hub = agent.next_hub
+
+        # add to list of agents to proceed
+        agents_ok, agents_cancelled = self._split_agent_on_hub(agent)
+        agents_proceed.extend(agents_ok)
+        agents_finished_for_today.extend(agents_cancelled)
+
+    def _agent_end_day(self, agent: Agent, agents_finished_for_today: list[Agent]):
         """
         End this day for agent.
 
@@ -463,9 +418,8 @@ class Simulation(BaseClass):
 
         # if tries exceeded, move agent to cancelled list
         if agent.tries > self.config.break_simulation_after:
-            agent.persist_route_data()
             agent.is_cancelled = True
-            self.results.add_agent(agent)
+            self.results.add_agent(agent) # this will keep the state, so we can use it in the results later
         else:
             # reset forced route data
             agent.forced_route = []
@@ -475,36 +429,188 @@ class Simulation(BaseClass):
                 # get hub ids that start from the last possible resting place to the current hub
                 hubs_to_delete: set[int] = set()
 
-                for edge_id in agent.route_day.get_shortest_path(agent.last_possible_resting_place, agent.this_hub, output="epath"):
-                    e = agent.route_day.es[edge_id]
-                    agent.forced_route.append(e['name'])
-                    hubs_to_delete.add(e.target)
+                # iterate over all vertices to find last resting place (since our graph is only a list, we can use dfs, might be a bit faster)
+                for v in agent.route_data.dfsiter(agent.route_data.vs.find(agent.this_hub).index, mode='in'):
+                    # search for first overnight hub
+                    if v['overnight']:
+                        # ok, this is our resting place, delete departure time
+                        v['departure'] = None
+                        agent.current_time = v['arrival']
+                        agent.this_hub = v['name']
+                        break
+
+                    # check route to this vertex
+                    in_edges = v.in_edges()
+                    if len(in_edges) == 0:
+                        # if we are back at the start of the day, stop, we start with the starting hub again...
+                        # TODO: should we add this to the failed agents list?
+                        # print('cancelled')
+                        # agent.is_cancelled = True
+                        # self.results.add_agent(agent)  # this will keep the state, so we can use it in the results later
+                        break
+
+                    # mark index for deletion
+                    hubs_to_delete.add(v.index)
+                    # prepend forced route
+                    agent.forced_route.insert(0, in_edges[0]['name'])
                     # delete from visited hubs
-                    agent.visited_hubs.remove(e.target_vertex['name'])
+                    agent.visited_hubs.remove(v['name'])
 
                 # actually delete hubs from graph
-                agent.route_day.delete_vertices(list(hubs_to_delete))
-
-                # delete departure time in target hub
-                hub = agent.route_day.vs.find(name=agent.last_possible_resting_place)
-                hub['departure'] = None
+                agent.route_data.delete_vertices(list(hubs_to_delete))
 
                 # delete rest history that is more than or same as the maximum last resting time
                 for i in range(len(agent.rest_history)):
-                    if agent.rest_history[i][0] >= agent.last_possible_resting_time:
+                    if agent.rest_history[i][0] >= agent.current_time:
                         agent.rest_history = agent.rest_history[:i]
                         break
 
-                agents_finished_for_today.extend(
-                    self.create_agents_on_node(agent.last_possible_resting_place, agent))
-            else:
+                # # decrease tries a bit
+                # agent.tries -= 1
+
+            if not agent.is_cancelled:
                 agents_finished_for_today.append(agent)
 
-            # set this hub and reset tries
-            if agent.last_resting_place != agent.this_hub:
-                agent.last_resting_place = agent.this_hub
-                agent.tries = 0
+    def _get_possible_routes_for_agent_on_hub(self, agent: Agent) -> list[tuple[str, str]]:
+        """Get a list of possible routes for an agent on a hub.
 
+        This method determines the next possible routes an agent can take from its current hub.
+        It considers forced routes and avoids visiting hubs that have already been visited.
+
+        Args:
+            agent: The agent for which to find possible routes.
+
+        Returns:
+            A list of tuples, where each tuple contains the route name (str) and the target hub name (str).
+        """
+        possible_routes: list[tuple[str, str]] = []
+
+        for edge in self.context.routes.incident(agent.this_hub, mode='out'):
+            e = self.context.routes.es[edge]
+            route_name = e['name']
+            target_hub = e.target_vertex['name']
+
+            # do we have a forced route?
+            if len(agent.forced_route) > 0:
+                # skip if names do not match
+                if route_name != agent.forced_route[0]:
+                    continue
+                # if forced route is defined, shorten in for the next step
+                agent.forced_route = agent.forced_route[1:]
+
+            # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
+            if target_hub in agent.visited_hubs:
+                continue
+
+            # add target hub and route name to possible routes
+            possible_routes.append((route_name, target_hub,))
+
+        return possible_routes
+
+    def _split_agent_on_hub(self, agent: Agent) -> tuple[list[Agent], list[Agent]]:
+        """Split an agent into multiple agents if there are multiple possible routes.
+
+        When an agent arrives at a hub, this method checks for all possible
+        outgoing routes. If there's more than one valid route, the agent is
+        cloned for each additional route. The original agent takes the first
+        possible route, and deep copies are created for the others. This allows
+        the simulation to explore multiple paths simultaneously. If no valid
+        routes are found, the agent is marked as cancelled.
+
+        Args:
+            agent: The agent to be split or processed. Its current state is used
+                to determine the next possible routes.
+
+        Returns:
+            A tuple containing two lists:
+            - The first list contains agents that can proceed on their new routes.
+            - The second list contains agents that have been cancelled due to a
+              lack of possible routes from the current hub.
+        """
+        possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
+
+        # if no possible routes, we can't move forward'
+        if len(possible_routes) == 0:
+            # add to failed routes
+            agent.is_cancelled = True
+            return [], [agent]
+
+        # contains routes: clone agent for each possible route
+        agents: list[Agent] = []
+
+        for i, (route_name, target_hub) in enumerate(possible_routes):
+            # first route - use original agent
+            if i == 0:
+                new_agent = agent
+            else:
+                # other routes - create new agent, copy it and create new uid
+                new_agent = copy.deepcopy(agent)
+                new_agent.generate_uid()
+
+            # set new targets
+            new_agent.next_hub = target_hub
+            new_agent.route_key = route_name
+
+            agents.append(new_agent)
+
+        return agents, []
+
+    def _finish_day(self, agents: list[Agent]) -> list[Agent]:
+        # aggregate results into groups, because it is likely we will have multiple agents finishing on the same hub
+        agents_proceeding_tomorrow: dict[tuple[str, str], Agent] = {}
+
+        for agent in agents:
+            # move finished and cancelled agents to appropriate lists
+            if agent.is_finished or agent.is_cancelled:
+                # add to global list
+                self.results.add_agent(agent)
+                continue
+
+            # now we will see, if we can split this agent
+            possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
+            # if no possible routes, we can't move forward'
+            if len(possible_routes) == 0:
+                # add to failed routes
+                agent.is_cancelled = True
+                self.results.add_agent(agent)
+                continue
+
+            # if only one possible route, we (hopefully) continue with this agent
+            if len(possible_routes) == 1:
+                # does next agent exist already in the map?
+                if possible_routes[0] in agents_proceeding_tomorrow:
+                    # retire this agent
+                    self.results.add_agent(agent)
+                    # set agent as parent
+                    agents_proceeding_tomorrow[possible_routes[0]].parents.append(agent.uid)
+                else:
+                    # does not exist: continue with this agent
+                    # set new route
+                    agent.route_key = possible_routes[0][0]
+                    agent.next_hub = possible_routes[0][1]
+
+                    agents_proceeding_tomorrow[possible_routes[0]] = agent
+            else:
+                # multiple routes, retire this agent and create new ones
+                self.results.add_agent(agent)
+
+                for possible_route in possible_routes:
+                    if possible_route in agents_proceeding_tomorrow:
+                        # next agent in this direction exists already in the map?
+                        # just set agent as parent
+                        agents_proceeding_tomorrow[possible_route].parents.append(agent.uid)
+                    else:
+                        # create new agent, copy it and create new uid
+                        new_agent = copy.deepcopy(agent)
+                        new_agent.generate_uid()
+
+                        # set new targets
+                        new_agent.next_hub = possible_route[1]
+                        new_agent.route_key = possible_route[0]
+
+                        agents_proceeding_tomorrow[possible_route] = new_agent
+
+        return list(agents_proceeding_tomorrow.values())
 
     def _end_simulation(self):
         """
