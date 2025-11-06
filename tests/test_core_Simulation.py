@@ -48,7 +48,6 @@ def test_create_agents_on_node():
     agent = Agent('START', '', '', current_time=8., max_time=16.)
     agents = sim.create_agents_on_node('START')
     for a in agents:
-        assert a.current_day == agent.current_day
         assert a.current_time == agent.current_time
         assert a.this_hub == agent.this_hub
         assert a.next_hub != agent.next_hub

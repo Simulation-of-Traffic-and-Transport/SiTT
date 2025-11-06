@@ -165,9 +165,10 @@ class Configuration:
     def get_agent_date(self, agent: Agent, additional_offset: float = 0.) -> dt.datetime:
         # get start date as datetime object
         current_date: dt.datetime = (dt.datetime.combine(self.start_date, dt.datetime.min.time()))
+        # TODO: check DST changes - we must not have these!
 
         # calculate current day and time
-        current_date += dt.timedelta(days=agent.current_day - 1, hours=agent.current_time)
+        current_date += dt.timedelta(hours=agent.current_time)
 
         # add additional offset
         current_date += dt.timedelta(hours=additional_offset)
@@ -272,10 +273,8 @@ class Agent(object):
         self.parent: str | None = None
         """UID of parent agent (if any)"""
 
-        self.current_day: int = 1
-        """Current day of agent - copied from simulation"""
         self.current_time: float = current_time
-        """Current time stamp of agent during this day"""
+        """Current time stamp of agent (each 24 is a day)"""
         self.max_time: float = max_time
         """Current maximum timestamp for this day"""
         self.start_time: float = current_time
@@ -320,8 +319,7 @@ class Agent(object):
         :return:
         """
         # set values for new day
-        self.current_day = current_day
-        self.current_time = current_time
+        self.current_time = (current_day-1) * 24 + current_time
         self.start_time = current_time
         self.max_time = max_time
         self.last_possible_resting_place = self.this_hub
@@ -330,7 +328,7 @@ class Agent(object):
         self.additional_data = {}
         self.state = self.state.reset()
         self.persist_route_data()
-        self.set_hub_departure(self.this_hub, (self.current_day, self.current_time))
+        self.set_hub_departure(self.this_hub, self.current_time)
 
     def __repr__(self) -> str:
         if self.is_finished:
@@ -343,16 +341,14 @@ class Agent(object):
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
     def hash(self) -> str:
-        return self.this_hub + self.next_hub + str(self.route_key) + "_" + str(self.current_day) + "_" + str(
-            self.current_time)
+        return self.this_hub + self.next_hub + str(self.route_key) + "_" + str(self.current_time)
 
     def generate_uid(self) -> str:
         """generate an unique id of agent"""
         self.uid = generate_id()
         return self.uid
 
-    def set_hub_departure(self, hub: str, departure: tuple[int, float], reason: str | None = None):
-        departure = (departure[0], departure[1])
+    def set_hub_departure(self, hub: str, departure: float, reason: str | None = None):
         try:
             hub = self.route_day.vs.find(name=hub)
             hub['departure'] = departure
@@ -361,8 +357,7 @@ class Agent(object):
         except:
             self.route_day.add_vertex(name=hub, arrival=None, departure=departure, reason=reason)
 
-    def set_hub_arrival(self, hub: str, arrival: tuple[int, float], reason: str | None = None):
-        arrival = (arrival[0], arrival[1])
+    def set_hub_arrival(self, hub: str, arrival: float, reason: str | None = None):
         try:
             hub = self.route_day.vs.find(name=hub)
             hub['arrival'] = arrival
@@ -371,17 +366,13 @@ class Agent(object):
         except:
             self.route_day.add_vertex(name=hub, arrival=arrival, departure=None, reason=reason)
 
-    def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_day: int, start_time: float, leg_times: list[float]):
-        current_day = start_day
+    def add_vertex_history(self, route_key: str, from_hub: str, to_hub: str, start_time: float, leg_times: list[float]):
         current_time = start_time
-        times = [(current_day, current_time)]
+        times = [current_time]
 
         for leg_time in leg_times:
             current_time += leg_time
-            if current_time > 24.:
-                current_day += 1
-                current_time -= 24.
-            times.append((current_day, current_time))
+            times.append(current_time)
         self.route_day.add_edge(from_hub, to_hub, name=route_key, times=times)
 
     def add_rest(self, length: float, time: float = -1) -> None:
@@ -451,9 +442,9 @@ class SetOfResults:
     """Set of results represents the results of a simulation"""
 
     def __init__(self):
-        self.min_dt: tuple[int, float] = (0, 0.)
+        self.min_dt: float = 0.
         """minimum departure time of agents (day, time)"""
-        self.max_dt: tuple[int, float] = (0, 0.)
+        self.max_dt: float = 0.
         """maximum arrival time of agents (day, time)"""
         self.agents: ig.Graph = ig.Graph(directed=True)
         """general list of agents - as list of descend from starting hubs to ending ones"""

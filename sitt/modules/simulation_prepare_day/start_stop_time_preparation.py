@@ -33,8 +33,8 @@ class StartStopTimePreparation(SimulationPrepareDayInterface):
 
     def prepare_for_new_day(self, config: Configuration, context: Context, agent: Agent):
         try:
-            # calculate current day
-            current_day: dt.date = config.start_date + dt.timedelta(days=agent.current_day - 1)
+            # calculate current day - fractions of days are ok, so we do not have to worry about daylight saving time changes and the like, just deal with days
+            current_day: dt.date = config.start_date + dt.timedelta(days=agent.current_time/24)
             current_position: Point = context.get_hub_by_id(agent.this_hub)['geom']
 
             # get timezone of current position
@@ -43,7 +43,7 @@ class StartStopTimePreparation(SimulationPrepareDayInterface):
             # create Sun entry for coordinates
             sun = Sun(current_position.y, current_position.x)
 
-            # On a special date in your machine's local time zone
+            # Create a date in your machine's local time zone
             current_dt = dt.datetime(current_day.year, current_day.month, current_day.day, 0, 0, 0, 0, time_zone)
             sunrise = sun.get_sunrise_time(current_dt, time_zone)
             sunset = sun.get_sunset_time(current_dt, time_zone)

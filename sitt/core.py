@@ -401,9 +401,9 @@ class Simulation(BaseClass):
         if not agent.state.signal_stop_here and agent.state.time_taken >= 0 and end_time <= agent.max_time:
             # proceed..., first add time
             # add hub and vertex history (this will add the vertex to the agent's history)
-            agent.set_hub_departure(agent.this_hub, (agent.current_day, start_time))
-            agent.set_hub_arrival(agent.next_hub, (agent.current_day, end_time))
-            agent.add_vertex_history(agent.route_key, agent.this_hub, agent.next_hub, self.current_day, start_time, agent.state.time_for_legs)
+            agent.set_hub_departure(agent.this_hub, start_time)
+            agent.set_hub_arrival(agent.next_hub, end_time)
+            agent.add_vertex_history(agent.route_key, agent.this_hub, agent.next_hub, start_time, agent.state.time_for_legs)
 
             agent.current_time = end_time
             agent.last_route = last_key
@@ -510,27 +510,18 @@ class Simulation(BaseClass):
         """
         Run end simluation tasks
         """
-        max_day: int = 0
         max_time: float = 0
-        min_day: int = 9999999
         min_time: float = float('inf')
 
-        # first, determine max_time and max_day
+        # determine boundaries
         for agent in self.results.agents.vs['agent']:
-            if agent.current_day > max_day:
-                max_day = agent.current_day
+            if agent.current_time > max_time:
                 max_time = agent.current_time
-            elif agent.current_day == max_day and agent.current_time > max_time:
-                max_time = agent.current_time
-
-            if agent.current_day < min_day:
-                min_day = agent.current_day
-                min_time = agent.current_time
-            elif agent.current_day == min_day and agent.current_time < min_time:
+            if agent.current_time < min_time:
                 min_time = agent.current_time
 
-        self.results.max_dt = (max_day, max_time)
-        self.results.min_dt = (min_day, min_time)
+        self.results.max_dt = max_time
+        self.results.min_dt = min_time
 
 
 ########################################################################################################################

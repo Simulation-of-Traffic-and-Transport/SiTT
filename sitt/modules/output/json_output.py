@@ -22,7 +22,7 @@ class JSONOutput(OutputInterface):
     and aggregates agent IDs and reasons for each time point.
 
     Args:
-        data (list[tuple[tuple[int, float], str, str]]): A list of event tuples.
+        data (list[tuple[float, str, str]]): A list of event tuples.
             Each tuple contains a time tuple (day, hour), an agent UID, and a reason string.
         add_reasons (bool, optional): If True, includes the reasons for the event
             in the output. Defaults to True.
@@ -167,8 +167,8 @@ class JSONOutput(OutputInterface):
         return {
             "from": self.config.simulation_starts,
             "to": self.config.simulation_ends,
-            "start": _dt_to_hours(set_of_results.min_dt),
-            "end": _dt_to_hours(set_of_results.max_dt),
+            "start": _round_time(set_of_results.min_dt),
+            "end": _round_time(set_of_results.max_dt),
             "simulation_route": self.config.simulation_route,
             "simulation_route_reverse": self.config.simulation_route_reverse,
             "start_date": start_date,
@@ -237,9 +237,9 @@ class JSONOutput(OutputInterface):
         start_hub = agent.route_data.vs[0]
         end_hub = agent.route_data.vs[-1]
         if 'departure' in start_hub.attributes():
-            agent_data['start'] = _dt_to_hours(start_hub['departure'])
+            agent_data['start'] = _round_time(start_hub['departure'])
         if 'arrival' in end_hub.attributes():
-            agent_data['end'] = _dt_to_hours(end_hub['arrival'])
+            agent_data['end'] = _round_time(end_hub['arrival'])
 
         if agent.is_cancelled:
             agent_data['cancelled'] = True
@@ -280,7 +280,7 @@ class JSONOutput(OutputInterface):
                     # skip first and last entry, because we add vertices here
                     if i == 0 or i == len(e['times']) - 1:
                         continue
-                    t = _dt_to_hours(t)
+                    t = _round_time(t)
                     # we only add the agent to one time slice
                     if t in time_slices_used:
                         continue
@@ -295,6 +295,7 @@ class JSONOutput(OutputInterface):
 
         time_slices = {}
 
+        # reformat into list, because JSON cannot handle tuples as keys
         for t, coords in time_data.items():
             time_slices[t] = []
             for coord, agent_list in coords.items():
@@ -359,14 +360,14 @@ class JSONOutput(OutputInterface):
 
         return nodes, paths
 
-    def _format_departure_arrival_times(self, data: list[tuple[tuple[int, float], str, str]], add_reasons: bool = True) -> list[dict]:
+    def _format_departure_arrival_times(self, data: list[tuple[float, str, str]], add_reasons: bool = True) -> list[dict]:
         """Formats raw departure/arrival data into a structured list of dictionaries.
 
         This method groups events by time, converts the time to total hours,
         and aggregates agent IDs and reasons for each time point.
 
         Args:
-            data (list[tuple[tuple[int, float], str, str]]): A list of event tuples.
+            data (list[tuple[float, str, str]]): A list of event tuples.
                 Each tuple contains a time tuple (day, hour), an agent UID, and a reason string.
             add_reasons (bool, optional): If True, includes the reasons for the event
                 in the output. Defaults to True.
@@ -380,7 +381,7 @@ class JSONOutput(OutputInterface):
         for entry in data:
             if entry[0] not in result:
                 result[entry[0]] = {
-                    "t": _dt_to_hours(entry[0]),
+                    "t": _round_time(entry[0]),
                     "agents": [],
                 }
                 if add_reasons:
@@ -401,21 +402,12 @@ class JSONOutput(OutputInterface):
     def __str__(self):
         return "JSONOutput"
 
-def _dt_to_hours(dt: tuple[int, float]) -> float:
-    """Converts a (day, hour) tuple to total hours.
-
-    Args:
-        dt (tuple[int, float]): The date/time tuple, where the first element is the day (1-based)
-            and the second element is the hour of the day.
-
-    Returns:
-        float: The total number of hours since the beginning of day 1.
-    """
+def _round_time(dt: float) -> float:
     if dt is None:
         return 0.
-    return np.round((dt[0]-1)*24. + dt[1], decimals=1)
+    return np.round(dt, decimals=1)
 
-def _enumerate_arrival_departure(arrival: tuple[int, float] | None, departure: tuple[int, float] | None) -> list[float]:
+def _enumerate_arrival_departure(arrival: float | None, departure: tuple[int, float] | None) -> list[float]:
     """Generates a list of time points between an arrival and departure time.
 
     This function creates a sequence of time points, in total hours, with a
@@ -423,10 +415,10 @@ def _enumerate_arrival_departure(arrival: tuple[int, float] | None, departure: t
     inclusive. It handles cases where one or both times might be None.
 
     Args:
-        arrival (tuple[int, float] | None): The arrival time as a (day, hour)
+        arrival (float | None): The arrival time as a (day, hour)
             tuple. If None, and departure is provided, a list with only the
             departure time is returned.
-        departure (tuple[int, float] | None): The departure time as a (day,
+        departure (float | None): The departure time as a (day,
             hour) tuple. If None, and arrival is provided, a list with only
             the arrival time is returned.
 
@@ -442,13 +434,13 @@ def _enumerate_arrival_departure(arrival: tuple[int, float] | None, departure: t
         return []
     # either arrival or departure is None
     if departure is None:
-        return [_dt_to_hours(arrival)]
+        return [_round_time(arrival)]
     if arrival is None:
-        return [_dt_to_hours(departure)]
+        return [_round_time(departure)]
 
     times = []
 
-    for t in np.arange(_dt_to_hours(arrival) * 10, _dt_to_hours(departure) * 10 + 1):
+    for t in np.arange(_round_time(arrival) * 10, _round_time(departure) * 10 + 1):
         times.append(float(np.round(t / 10, decimals=1)))
 
     return times
