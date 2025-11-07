@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--port', dest='port', default=5432, type=int, help='postgres port')
     parser.add_argument('--schema', dest='schema', default='sitt', type=str, help='schema name')
 
-    parser.add_argument('-d', '--distance', dest='distance', default=1., type=float,
+    parser.add_argument('-d', '--distance', dest='distance', default=2., type=float,
                         help='maximum distance in kilometers to check for overnight stays')
 
     # parse or help
