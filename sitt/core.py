@@ -699,9 +699,11 @@ class Simulation(BaseClass):
 
         # change route data from dicts to lists
         for v in merged_routes.vs:
-            v['data_points'] = list(v['data_points'].values())
+            if type(v['data_points']) == dict:
+                v['data_points'] = list(v['data_points'].values())
         for e in merged_routes.es:
-            e['data_points'] = list(e['data_points'].values())
+            if type(e['data_points']) == dict:
+                e['data_points'] = list(e['data_points'].values())
 
         # convert forced routes to list of tuples
         return merged_routes if len(merged_routes.vs) else None, list(forced_routes), ret_agent
@@ -724,64 +726,87 @@ class Simulation(BaseClass):
     def _merge_agent_route(merged_routes: ig.Graph, agent: Agent) -> None:
         # merge vertices
         for rv in agent.route_data.vs:
-            # get rest time, if any
-            rest = None
-            if rv['arrival'] is not None and rv['departure'] is not None and rv['arrival'] < rv['departure']:
-                rests = agent.get_rest_times_from_to(rv['arrival'], rv['departure'], sort_by_length=True)
-                if rests:
-                    rest = rests[0][2] # just get the reason of the first rest
+            # already in archived format?
+            if 'data_points' in rv.attributes() and rv['data_points'] is not None:
+                # find vertex in merged graph
+                try:
+                    v = merged_routes.vs.find(name=rv['name'])
+                    print("for re in agent.route_data.es => should not happen - break here")
+                    exit(99)
+                    # TODO: This should not happen - break here
+                except:
+                    # copy vertex
+                    merged_routes.add_vertex(name=rv['name'], data_points=rv['data_points'])
+            else:
+                # get rest time, if any
+                rest = None
+                if rv['arrival'] is not None and rv['departure'] is not None and rv['arrival'] < rv['departure']:
+                    rests = agent.get_rest_times_from_to(rv['arrival'], rv['departure'], sort_by_length=True)
+                    if rests:
+                        rest = rests[0][2] # just get the reason of the first rest
 
-            # try to find vertex in merged graph
-            dp = (rv['arrival'], rv['departure'])
-            try:
-                v = merged_routes.vs.find(name=rv['name'])
-                if dp in v['data_points']:
-                    # increment counter
-                    v['data_points'][dp]['count'] += 1
-                    # do not change reason
-                else:
+                # try to find vertex in merged graph
+                dp = (rv['arrival'], rv['departure'])
+                try:
+                    v = merged_routes.vs.find(name=rv['name'])
+                    if dp in v['data_points']:
+                        # increment counter
+                        v['data_points'][dp]['count'] += 1
+                        # do not change reason
+                    else:
+                        data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
+                        if rest:
+                            data['reason'] = rest
+                        v['data_points'][dp] = data
+                except:
+                    # vertex not found in merged graph, add it, data_points will count the number of agents per arrival and departure
                     data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
                     if rest:
                         data['reason'] = rest
-                    v['data_points'][dp] = data
-            except:
-                # vertex not found in merged graph, add it, data_points will count the number of agents per arrival and departure
-                data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
-                if rest:
-                    data['reason'] = rest
-                merged_routes.add_vertex(name=rv['name'], data_points={dp: data})
+                    merged_routes.add_vertex(name=rv['name'], data_points={dp: data})
 
         # merge edges
         for re in agent.route_data.es:
-            # dp ist start and end time
-            dp = (re['times'][0], re['times'][-1])
+            # already in archived format?
+            if 'data_points' in re.attributes() and re['data_points'] is not None:
+                # try to find edge in merged graph
+                try:
+                    e = merged_routes.es.find(name=re['name'])
+                    print("for re in agent.route_data.es => should not happen - break here")
+                    exit(88)
+                    # TODO: This should not happen - break here
+                except:
+                    # copy edge
+                    merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points=re['data_points'])
+            else:
+                # dp ist start and end time
+                dp = (re['times'][0], re['times'][-1])
 
-            # get rest times, if any
-            # TODO: FIX
-            rests = agent.get_rest_times_from_to(dp[0], dp[1])
-            # format rests to time format (not length)
-            for i in range(len(rests)):
-                rests[i] = (rests[i][0], rests[i][0]+rests[i][1], rests[i][2])
+                # get rest times, if any
+                rests = agent.get_rest_times_from_to(dp[0], dp[1])
+                # format rests to time format (not length)
+                for i in range(len(rests)):
+                    rests[i] = (rests[i][0], rests[i][0]+rests[i][1], rests[i][2])
 
-            # try to find edge in merged graph
-            try:
-                e = merged_routes.es.find(name=re['name'])
-                if dp in e['data_points']:
-                    # increment counter
-                    e['data_points'][dp]['count'] += 1
-                    # do not change anything else
-                else:
+                # try to find edge in merged graph
+                try:
+                    e = merged_routes.es.find(name=re['name'])
+                    if dp in e['data_points']:
+                        # increment counter
+                        e['data_points'][dp]['count'] += 1
+                        # do not change anything else
+                    else:
+                        # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
+                        data = {"count": 1, "times": re['times']}
+                        if rests:
+                            data['reasons'] = rests
+                        e['data_points'][dp] = data
+                except:
                     # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
                     data = {"count": 1, "times": re['times']}
                     if rests:
                         data['reasons'] = rests
-                    e['data_points'][dp] = data
-            except:
-                # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
-                data = {"count": 1, "times": re['times']}
-                if rests:
-                    data['reasons'] = rests
-                merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points={dp: data})
+                    merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points={dp: data})
 
     @staticmethod
     def _flatten_forced_routes(forced_routes: list[tuple]) -> list[list[str]]:
