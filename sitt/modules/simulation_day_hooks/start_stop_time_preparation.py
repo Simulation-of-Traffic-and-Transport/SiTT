@@ -9,7 +9,7 @@ import datetime as dt
 import math
 from shapely import Point
 from dateutil import tz
-from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
+from sitt import SimulationDayHookInterface, Configuration, Context, Agent
 from timezonefinder import TimezoneFinder
 from suntime import Sun
 
@@ -32,7 +32,7 @@ class StartStopTimePreparation(SimulationDayHookInterface):
         """add this amount of hours before sunset"""
         self.tf = TimezoneFinder()
 
-    def run(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults,
+    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
             current_day: int) -> list[Agent]:
         for agent in agents:
             self.prepare_for_new_day(config, context, agent, current_day)

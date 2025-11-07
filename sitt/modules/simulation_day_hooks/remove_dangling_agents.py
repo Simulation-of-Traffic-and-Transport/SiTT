@@ -17,7 +17,7 @@ class RemoveDanglingAgents(SimulationDayHookInterface):
     """
 
     def run(self, config: Configuration, context: Context, agents: list[Agent],
-                            results: SetOfResults, current_day: int) -> list[Agent]:
+                            agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
         """
         Removes agents that represent failed paths if a successful alternative path exists. This will prevent agents
         from "hanging back" and trying to travel the same path again and again if other agent variants have been
@@ -32,7 +32,7 @@ class RemoveDanglingAgents(SimulationDayHookInterface):
         :param config: The simulation configuration. Not used in this method.
         :param context: The simulation context. Not used in this method.
         :param agents: The list of agents to be pruned.
-        :param results: The set of results from previous simulation steps. Not used in this method.
+        :param agents_finished_for_today: List of finished agents for today.
         :param current_day: The current day of the simulation.
         :return: A new list of agents with dangling ones removed.
         """

@@ -276,7 +276,7 @@ class Simulation(BaseClass):
 
         # run day hook pre
         for day_hook_pre in self.config.simulation_day_hook_pre:
-            agents = day_hook_pre.run(self.config, self.context, agents, self.results, self.current_day)
+            agents = day_hook_pre.run(self.config, self.context, agents, agents_finished_for_today, self.current_day)
 
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
@@ -299,7 +299,7 @@ class Simulation(BaseClass):
 
         # run day hook post
         for day_hook_post in self.config.simulation_day_hook_post:
-            agents = day_hook_post.run(self.config, self.context, agents, self.results, self.current_day)
+            agents_finished_for_today = day_hook_post.run(self.config, self.context, agents, agents_finished_for_today, self.current_day)
 
         agents_proceeding_tomorrow = self._finish_day(agents_finished_for_today)
 
@@ -416,10 +416,9 @@ class Simulation(BaseClass):
         # break if tries are exceeded
         agent.tries += 1
 
-        # if tries exceeded, move agent to cancelled list
+        # if tries exceeded, cancel agent
         if agent.tries > self.config.break_simulation_after:
             agent.is_cancelled = True
-            self.results.add_agent(agent) # this will keep the state, so we can use it in the results later
         else:
             # reset forced route data
             agent.forced_route = []
@@ -446,7 +445,8 @@ class Simulation(BaseClass):
                         # TODO: should we add this to the failed agents list?
                         # print('cancelled')
                         # agent.is_cancelled = True
-                        # self.results.add_agent(agent)  # this will keep the state, so we can use it in the results later
+                        # agents_finished_for_today.append(agent)
+                        # continue?
                         break
 
                     # mark index for deletion
@@ -468,8 +468,8 @@ class Simulation(BaseClass):
                 # # decrease tries a bit
                 # agent.tries -= 1
 
-            if not agent.is_cancelled:
-                agents_finished_for_today.append(agent)
+        # add to list of agents that have finished for today
+        agents_finished_for_today.append(agent)
 
     def _get_possible_routes_for_agent_on_hub(self, agent: Agent) -> list[tuple[str, str]]:
         """Get a list of possible routes for an agent on a hub.
@@ -488,22 +488,29 @@ class Simulation(BaseClass):
         for edge in self.context.routes.incident(agent.this_hub, mode='out'):
             e = self.context.routes.es[edge]
             route_name = e['name']
-            target_hub = e.target_vertex['name']
+            target_hub = e.target_vertex
+
+            # is target hub a no-go? if yes, skip
+            if 'no_go' in target_hub.attributes() and target_hub['no_go'] is True:
+                continue
 
             # do we have a forced route?
+            had_forced_route = False
             if len(agent.forced_route) > 0:
                 # skip if names do not match
                 if route_name != agent.forced_route[0]:
                     continue
                 # if forced route is defined, shorten in for the next step
                 agent.forced_route = agent.forced_route[1:]
+                had_forced_route = True
 
             # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
-            if target_hub in agent.visited_hubs:
+            # If we had a forced route, we will not check this, so we can force our way through visited hubs...
+            if not had_forced_route and target_hub['name'] in agent.visited_hubs:
                 continue
 
             # add target hub and route name to possible routes
-            possible_routes.append((route_name, target_hub,))
+            possible_routes.append((route_name, target_hub['name'],))
 
         return possible_routes
 
@@ -556,61 +563,269 @@ class Simulation(BaseClass):
         return agents, []
 
     def _finish_day(self, agents: list[Agent]) -> list[Agent]:
-        # aggregate results into groups, because it is likely we will have multiple agents finishing on the same hub
-        agents_proceeding_tomorrow: dict[tuple[str, str], Agent] = {}
+        # first, we group our agents per hub
+        agents_per_hub = self._group_agents_by_hub(agents)
+        agents_proceeding_tomorrow: list[Agent] = []
+
+        # flatten the agents per hub
+        for hub, agent_list in agents_per_hub.items():
+            agent, cancelled_agent, forced_routes = self._flatten_agent_list(agent_list)
+
+            # if we have a cancelled agent, save it to the results
+            if cancelled_agent is not None:
+                self.results.add_agent(cancelled_agent)
+
+            # skip empty agents
+            if agent is None:
+                continue
+
+            # if agent has been finished, we add it to the results
+            if agent.is_finished:
+                self.results.add_agent(agent)
+                continue
+
+            # get all possible routes for this hub
+            possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
+
+            # prune possible routes by forced routes - even if there is one forced route, we will not consider other
+            # route variants from this hub (because these will be retries)
+            forced_hubs_starts = set()
+            for route in forced_routes:
+                forced_hubs_starts.add(route[0])
+
+            possible_routes = [route for route in possible_routes if route[0] not in forced_hubs_starts]
+
+            # now let us check if our agent continues, or if we split the agent
+            if len(possible_routes) + len(forced_routes) == 1:
+                # forced route?
+                if len(forced_routes) > 0:
+                    # set forced route
+                    e = self.context.routes.es.find(name=forced_routes[0][0])
+                    agent.next_hub = e.target_vertex['name']
+                    agent.route_key = e['name']
+                    agent.forced_route = forced_routes[0]
+                else:
+                    # simply continue to the next hub
+                    agent.next_hub = possible_routes[0][1]
+                    agent.route_key = possible_routes[0][0]
+                    agents_proceeding_tomorrow.append(agent)
+            else:
+                # split agent into multiple ones
+
+                # we retire our old agent
+                self.results.add_agent(agent)
+
+                # first, forced routes
+                for route in forced_routes:
+                    # create an agent for each forced route
+                    e = self.context.routes.es.find(name=route[0])
+                    new_agent = Agent(hub, e.target_vertex['name'], e['name'])
+                    new_agent.parent = agent.uid
+                    new_agent.forced_route = route
+                    agents_proceeding_tomorrow.append(new_agent)
+
+                for route in possible_routes:
+                    new_agent = Agent(hub, route[1], route[0])
+                    new_agent.parent = agent.uid
+                    agents_proceeding_tomorrow.append(new_agent)
+
+        return agents_proceeding_tomorrow
+
+    @staticmethod
+    def _group_agents_by_hub(agents: list[Agent]) -> dict[str, list[Agent]]:
+        agents_per_hub: dict[str, list[Agent]] = {}
 
         for agent in agents:
-            # move finished and cancelled agents to appropriate lists
-            if agent.is_finished or agent.is_cancelled:
-                # add to global list
-                self.results.add_agent(agent)
+            if agent.this_hub not in agents_per_hub:
+                agents_per_hub[agent.this_hub] = []
+            agents_per_hub[agent.this_hub].append(agent)
+
+        return agents_per_hub
+
+    def _flatten_agent_list(self, agent_list: list[Agent]) -> tuple[Agent | None, Agent | None, list[list[str]]]:
+        # only a single agent? return it and its forced route, if any
+        if len(agent_list) == 1:
+            # cancelled agent? simply return it
+            if agent_list[0].is_cancelled:
+                return None, agent_list[0], []
+
+            # return single agent (not cancelled)
+            forced_routes = []
+            if agent_list[0].forced_route:
+                forced_routes.append(agent_list[0].forced_route)
+            return agent_list[0], None, forced_routes
+
+        # multiple agents -> merge them into one
+
+        # collect merged routes and forced routes from this hub
+        merged_routes, forced_routes, agent = self._merge_agent_routes(agent_list)
+        # also collect cancelled routes from this hub
+        cancelled_routes, _, cancelled_agent = self._merge_agent_routes(agent_list, cancelled=True)
+
+        # now create result data
+        if merged_routes is not None and agent is not None:
+            agent = self._create_merged_agent(agent, merged_routes)
+        if cancelled_routes is not None and cancelled_agent is not None:
+            cancelled_agent = self._create_merged_agent(cancelled_agent, cancelled_routes)
+
+        return agent, cancelled_agent, self._flatten_forced_routes(forced_routes)
+
+
+    def _merge_agent_routes(self, agent_list: list[Agent], cancelled: bool = False) -> tuple[ig.Graph | None, list[tuple], Agent | None]:
+        # collect forced routes from this hub - create as set, so we can easily check for duplicates
+        forced_routes: set[tuple] = set()
+        # collect merged routes
+        merged_routes: ig.Graph = ig.Graph(directed=True)
+        # return this agent
+        ret_agent = None
+
+        for agent in agent_list:
+            # apply filter
+            if cancelled and not agent.is_cancelled:
+                continue
+            if not cancelled and agent.is_cancelled:
                 continue
 
-            # now we will see, if we can split this agent
-            possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
-            # if no possible routes, we can't move forward'
-            if len(possible_routes) == 0:
-                # add to failed routes
-                agent.is_cancelled = True
-                self.results.add_agent(agent)
-                continue
+            # set first agent
+            if ret_agent is None:
+                ret_agent = agent
 
-            # if only one possible route, we (hopefully) continue with this agent
-            if len(possible_routes) == 1:
-                # does next agent exist already in the map?
-                if possible_routes[0] in agents_proceeding_tomorrow:
-                    # retire this agent
-                    self.results.add_agent(agent)
-                    # set agent as parent
-                    agents_proceeding_tomorrow[possible_routes[0]].parents.append(agent.uid)
+            # add forced routes to the set, so we can handle those later on
+            if len(agent.forced_route) > 0:
+                forced_routes.add(tuple(agent.forced_route))
+
+            # merge agent's route to the merged graph
+            self._merge_agent_route(merged_routes, agent)
+
+        # change route data from dicts to lists
+        for v in merged_routes.vs:
+            v['data_points'] = list(v['data_points'].values())
+        for e in merged_routes.es:
+            e['data_points'] = list(e['data_points'].values())
+
+        # convert forced routes to list of tuples
+        return merged_routes if len(merged_routes.vs) else None, list(forced_routes), ret_agent
+
+    @staticmethod
+    def _create_merged_agent(agent: Agent, merged_routes: ig.Graph) -> Agent:
+        # overwrite agent route
+        agent.route_data = merged_routes
+        # set visited hubs
+        for hub in merged_routes.vs:
+            agent.visited_hubs.add(hub['name'])
+        # delete forced routes
+        agent.forced_route = []
+        agent.route_key = ''
+        agent.next_hub = ''
+
+        return agent
+
+    @staticmethod
+    def _merge_agent_route(merged_routes: ig.Graph, agent: Agent) -> None:
+        # merge vertices
+        for rv in agent.route_data.vs:
+            # get rest time, if any
+            rest = None
+            if rv['arrival'] is not None and rv['departure'] is not None and rv['arrival'] < rv['departure']:
+                rests = agent.get_rest_times_from_to(rv['arrival'], rv['departure'], sort_by_length=True)
+                if rests:
+                    rest = rests[0][2] # just get the reason of the first rest
+
+            # try to find vertex in merged graph
+            dp = (rv['arrival'], rv['departure'])
+            try:
+                v = merged_routes.vs.find(name=rv['name'])
+                if dp in v['data_points']:
+                    # increment counter
+                    v['data_points'][dp]['count'] += 1
+                    # do not change reason
                 else:
-                    # does not exist: continue with this agent
-                    # set new route
-                    agent.route_key = possible_routes[0][0]
-                    agent.next_hub = possible_routes[0][1]
+                    data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
+                    if rest:
+                        data['reason'] = rest
+                    v['data_points'][dp] = data
+            except:
+                # vertex not found in merged graph, add it, data_points will count the number of agents per arrival and departure
+                data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
+                if rest:
+                    data['reason'] = rest
+                merged_routes.add_vertex(name=rv['name'], data_points={dp: data})
 
-                    agents_proceeding_tomorrow[possible_routes[0]] = agent
-            else:
-                # multiple routes, retire this agent and create new ones
-                self.results.add_agent(agent)
+        # merge edges
+        for re in agent.route_data.es:
+            # dp ist start and end time
+            dp = (re['times'][0], re['times'][-1])
 
-                for possible_route in possible_routes:
-                    if possible_route in agents_proceeding_tomorrow:
-                        # next agent in this direction exists already in the map?
-                        # just set agent as parent
-                        agents_proceeding_tomorrow[possible_route].parents.append(agent.uid)
-                    else:
-                        # create new agent, copy it and create new uid
-                        new_agent = copy.deepcopy(agent)
-                        new_agent.generate_uid()
+            # get rest times, if any
+            # TODO: FIX
+            rests = agent.get_rest_times_from_to(dp[0], dp[1])
+            # format rests to time format (not length)
+            for i in range(len(rests)):
+                rests[i] = (rests[i][0], rests[i][0]+rests[i][1], rests[i][2])
 
-                        # set new targets
-                        new_agent.next_hub = possible_route[1]
-                        new_agent.route_key = possible_route[0]
+            # try to find edge in merged graph
+            try:
+                e = merged_routes.es.find(name=re['name'])
+                if dp in e['data_points']:
+                    # increment counter
+                    e['data_points'][dp]['count'] += 1
+                    # do not change anything else
+                else:
+                    # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
+                    data = {"count": 1, "times": re['times']}
+                    if rests:
+                        data['reasons'] = rests
+                    e['data_points'][dp] = data
+            except:
+                # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
+                data = {"count": 1, "times": re['times']}
+                if rests:
+                    data['reasons'] = rests
+                merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points={dp: data})
 
-                        agents_proceeding_tomorrow[possible_route] = new_agent
+    @staticmethod
+    def _flatten_forced_routes(forced_routes: list[tuple]) -> list[list[str]]:
+        # simple cases
+        if len(forced_routes) == 0:
+            return []
+        if len(forced_routes) == 1:
+            return [list(forced_routes[0])]
 
-        return list(agents_proceeding_tomorrow.values())
+        # create an igraph, so we can detect unique routes later
+        g = ig.Graph(directed=True)
+        g.add_vertex(name='_START')
+        for route in forced_routes:
+            for i, hub in enumerate(route):
+                # try to add vertex
+                try:
+                    g.vs.find(name=hub)
+                except:
+                    g.add_vertex(name=hub)
+                # try to add edge
+                start_hub = '_START' if i == 0 else route[i-1]
+                edge_name = f"{start_hub}_{hub}"
+                try:
+                    g.es.find(name=edge_name)
+                except:
+                    g.add_edge(start_hub, hub, name=edge_name)
+
+        unique_routes = []
+
+        # set degrees to find leaves of network
+        g.vs['degree_out'] = g.degree(mode='out')
+        for leaf in g.vs.select(degree_out_eq=0):
+            # get all routes to start - this will get all unique routes from the start to the leaf
+            for path in g.get_all_simple_paths(leaf, 0, mode='in'):
+                # correct order and cut off start
+                path = list(reversed(path))[1:]
+                # create route and add to list
+                unique_route = [''] * len(path)
+                for i, idx in enumerate(path):
+                    unique_route[i] = g.vs[idx]['name']
+
+                unique_routes.append(unique_route)
+
+        return unique_routes
 
     def _end_simulation(self):
         """

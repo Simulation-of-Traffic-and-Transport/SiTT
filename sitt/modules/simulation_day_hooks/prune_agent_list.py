@@ -13,7 +13,7 @@ class PruneAgentList(SimulationDayHookInterface):
     """
 
     def run(self, config: Configuration, context: Context, agents: list[Agent],
-                            results: SetOfResults, current_day: int) -> list[Agent]:
+                            agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
         """
         Prune the agent list to reduce the number of agents to only unique ones, merging route data for duplicates.
 
@@ -24,7 +24,7 @@ class PruneAgentList(SimulationDayHookInterface):
         :param config: The simulation configuration. Not used in this method.
         :param context: The simulation context. Not used in this method.
         :param agents: The list of agents to be pruned.
-        :param results: The set of results from previous simulation steps. Not used in this method.
+        :param agents_finished_for_today: List of finished agents for today.
         :param current_day: The current day of the simulation.
         :return: A new list of agents containing only unique agents with their route data merged.
         """

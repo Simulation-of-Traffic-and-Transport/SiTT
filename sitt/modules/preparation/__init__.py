@@ -11,6 +11,7 @@ from .debug_statistics import DebugStatistics
 from .dummy import Dummy
 from .graph_load import GraphLoad
 from .load_data_from_netcdf import LoadDataFromNETCDF
+from .prune_dead_end_overnight_hubs import PruneDeadEndOvernightHubs
 
 __all__ = [
     'PSQLBase',
@@ -21,4 +22,5 @@ __all__ = [
     'Dummy',
     'GraphLoad',
     'LoadDataFromNETCDF',
+    'PruneDeadEndOvernightHubs'
 ]

@@ -270,7 +270,7 @@ class Agent(object):
         """Key id of next/current route between hubs ("name" attribute of edge)"""
         self.last_route: str | None = None
         """Key if of last route taken"""
-        self.parents: list[str] = []
+        self.parent: str | None = None
         """UIDs of parent agents"""
 
         self.current_time: float = current_time
@@ -330,8 +330,8 @@ class Agent(object):
     def __eq__(self, other) -> bool:
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
-    def hash(self) -> str:
-        return self.this_hub + self.next_hub + str(self.route_key) + "_" + str(self.current_time)
+    # def hash(self) -> str:
+    #     return self.this_hub + self.next_hub + str(self.route_key) + "_" + str(self.current_time)
 
     def generate_uid(self) -> str:
         """generate an unique id of agent"""
@@ -367,8 +367,8 @@ class Agent(object):
 
         attr = {'name': route_key, 'times': times}
         # additional state infos
-        if self.state.is_reversed:
-            attr['is_reversed'] = True
+        # if self.state.is_reversed:
+        #     attr['is_reversed'] = True
         if self.state.last_coordinate_after_stop is not None:
             attr['last_coordinates'] = self.state.last_coordinate_after_stop
 
@@ -407,11 +407,11 @@ class Agent(object):
 
         return min_time
 
-    def get_rest_times_within(self, start_time) -> Generator[tuple[float, float], None, None]:
+    def get_rest_times_within(self, start_time) -> Generator[tuple[float, float, str], None, None]:
         # go back the rest history
-        for time, length in reversed(self.rest_history):
+        for time, length, reason in reversed(self.rest_history):
             if time >= start_time:
-                yield time, length
+                yield time, length, reason
             else:
                 break
 
@@ -424,6 +424,19 @@ class Agent(object):
             return self.rest_history[-1][0]
         else:
             return None
+
+    def get_rest_times_from_to(self, start_time: float, end_time: float, sort_by_length: bool = False) -> list[tuple[float, float, str]]:
+        fitting_rest_times = []
+
+        for rest in self.rest_history:
+            if start_time <= rest[0] and rest[0]+rest[1] <= end_time:
+                fitting_rest_times.append(rest)
+
+        # sort be length (longest rest first)
+        if sort_by_length:
+            fitting_rest_times.sort(key=lambda x: x[1], reverse=True)
+
+        return fitting_rest_times
 
 
 ########################################################################################################################
@@ -444,9 +457,9 @@ class SetOfResults:
     def add_agent(self, agent: Agent) -> None:
         # add vertex
         self.agents.add_vertex(name=agent.uid, agent=agent)
-        # add edges from parents to myself
-        for parent in agent.parents:
-            self.agents.add_edge(parent, agent.uid, name=agent.route_key)
+        # add edge from parent to myself
+        if agent.parent:
+            self.agents.add_edge(agent.parent, agent.uid, name=agent.route_key)
 
     def __repr__(self) -> str:
         return yaml.dump(self)
@@ -490,7 +503,7 @@ class SimulationDayHookInterface(abc.ABC):
         self.conditions: list[str] = []
 
     @abc.abstractmethod
-    def run(self, config: Configuration, context: Context, agents: list[Agent], results: SetOfResults, current_day: int) -> list[Agent]:
+    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
         pass
 
 
