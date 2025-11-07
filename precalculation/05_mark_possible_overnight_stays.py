@@ -57,8 +57,10 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--port', dest='port', default=5432, type=int, help='postgres port')
     parser.add_argument('--schema', dest='schema', default='sitt', type=str, help='schema name')
 
-    parser.add_argument('-d', '--distance', dest='distance', default=2., type=float,
+    parser.add_argument('-d', '--distance', dest='distance', default=1., type=float,
                         help='maximum distance in kilometers to check for overnight stays')
+    parser.add_argument('--dead-ends', dest='dead_ends', default=True, type=bool,
+                        help='automatically include dead end overnight stays, no matter the distance')
 
     # parse or help
     args: argparse.Namespace | None = None
@@ -88,6 +90,16 @@ if __name__ == "__main__":
 
         found_hubs = []
         order = 1  # check neighbors in this distance
+
+        # check dead ends
+        if args.dead_ends and hub.degree() == 1:
+            neighbor = hub.neighbors()[0]
+            # only if this is not an overnight hub
+            if neighbor['overnight'] is False:
+                distance = g.distances(hub.index, neighbor.index, weights='length_m')[0][0]
+                # add it, if distance is greater than maximum distance (otherwise, it will be marked below)
+                if distance > max_distance:
+                    found_hubs.append({'vertex': neighbor.index, 'distance': distance})
 
         # search neighbors in increasing order of distance
         while True:
