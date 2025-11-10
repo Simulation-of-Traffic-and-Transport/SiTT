@@ -207,7 +207,7 @@ class JSONOutput(OutputInterface):
                 max_dt = agent['end']
 
         list_of_agents = sorted(list_of_agents, key=lambda x: x['uid'])
-        return list_of_agents, float(np.round(min_dt, decimals=1)), float(np.round(max_dt, decimals=1))
+        return list_of_agents, float(np.round(min_dt, decimals=1) if min_dt < float('inf') else None), float(np.round(max_dt, decimals=1) if max_dt > float('-inf') else None)
 
     def _agent_to_data(self, agent: Agent) -> dict:
         """Converts a single agent object into a serializable dictionary.
@@ -225,8 +225,8 @@ class JSONOutput(OutputInterface):
         """
         agent_data: dict[str, Any] = {
             "uid": agent.uid,
-            "hubs": agent.route_data.vs['name'],
-            "edges": agent.route_data.es['name'],
+            "hubs": agent.route_data.vs['name'] if len(agent.route_data.vs) > 0 else [],
+            "edges": agent.route_data.es['name'] if len(agent.route_data.es) > 0 else [],
         }
 
         # parent?
@@ -244,8 +244,8 @@ class JSONOutput(OutputInterface):
                 if 'arrival' in dp and dp['arrival'] is not None and dp['arrival'] > max_dt:
                     max_dt = dp['arrival']
 
-        agent_data['start'] = min_dt
-        agent_data['end'] = max_dt
+        agent_data['start'] = min_dt if min_dt < float('inf') else None
+        agent_data['end'] = max_dt if max_dt > float('-inf') else None
 
         if agent.is_cancelled:
             agent_data['cancelled'] = True
