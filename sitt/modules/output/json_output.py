@@ -207,7 +207,7 @@ class JSONOutput(OutputInterface):
                 max_dt = agent['end']
 
         list_of_agents = sorted(list_of_agents, key=lambda x: x['uid'])
-        return list_of_agents, min_dt, max_dt
+        return list_of_agents, float(np.round(min_dt, decimals=1)), float(np.round(max_dt, decimals=1))
 
     def _agent_to_data(self, agent: Agent) -> dict:
         """Converts a single agent object into a serializable dictionary.
