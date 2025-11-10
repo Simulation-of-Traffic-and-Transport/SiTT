@@ -646,20 +646,6 @@ class Simulation(BaseClass):
         return agents_per_hub
 
     def _flatten_agent_list(self, agent_list: list[Agent]) -> tuple[Agent | None, Agent | None, list[list[str]]]:
-        # only a single agent? return it and its forced route, if any
-        if len(agent_list) == 1:
-            # cancelled agent? simply return it
-            if agent_list[0].is_cancelled:
-                return None, agent_list[0], []
-
-            # return single agent (not cancelled)
-            forced_routes = []
-            if agent_list[0].forced_route:
-                forced_routes.append(agent_list[0].forced_route)
-            return agent_list[0], None, forced_routes
-
-        # multiple agents -> merge them into one
-
         # collect merged routes and forced routes from this hub
         merged_routes, forced_routes, agent = self._merge_agent_routes(agent_list)
         # also collect cancelled routes from this hub
@@ -730,13 +716,18 @@ class Simulation(BaseClass):
         # merge vertices
         for rv in agent.route_data.vs:
             # already in archived format?
-            if 'data_points' in rv.attributes() and rv['data_points'] is not None:
+            if 'data_points' in rv.attributes() and rv['data_points'] is not None and rv['departure'] is None and rv['arrival'] is None:
                 # find vertex in merged graph
                 try:
                     v = merged_routes.vs.find(name=rv['name'])
-                    print("for re in agent.route_data.es => should not happen - break here")
-                    exit(99)
-                    # TODO: This should not happen - break here
+                    # compare
+                    if v['data_points'] == rv['data_points']:
+                        continue
+                    # merge lists/sum
+                    dp_a = {(k['arrival'], k['departure']): k['count'] for k in rv['data_points']}
+                    dp_b = {(k['arrival'], k['departure']): k['count'] for k in v['data_points']}
+                    dp = {k: dp_a.get(k, 0) + dp_b.get(k, 0) for k in set(dp_a) | set(dp_b)}
+                    v['data_points'] = [{'arrival': k, 'departure': v, 'count': dp[(k, v)]} for k, v in dp]
                 except:
                     # copy vertex
                     merged_routes.add_vertex(name=rv['name'], data_points=rv['data_points'])
@@ -771,13 +762,18 @@ class Simulation(BaseClass):
         # merge edges
         for re in agent.route_data.es:
             # already in archived format?
-            if 'data_points' in re.attributes() and re['data_points'] is not None:
+            if 'data_points' in re.attributes() and re['data_points'] is not None and re['times'] is None:
                 # try to find edge in merged graph
                 try:
                     e = merged_routes.es.find(name=re['name'])
-                    print("for re in agent.route_data.es => should not happen - break here")
-                    exit(88)
-                    # TODO: This should not happen - break here
+                    # compare
+                    if e['data_points'] == re['data_points']:
+                        continue
+                    # merge lists/sum
+                    dp_a = {(tuple(k['times'])): k['count'] for k in re['data_points']}
+                    dp_b = {(tuple(k['times'])): k['count'] for k in e['data_points']}
+                    dp = {k: dp_a.get(k, 0) + dp_b.get(k, 0) for k in set(dp_a) | set(dp_b)}
+                    e['data_points'] = [{'times': list(k), 'count': dp[k]} for k in dp]
                 except:
                     # copy edge
                     merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points=re['data_points'])
