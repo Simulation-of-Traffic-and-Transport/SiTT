@@ -234,12 +234,18 @@ class JSONOutput(OutputInterface):
             agent_data['parent'] = agent.parent
 
         # get first and last hub
-        start_hub = agent.route_data.vs[0]
-        end_hub = agent.route_data.vs[-1]
-        if 'departure' in start_hub.attributes():
-            agent_data['start'] = _round_time(start_hub['departure'])
-        if 'arrival' in end_hub.attributes():
-            agent_data['end'] = _round_time(end_hub['arrival'])
+        min_dt = float('inf')
+        max_dt = float('-inf')
+
+        for hub in agent.route_data.vs:
+            for dp in hub['data_points']:
+                if 'departure' in dp and dp['departure'] is not None and dp['departure'] < min_dt:
+                    min_dt = dp['departure']
+                if 'arrival' in dp and dp['arrival'] is not None and dp['arrival'] > max_dt:
+                    max_dt = dp['arrival']
+
+        agent_data['start'] = min_dt
+        agent_data['end'] = max_dt
 
         if agent.is_cancelled:
             agent_data['cancelled'] = True
@@ -258,40 +264,45 @@ class JSONOutput(OutputInterface):
 
         # now, iterate through agents and add their journeys to time slices
         for v in agents.vs:
-            time_slices_used: set[float] = set()
             agent = v['agent']
             # iterate through vertices and aggregate points
             for h in agent.route_data.vs:
                 # get hub coordinates
                 hub_geom = self.context.routes.vs.find(name=h['name'])['geom']
                 coords = (hub_geom.x, hub_geom.y)
-                for i, t in enumerate(_enumerate_arrival_departure(h['arrival'] if 'arrival' in h.attributes() else None, h['departure'] if 'departure' in h.attributes() else None)):
-                    # create xy in time slice, if needed
-                    if coords not in time_data[t]:
-                        time_data[t][coords] = []
-                    time_data[t][coords].append(v['name'])
+                # iterate through data points
+                for dp in h['data_points']:
+                    # iterate through times
+                    for i, t in enumerate(_enumerate_arrival_departure(dp['arrival'], dp['departure'])):
+                        # create xy in time slice, if needed
+                        if coords not in time_data[t]:
+                            time_data[t][coords] = []
+                            time_data[t][coords].append(v['name'])
 
             # iterate through edges and aggregate points
             for e in agent.route_data.es:
+                time_slices_used: set[float] = set()
                 # get edge coordinates
                 edge_coords = self.context.routes.es.find(name=e['name'])['geom'].coords
-                # iterate through times
-                for i, t in enumerate(e['times']):
-                    # skip first and last entry, because we add vertices here
-                    if i == 0 or i == len(e['times']) - 1:
-                        continue
-                    t = _round_time(t)
-                    # we only add the agent to one time slice
-                    if t in time_slices_used:
-                        continue
-                    time_slices_used.add(t)
-                    coord = edge_coords[i]
-                    x = coord[0]
-                    y = coord[1]
-                    # create xy in time slice, if needed
-                    if (x, y) not in time_data[t]:
-                        time_data[t][(x, y)] = []
-                    time_data[t][(x, y)].append(v['name'])
+                # iterate through data points
+                for dp in e['data_points']:
+                    # iterate through times
+                    for i, t in enumerate(dp['times']):
+                        # skip first and last entry, because we have added vertices there
+                        if i == 0 or i == len(dp['times']) - 1:
+                            continue
+                        t = _round_time(t)
+                        # we only add the agent to one time slice
+                        if t in time_slices_used:
+                            continue
+                        time_slices_used.add(t)
+                        coord = edge_coords[i]
+                        x = coord[0]
+                        y = coord[1]
+                        # create xy in time slice, if needed
+                        if (x, y) not in time_data[t]:
+                            time_data[t][(x, y)] = []
+                        time_data[t][(x, y)].append(v['name'])
 
         time_slices = {}
 

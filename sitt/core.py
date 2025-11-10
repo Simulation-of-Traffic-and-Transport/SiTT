@@ -373,10 +373,13 @@ class Simulation(BaseClass):
 
     @staticmethod
     def _agent_finish(agent: Agent, agents_finished_for_today: list[Agent]):
+        agent.visited_hubs.add(agent.next_hub)
         agent.this_hub = agent.next_hub
         agent.next_hub = ''
         agent.route_key = ''
         agent.is_finished = True
+        # set arrival time
+        agent.set_hub_arrival(agent.this_hub, agent.current_time)
         agents_finished_for_today.append(agent)
 
 
