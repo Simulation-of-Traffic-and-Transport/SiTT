@@ -337,7 +337,7 @@ class Simulation(BaseClass):
                 if agent.this_hub != next_leg['from']:
                     agent.state.is_reversed = True
                     if agent.next_hub != next_leg['from']:
-                        print("error!")
+                        print(f"error - legs reversed {agent.uid} in {next_leg['name']} with {next_leg['from']} -> {next_leg['to']}, agent status is: {agent.this_hub} -> {agent.next_hub} via {agent.route_key}")
 
                 # run state update - step hooks have to be called in this method
                 agent.state = sim_step.update_state(self.config, self.context, agent, next_leg)
@@ -445,11 +445,9 @@ class Simulation(BaseClass):
                     in_edges = v.in_edges()
                     if len(in_edges) == 0:
                         # if we are back at the start of the day, stop, we start with the starting hub again...
-                        # TODO: should we add this to the failed agents list?
-                        # print('cancelled')
-                        # agent.is_cancelled = True
-                        # agents_finished_for_today.append(agent)
-                        # continue?
+                        # this is a special case, we need to reset the agent to the starting hub
+                        agent.current_time = v['departure']
+                        agent.this_hub = v['name']
                         break
 
                     # mark index for deletion
@@ -470,6 +468,9 @@ class Simulation(BaseClass):
 
                 # # decrease tries a bit
                 # agent.tries -= 1
+
+            # add last resting place
+            agent.last_resting_place = agent.this_hub
 
         # add to list of agents that have finished for today
         agents_finished_for_today.append(agent)
@@ -623,12 +624,14 @@ class Simulation(BaseClass):
                     # create an agent for each forced route
                     e = self.context.routes.es.find(name=route[0])
                     new_agent = Agent(hub, e.target_vertex['name'], e['name'])
+                    new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
                     new_agent.parent = agent.uid
                     new_agent.forced_route = route
                     agents_proceeding_tomorrow.append(new_agent)
 
                 for route in possible_routes:
                     new_agent = Agent(hub, route[1], route[0])
+                    new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
                     new_agent.parent = agent.uid
                     agents_proceeding_tomorrow.append(new_agent)
 
