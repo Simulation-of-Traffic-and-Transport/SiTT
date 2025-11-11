@@ -201,9 +201,9 @@ class JSONOutput(OutputInterface):
         for v in agents.vs:
             agent = self._agent_to_data(v['agent'])
             list_of_agents.append(agent)
-            if 'start' in agent and agent['start'] < min_dt:
+            if 'start' in agent and agent['start'] is not None and agent['start'] < min_dt:
                 min_dt = agent['start']
-            if 'end' in agent and agent['end'] > max_dt:
+            if 'end' in agent and agent['end'] is not None and agent['end'] > max_dt:
                 max_dt = agent['end']
 
         list_of_agents = sorted(list_of_agents, key=lambda x: x['uid'])
