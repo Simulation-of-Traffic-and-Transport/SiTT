@@ -167,8 +167,8 @@ class JSONOutput(OutputInterface):
         return {
             "from": self.config.simulation_starts,
             "to": self.config.simulation_ends,
-            "start": _round_time(set_of_results.min_dt),
-            "end": _round_time(set_of_results.max_dt),
+            "start": min_dt,
+            "end": max_dt,
             "simulation_route": self.config.simulation_route,
             "simulation_route_reverse": self.config.simulation_route_reverse,
             "start_date": start_date,

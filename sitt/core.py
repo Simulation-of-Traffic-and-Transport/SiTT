@@ -858,18 +858,7 @@ class Simulation(BaseClass):
         """
         Run end simluation tasks
         """
-        max_time: float = 0
-        min_time: float = float('inf')
-
-        # determine boundaries
-        for agent in self.results.agents.vs['agent']:
-            if agent.current_time > max_time:
-                max_time = agent.current_time
-            if agent.current_time < min_time:
-                min_time = agent.current_time
-
-        self.results.max_dt = max_time
-        self.results.min_dt = min_time
+        pass
 
 
 ########################################################################################################################

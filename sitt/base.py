@@ -447,10 +447,6 @@ class SetOfResults:
     """Set of results represents the results of a simulation"""
 
     def __init__(self):
-        self.min_dt: float = 0.
-        """minimum departure time of agents (day, time)"""
-        self.max_dt: float = 0.
-        """maximum arrival time of agents (day, time)"""
         self.agents: ig.Graph = ig.Graph(directed=True)
         """general list of agents - as list of descend from starting hubs to ending ones"""
 
