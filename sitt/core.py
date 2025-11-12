@@ -18,7 +18,7 @@ import geopandas as gpd
 import igraph as ig
 import pandas as pd
 
-from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
+from sitt import Configuration, Context, SkipStep, SetOfResults, Agent, History
 
 __all__ = ['BaseClass', 'Core', 'Preparation', 'Simulation', 'Output']
 
@@ -358,7 +358,7 @@ class Simulation(BaseClass):
             # proceed agent to new hub
 
             # add hub and vertex history (this will add the vertex to the agent's history)
-            agent.create_route_data(agent.this_hub, agent.next_hub, agent.route_key, start_time, end_time, agent.state.time_for_legs)
+            agent.history.create_route_data(agent.uid, agent.this_hub, agent.next_hub, agent.route_key, start_time, end_time, agent.state)
 
             # set time and last route
             agent.current_time = end_time
@@ -379,7 +379,7 @@ class Simulation(BaseClass):
         agent.route_key = ''
         agent.is_finished = True
         # set arrival time
-        agent.set_hub_arrival(agent.this_hub, agent.current_time)
+        agent.history.set_hub_arrival(agent.uid, agent.this_hub, agent.current_time)
         agents_finished_for_today.append(agent)
 
 
@@ -393,12 +393,14 @@ class Simulation(BaseClass):
             # save last possible resting place and time, if new hub is an overnight stay
             if reached_hub['overnight'] or (has_overnight_hub and reached_hub['overnight_hub']):
                 # mark hub as overnight hub
-                agent.route_data.vs.find(name=agent.next_hub)['overnight'] = True
+                agent.last_overnight_hub = reached_hub['name']
 
         # add current hub to visited ones
         agent.visited_hubs.add(agent.next_hub)
         # update current hub
         agent.this_hub = agent.next_hub
+        # update route
+        agent.route.extend([agent.route_key, agent.this_hub])
 
         # add to list of agents to proceed
         agents_ok, agents_cancelled = self._split_agent_on_hub(agent)
@@ -428,41 +430,26 @@ class Simulation(BaseClass):
 
             # traceback to last possible resting place, if needed
             if self.config.overnight_trace_back and self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
-                # get hub ids that start from the last possible resting place to the current hub
-                hubs_to_delete: set[int] = set()
+                # get index of last overnight hub
+                last_overnight_hub_index = agent.route.index(agent.last_overnight_hub)
+                to_delete = agent.route[last_overnight_hub_index+1:]
+                # get hubs and routes for deletion
+                hubs = to_delete[1::2]
+                routes = to_delete[::2]
 
-                # iterate over all vertices to find last resting place (since our graph is only a list, we can use dfs, might be a bit faster)
-                for v in agent.route_data.dfsiter(agent.route_data.vs.find(agent.this_hub).index, mode='in'):
-                    # search for first overnight hub
-                    if v['overnight']:
-                        # ok, this is our resting place, delete departure time
-                        v['departure'] = None
-                        agent.current_time = v['arrival']
-                        agent.this_hub = v['name']
-                        break
+                # delete from history
+                agent.history.remove_hubs_and_routes(hubs, routes)
+                agent.history.delete_departure(agent.last_overnight_hub)
+                agent.history.end_hub = agent.last_overnight_hub # reset end_hub
 
-                    # check route to this vertex
-                    in_edges = v.in_edges()
-                    if len(in_edges) == 0:
-                        # if we are back at the start of the day, stop, we start with the starting hub again...
-                        # this is a special case, we need to reset the agent to the starting hub
-                        agent.current_time = v['departure']
-                        agent.this_hub = v['name']
-                        break
-
-                    # mark index for deletion
-                    hubs_to_delete.add(v.index)
-                    # prepend forced route
-                    agent.forced_route.insert(0, in_edges[0]['name'])
-                    # delete from visited hubs
-                    agent.visited_hubs.remove(v['name'])
-
-                # actually delete hubs from graph
-                agent.route_data.delete_vertices(list(hubs_to_delete))
+                agent.current_time = agent.history.get_arrival_agent_in_hub(agent.uid, agent.last_overnight_hub)
+                agent.this_hub = agent.last_overnight_hub
+                agent.route = agent.route[:last_overnight_hub_index+1]
+                agent.forced_route = routes
 
                 # delete rest history that is more than or same as the maximum last resting time
                 for i in range(len(agent.rest_history)):
-                    if agent.rest_history[i][0] >= agent.current_time:
+                    if agent.current_time is None or agent.rest_history[i][0] >= agent.current_time:
                         agent.rest_history = agent.rest_history[:i]
                         break
 
@@ -663,11 +650,12 @@ class Simulation(BaseClass):
         return agent, cancelled_agent, self._flatten_forced_routes(forced_routes)
 
 
-    def _merge_agent_routes(self, agent_list: list[Agent], cancelled: bool = False) -> tuple[ig.Graph | None, list[tuple], Agent | None]:
+    @staticmethod
+    def _merge_agent_routes(agent_list: list[Agent], cancelled: bool = False) -> tuple[History, list[tuple], Agent | None]:
         # collect forced routes from this hub - create as set, so we can easily check for duplicates
         forced_routes: set[tuple] = set()
         # collect merged routes
-        merged_routes: ig.Graph = ig.Graph(directed=True)
+        merged_routes: History = History()
         # return this agent
         ret_agent = None
 
@@ -687,128 +675,26 @@ class Simulation(BaseClass):
                 forced_routes.add(tuple(agent.forced_route))
 
             # merge agent's route to the merged graph
-            self._merge_agent_route(merged_routes, agent)
-
-        # change route data from dicts to lists
-        for v in merged_routes.vs:
-            if type(v['data_points']) == dict:
-                v['data_points'] = list(v['data_points'].values())
-        for e in merged_routes.es:
-            if type(e['data_points']) == dict:
-                e['data_points'] = list(e['data_points'].values())
+            merged_routes.merge_with(agent.history)
 
         # convert forced routes to list of tuples
-        return merged_routes if len(merged_routes.vs) else None, list(forced_routes), ret_agent
+        return merged_routes, list(forced_routes), ret_agent
 
     @staticmethod
-    def _create_merged_agent(agent: Agent, merged_routes: ig.Graph) -> Agent:
+    def _create_merged_agent(agent: Agent, merged_routes: History) -> Agent:
         # overwrite agent route
-        agent.route_data = merged_routes
+        agent.history = merged_routes
         # set visited hubs
-        for hub in merged_routes.vs:
-            agent.visited_hubs.add(hub['name'])
+        for hub in merged_routes.hub_departures:
+            agent.visited_hubs.add(hub)
+        for hub in merged_routes.hub_arrivals:
+            agent.visited_hubs.add(hub)
         # delete forced routes
         agent.forced_route = []
         agent.route_key = ''
         agent.next_hub = ''
 
         return agent
-
-    @staticmethod
-    def _merge_agent_route(merged_routes: ig.Graph, agent: Agent) -> None:
-        # merge vertices
-        for rv in agent.route_data.vs:
-            # already in archived format?
-            if 'data_points' in rv.attributes() and rv['data_points'] is not None and rv['departure'] is None and rv['arrival'] is None:
-                # find vertex in merged graph
-                try:
-                    v = merged_routes.vs.find(name=rv['name'])
-                    # compare
-                    if v['data_points'] == rv['data_points']:
-                        continue
-                    # merge lists/sum
-                    dp_a = {(k['arrival'], k['departure']): k['count'] for k in rv['data_points']}
-                    dp_b = {(k['arrival'], k['departure']): k['count'] for k in v['data_points']}
-                    dp = {k: dp_a.get(k, 0) + dp_b.get(k, 0) for k in set(dp_a) | set(dp_b)}
-                    v['data_points'] = [{'arrival': k, 'departure': v, 'count': dp[(k, v)]} for k, v in dp]
-                except:
-                    # copy vertex
-                    merged_routes.add_vertex(name=rv['name'], data_points=rv['data_points'])
-            else:
-                # get rest time, if any
-                rest = None
-                if rv['arrival'] is not None and rv['departure'] is not None and rv['arrival'] < rv['departure']:
-                    rests = agent.get_rest_times_from_to(rv['arrival'], rv['departure'], sort_by_length=True)
-                    if rests:
-                        rest = rests[0][2] # just get the reason of the first rest
-
-                # try to find vertex in merged graph
-                dp = (rv['arrival'], rv['departure'])
-                try:
-                    v = merged_routes.vs.find(name=rv['name'])
-                    if dp in v['data_points']:
-                        # increment counter
-                        v['data_points'][dp]['count'] += 1
-                        # do not change reason
-                    else:
-                        data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
-                        if rest:
-                            data['reason'] = rest
-                        v['data_points'][dp] = data
-                except:
-                    # vertex not found in merged graph, add it, data_points will count the number of agents per arrival and departure
-                    data = {"count": 1, 'arrival': rv['arrival'], 'departure': rv['departure']}
-                    if rest:
-                        data['reason'] = rest
-                    merged_routes.add_vertex(name=rv['name'], data_points={dp: data})
-
-        # merge edges
-        for re in agent.route_data.es:
-            # already in archived format?
-            if 'data_points' in re.attributes() and re['data_points'] is not None and re['times'] is None:
-                # try to find edge in merged graph
-                try:
-                    e = merged_routes.es.find(name=re['name'])
-                    # compare
-                    if e['data_points'] == re['data_points']:
-                        continue
-                    # merge lists/sum
-                    dp_a = {(tuple(k['times'])): k['count'] for k in re['data_points']}
-                    dp_b = {(tuple(k['times'])): k['count'] for k in e['data_points']}
-                    dp = {k: dp_a.get(k, 0) + dp_b.get(k, 0) for k in set(dp_a) | set(dp_b)}
-                    e['data_points'] = [{'times': list(k), 'count': dp[k]} for k in dp]
-                except:
-                    # copy edge
-                    merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points=re['data_points'])
-            else:
-                # dp ist start and end time
-                dp = (re['times'][0], re['times'][-1])
-
-                # get rest times, if any
-                rests = agent.get_rest_times_from_to(dp[0], dp[1])
-                # format rests to time format (not length)
-                for i in range(len(rests)):
-                    rests[i] = (rests[i][0], rests[i][0]+rests[i][1], rests[i][2])
-
-                # try to find edge in merged graph
-                try:
-                    e = merged_routes.es.find(name=re['name'])
-                    if dp in e['data_points']:
-                        # increment counter
-                        e['data_points'][dp]['count'] += 1
-                        # do not change anything else
-                    else:
-                        # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
-                        data = {"count": 1, "times": re['times']}
-                        if rests:
-                            data['reasons'] = rests
-                        e['data_points'][dp] = data
-                except:
-                    # edge not found in merged graph, add it, data_points will count the number of agents per arrival and departure
-                    data = {"count": 1, "times": re['times']}
-                    if rests:
-                        data['reasons'] = rests
-                    merged_routes.add_edge(re.source_vertex['name'], re.target_vertex['name'], name=re['name'], data_points={dp: data})
 
     @staticmethod
     def _flatten_forced_routes(forced_routes: list[tuple]) -> list[list[str]]:

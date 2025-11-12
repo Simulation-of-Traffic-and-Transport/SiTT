@@ -201,10 +201,10 @@ class JSONOutput(OutputInterface):
         for v in agents.vs:
             agent = self._agent_to_data(v['agent'])
             list_of_agents.append(agent)
-            if 'start' in agent and agent['start'] is not None and agent['start'] < min_dt:
-                min_dt = agent['start']
-            if 'end' in agent and agent['end'] is not None and agent['end'] > max_dt:
-                max_dt = agent['end']
+            if agent['start_min'] is not None and agent['start_min'] < min_dt:
+                min_dt = agent['start_min']
+            if agent['end_max'] is not None and agent['end_max'] > max_dt:
+                max_dt = agent['end_max']
 
         list_of_agents = sorted(list_of_agents, key=lambda x: x['uid'])
         return list_of_agents, float(np.round(min_dt, decimals=1) if min_dt < float('inf') else None), float(np.round(max_dt, decimals=1) if max_dt > float('-inf') else None)
@@ -225,27 +225,16 @@ class JSONOutput(OutputInterface):
         """
         agent_data: dict[str, Any] = {
             "uid": agent.uid,
-            "hubs": agent.route_data.vs['name'] if len(agent.route_data.vs) > 0 else [],
-            "edges": agent.route_data.es['name'] if len(agent.route_data.es) > 0 else [],
+            "hubs": agent.history.get_hubs(),
+            "edges": agent.history.get_routes(),
         }
 
         # parent?
         if agent.parent:
             agent_data['parent'] = agent.parent
 
-        # get first and last hub
-        min_dt = float('inf')
-        max_dt = float('-inf')
-
-        for hub in agent.route_data.vs:
-            for dp in hub['data_points']:
-                if 'departure' in dp and dp['departure'] is not None and dp['departure'] < min_dt:
-                    min_dt = dp['departure']
-                if 'arrival' in dp and dp['arrival'] is not None and dp['arrival'] > max_dt:
-                    max_dt = dp['arrival']
-
-        agent_data['start'] = min_dt if min_dt < float('inf') else None
-        agent_data['end'] = max_dt if max_dt > float('-inf') else None
+        # set general time data (start/stop times)
+        agent_data['start_min'], agent_data['start_max'], agent_data['end_min'], agent_data['end_max'] = agent.history.get_min_max_times()
 
         if agent.is_cancelled:
             agent_data['cancelled'] = True
@@ -265,27 +254,28 @@ class JSONOutput(OutputInterface):
         # now, iterate through agents and add their journeys to time slices
         for v in agents.vs:
             agent = v['agent']
-            # iterate through vertices and aggregate points
-            for h in agent.route_data.vs:
+            # iterate through route data
+            combined_hub_data = agent.history.create_combined_hub_data(round_to=1)
+            for hub, dps in combined_hub_data.items():
                 # get hub coordinates
-                hub_geom = self.context.routes.vs.find(name=h['name'])['geom']
+                hub_geom = self.context.routes.vs.find(name=hub)['geom']
                 coords = (hub_geom.x, hub_geom.y)
-                # iterate through data points
-                for dp in h['data_points']:
-                    # iterate through times
-                    for i, t in enumerate(_enumerate_arrival_departure(dp['arrival'], dp['departure'])):
-                        # create xy in time slice, if needed
-                        if coords not in time_data[t]:
-                            time_data[t][coords] = []
-                            time_data[t][coords].append(v['name'])
+                # get min/max dps
+                t_list = dps.keys()
+                # iterate through times
+                for i, t in enumerate(_enumerate_arrival_departure(min(t_list), max(t_list))):
+                    # create xy in time slice, if needed
+                    if coords not in time_data[t]:
+                        time_data[t][coords] = []
+                        time_data[t][coords].append(v['name'])
 
             # iterate through edges and aggregate points
-            for e in agent.route_data.es:
+            for route, dps in agent.history.routes.items():
                 time_slices_used: set[float] = set()
                 # get edge coordinates
-                edge_coords = self.context.routes.es.find(name=e['name'])['geom'].coords
+                edge_coords = self.context.routes.es.find(name=route)['geom'].coords
                 # iterate through data points
-                for dp in e['data_points']:
+                for dp in dps.values():
                     # iterate through times
                     for i, t in enumerate(dp['times']):
                         # skip first and last entry, because we have added vertices there
