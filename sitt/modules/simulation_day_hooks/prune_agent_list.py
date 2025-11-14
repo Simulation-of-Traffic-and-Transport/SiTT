@@ -33,7 +33,7 @@ class PruneAgentList(SimulationDayHookInterface):
         if current_day == 1:
             return agents
 
-        # TODO
+        # TODO - not used any more, delete?
         return agents
         # hashed_agents: dict[str, Agent] = {}
         #

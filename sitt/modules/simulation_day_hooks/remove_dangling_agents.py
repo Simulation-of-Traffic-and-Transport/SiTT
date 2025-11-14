@@ -37,7 +37,7 @@ class RemoveDanglingAgents(SimulationDayHookInterface):
         :return: A new list of agents with dangling ones removed.
         """
 
-        # TODO
+        # TODO - not used any more, delete?
         return agents
 
         # if len(agents[0].route_day.es) == 0:
