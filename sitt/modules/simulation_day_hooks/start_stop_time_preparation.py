@@ -81,3 +81,7 @@ class StartStopTimePreparation(SimulationDayHookInterface):
         elif v >= max:
             return v - max
         return v
+
+    def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
+        pass
+

@@ -41,8 +41,6 @@ class SimpleLoadingState(SimulationDefineStateInterface):
 
             # calculate new time
             new_time = agent.current_time + self.add_time
-            # update history
-            agent.history.set_hub_departure(agent.uid, agent.this_hub, new_time)
             # update current time
             agent.current_time = new_time
 

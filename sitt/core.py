@@ -18,7 +18,7 @@ import geopandas as gpd
 import igraph as ig
 import pandas as pd
 
-from sitt import Configuration, Context, SkipStep, SetOfResults, Agent, History
+from sitt import Configuration, Context, SkipStep, SetOfResults, Agent
 
 __all__ = ['BaseClass', 'Core', 'Preparation', 'Simulation', 'Output']
 
@@ -358,7 +358,7 @@ class Simulation(BaseClass):
             # proceed agent to new hub
 
             # add hub and vertex history (this will add the vertex to the agent's history)
-            agent.history.create_route_data(agent.uid, agent.this_hub, agent.next_hub, agent.route_key, start_time, end_time, agent.state)
+            agent.create_route_data(agent.this_hub, agent.next_hub, agent.route_key, start_time, end_time)
 
             # set time and last route
             agent.current_time = end_time
@@ -379,7 +379,6 @@ class Simulation(BaseClass):
         agent.route_key = ''
         agent.is_finished = True
         # set arrival time
-        agent.history.set_hub_arrival(agent.uid, agent.this_hub, agent.current_time)
         agents_finished_for_today.append(agent)
 
 
@@ -399,8 +398,6 @@ class Simulation(BaseClass):
         agent.visited_hubs.add(agent.next_hub)
         # update current hub
         agent.this_hub = agent.next_hub
-        # update route
-        agent.route.extend([agent.route_key, agent.this_hub])
 
         # add to list of agents to proceed
         agents_ok, agents_cancelled = self._split_agent_on_hub(agent)
@@ -436,16 +433,23 @@ class Simulation(BaseClass):
                 # get hubs and routes for deletion
                 hubs = to_delete[1::2]
                 routes = to_delete[::2]
+                last_known_departure = None # keep last known time
 
                 # delete from history
-                agent.history.remove_hubs_and_routes(hubs, routes)
-                agent.history.delete_departure(agent.last_overnight_hub)
-                agent.history.end_hub = agent.last_overnight_hub # reset end_hub
-
-                agent.current_time = agent.history.get_arrival_agent_in_hub(agent.uid, agent.last_overnight_hub)
+                for hub in hubs:
+                    agent.visited_hubs.remove(hub)
+                for route in routes:
+                    last_known_departure = agent.route_times[route][0]
+                    del agent.route_times[route]
+                # update data
                 agent.this_hub = agent.last_overnight_hub
-                agent.route = agent.route[:last_overnight_hub_index+1]
+                agent.route = agent.route[:last_overnight_hub_index + 1]
                 agent.forced_route = routes
+                # reduced to none?
+                if len(agent.route) < 2:
+                    agent.current_time = last_known_departure
+                else:
+                    agent.current_time = agent.route_times[agent.route[-2]][-1]
 
                 # delete rest history that is more than or same as the maximum last resting time
                 for i in range(len(agent.rest_history)):
@@ -554,160 +558,87 @@ class Simulation(BaseClass):
         return agents, []
 
     def _finish_day(self, agents: list[Agent]) -> list[Agent]:
-        # first, we group our agents per hub
+        # first, we group our agents per hub - finished or cancelled agents are ignored, se we might have an empty list here
         agents_per_hub = self._group_agents_by_hub(agents)
         agents_proceeding_tomorrow: list[Agent] = []
 
-        # flatten the agents per hub
         for hub, agent_list in agents_per_hub.items():
-            agent, cancelled_agent, forced_routes = self._flatten_agent_list(agent_list)
+            # collect forced routes from this hub - create as set, so we can easily check for duplicates
+            all_forced_routes: set[tuple] = set()
+            # also aggregate visited hubs
+            visited_hubs: set[str] = set()
 
-            # if we have a cancelled agent, save it to the results
-            if cancelled_agent is not None:
-                self.results.add_agent(cancelled_agent)
+            for agent in agent_list:
+                # add forced routes to the set, so we can handle those later on
+                if len(agent.forced_route) > 0:
+                    all_forced_routes.add(tuple(agent.forced_route))
+                visited_hubs.union(agent.visited_hubs)
 
-            # skip empty agents
-            if agent is None:
-                continue
-
-            # if agent has been finished, we add it to the results
-            if agent.is_finished:
+                # retire agents by adding them to the results
                 self.results.add_agent(agent)
-                continue
+
+            # flatten forced routes into simple lists and aggregate starting edges, so we can avoid to take them below
+            forced_routes, forced_hubs_starts = self._flatten_forced_routes(all_forced_routes)
+
+            # create new dummy agent to test possible routes
+            agent = Agent(hub, '', '', do_not_generate_uid=True)
+            agent.visited_hubs = visited_hubs
 
             # get all possible routes for this hub
             possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
-
-            # prune possible routes by forced routes - even if there is one forced route, we will not consider other
+            # filter out possible routes by forced routes - even if there is one forced route, we will not consider other
             # route variants from this hub (because these will be retries)
-            forced_hubs_starts = set()
-            for route in forced_routes:
-                forced_hubs_starts.add(route[0])
-
             possible_routes = [route for route in possible_routes if route[0] not in forced_hubs_starts]
 
-            # now let us check if our agent continues, or if we split the agent
-            if len(possible_routes) + len(forced_routes) == 1:
-                # forced route?
-                if len(forced_routes) > 0:
-                    # set forced route
-                    e = self.context.routes.es.find(name=forced_routes[0][0])
-                    agent.next_hub = e.target_vertex['name']
-                    agent.route_key = e['name']
-                    agent.forced_route = forced_routes[0]
-                else:
-                    # simply continue to the next hub
-                    agent.next_hub = possible_routes[0][1]
-                    agent.route_key = possible_routes[0][0]
-                    agents_proceeding_tomorrow.append(agent)
-            else:
-                # split agent into multiple ones
+            # first, forced routes
+            for route in forced_routes:
+                # create an agent for each forced route
+                e = self.context.routes.es.find(name=route[0])
+                new_agent = Agent(hub, e.target_vertex['name'], e['name'])
+                new_agent.visited_hubs = copy.deepcopy(visited_hubs)
+                new_agent.forced_route = route
+                agents_proceeding_tomorrow.append(new_agent)
 
-                # we retire our old agent
-                self.results.add_agent(agent)
-
-                # first, forced routes
-                for route in forced_routes:
-                    # create an agent for each forced route
-                    e = self.context.routes.es.find(name=route[0])
-                    new_agent = Agent(hub, e.target_vertex['name'], e['name'])
-                    new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
-                    new_agent.parent = agent.uid
-                    new_agent.forced_route = route
-                    agents_proceeding_tomorrow.append(new_agent)
-
-                for route in possible_routes:
-                    new_agent = Agent(hub, route[1], route[0])
-                    new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
-                    new_agent.parent = agent.uid
-                    agents_proceeding_tomorrow.append(new_agent)
+            # then, other possible routes
+            for route in possible_routes:
+                new_agent = Agent(hub, route[1], route[0])
+                new_agent.visited_hubs = copy.deepcopy(visited_hubs)
+                agents_proceeding_tomorrow.append(new_agent)
 
         return agents_proceeding_tomorrow
 
-    @staticmethod
-    def _group_agents_by_hub(agents: list[Agent]) -> dict[str, list[Agent]]:
+    def _group_agents_by_hub(self, agents: list[Agent]) -> dict[str, list[Agent]]:
         agents_per_hub: dict[str, list[Agent]] = {}
 
         for agent in agents:
+            # ignore cancelled and finished agents
+            if agent.is_cancelled or agent.is_finished:
+                # add to results list and continue
+                self.results.add_agent(agent)
+                continue
+
             if agent.this_hub not in agents_per_hub:
                 agents_per_hub[agent.this_hub] = []
             agents_per_hub[agent.this_hub].append(agent)
 
         return agents_per_hub
 
-    def _flatten_agent_list(self, agent_list: list[Agent]) -> tuple[Agent | None, Agent | None, list[list[str]]]:
-        # collect merged routes and forced routes from this hub
-        merged_routes, forced_routes, agent = self._merge_agent_routes(agent_list)
-        # also collect cancelled routes from this hub
-        cancelled_routes, _, cancelled_agent = self._merge_agent_routes(agent_list, cancelled=True)
-
-        # now create result data
-        if merged_routes is not None and agent is not None:
-            agent = self._create_merged_agent(agent, merged_routes)
-        if cancelled_routes is not None and cancelled_agent is not None:
-            cancelled_agent = self._create_merged_agent(cancelled_agent, cancelled_routes)
-
-        return agent, cancelled_agent, self._flatten_forced_routes(forced_routes)
-
-
     @staticmethod
-    def _merge_agent_routes(agent_list: list[Agent], cancelled: bool = False) -> tuple[History, list[tuple], Agent | None]:
-        # collect forced routes from this hub - create as set, so we can easily check for duplicates
-        forced_routes: set[tuple] = set()
-        # collect merged routes
-        merged_routes: History = History()
-        # return this agent
-        ret_agent = None
+    def _flatten_forced_routes(forced_routes: set[tuple]) -> tuple[list[list[str]], set[str]]:
+        start_edges: set[str] = set()
 
-        for agent in agent_list:
-            # apply filter
-            if cancelled and not agent.is_cancelled:
-                continue
-            if not cancelled and agent.is_cancelled:
-                continue
-
-            # set first agent
-            if ret_agent is None:
-                ret_agent = agent
-
-            # add forced routes to the set, so we can handle those later on
-            if len(agent.forced_route) > 0:
-                forced_routes.add(tuple(agent.forced_route))
-
-            # merge agent's route to the merged graph
-            merged_routes.merge_with(agent.history)
-
-        # convert forced routes to list of tuples
-        return merged_routes, list(forced_routes), ret_agent
-
-    @staticmethod
-    def _create_merged_agent(agent: Agent, merged_routes: History) -> Agent:
-        # overwrite agent route
-        agent.history = merged_routes
-        # set visited hubs
-        for hub in merged_routes.hub_departures:
-            agent.visited_hubs.add(hub)
-        for hub in merged_routes.hub_arrivals:
-            agent.visited_hubs.add(hub)
-        # delete forced routes
-        agent.forced_route = []
-        agent.route_key = ''
-        agent.next_hub = ''
-
-        return agent
-
-    @staticmethod
-    def _flatten_forced_routes(forced_routes: list[tuple]) -> list[list[str]]:
         # simple cases
         if len(forced_routes) == 0:
-            return []
+            return [], start_edges
         if len(forced_routes) == 1:
-            return [list(forced_routes[0])]
+            routes = list(list(forced_routes)[0])
+            start_edges.add(routes[0])
+            return [routes], start_edges
 
         # create an igraph, so we can detect unique routes later
         g = ig.Graph(directed=True)
         g.add_vertex(name='_START')
-        for route in forced_routes:
+        for route in list(forced_routes):
             for i, hub in enumerate(route):
                 # try to add vertex
                 try:
@@ -738,13 +669,20 @@ class Simulation(BaseClass):
 
                 unique_routes.append(unique_route)
 
-        return unique_routes
+        # get all routes from start
+        for v in g.vs.find(name='_START').neighbors():
+            start_edges.add(v['name'])
+
+        return unique_routes, start_edges
 
     def _end_simulation(self):
         """
-        Run end simluation tasks
+        Run end simulation tasks
         """
-        pass
+        for day_hook_pre in self.config.simulation_day_hook_pre:
+            day_hook_pre.finish_simulation(self.config, self.context, self.current_day)
+        for day_hook_post in self.config.simulation_day_hook_post:
+            day_hook_post.finish_simulation(self.config, self.context, self.current_day)
 
 
 ########################################################################################################################

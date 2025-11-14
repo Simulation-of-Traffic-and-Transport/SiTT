@@ -243,233 +243,13 @@ class State(object):
     def __repr__(self) -> str:
         return f'State {self.uid} TT={self.time_taken:.2f} STOP_HERE={self.signal_stop_here}'
 
-    #
-    # def hash(self) -> str:
-    #     """Return unique id of this state"""
-    #     return ''
-
-class History(object):
-    def __init__(self):
-        self.hub_arrivals: dict[str, dict[float, set[str]]] = {}
-        """Hubs arrival times dt"""
-        self.hub_departures: dict[str, dict[float, set[str]]] = {}
-        """Hubs deptarture times dt"""
-        self.routes: dict[str, dict[tuple[float, float], dict]] = {}
-        """Routes dt"""
-        self.start_hubs: set[str] = set()
-        """Start hubs"""
-        self.end_hub: str | None = None
-        """End hub"""
-
-
-    def set_hub_departure(self, agent: str, hub: str, departure: float):
-        # set start hub (= first hub)
-        if len(self.hub_departures) == 0:
-            self.start_hubs.add(hub)
-
-        if hub not in self.hub_departures:
-            self.hub_departures[hub] = {departure: set()}
-        elif departure not in self.hub_departures[hub]:
-            self.hub_departures[hub][departure] = set()
-        self.hub_departures[hub][departure].add(agent)
-
-    def set_hub_arrival(self, agent: str, hub: str, arrival: float):
-        # always set end hub (= last hub)
-        self.end_hub = hub
-
-        if hub not in self.hub_arrivals:
-            self.hub_arrivals[hub] = {arrival: set()}
-        elif arrival not in self.hub_arrivals[hub]:
-            self.hub_arrivals[hub][arrival] = set()
-        self.hub_arrivals[hub][arrival].add(agent)
-
-    def create_route_data(self, agent: str, from_hub: str, to_hub: str, route_key: str, departure: float, arrival: float, state: State):
-        # create departure and arrival hubs
-        self.set_hub_departure(agent, from_hub, departure)
-        self.set_hub_arrival(agent, to_hub, arrival)
-
-        # create list of time points in route
-        t = departure
-        times = [t]
-
-        # calculate actual time for legs (dt and not time taken)
-        for leg_time in state.time_for_legs:
-            t += leg_time
-            times.append(t)
-
-        key = (times[0], times[-1])
-
-        if route_key not in self.routes:
-            self.routes[route_key] = {}
-        if key not in self.routes[route_key]:
-            self.routes[route_key][key] = {
-                'agents': set(),
-                'times': times,
-            }
-            if state.last_coordinate_after_stop is not None:
-                self.routes[route_key][key]['last_coordinate'] = state.last_coordinate_after_stop
-            if state.is_reversed:
-                self.routes[route_key][key]['is_reversed'] = True
-
-        self.routes[route_key][key]['agents'].add(agent)
-
-    def remove_hubs_and_routes(self, hubs: list[str], routes: list[str]):
-        for hub in hubs:
-            if hub in self.hub_arrivals:
-                del self.hub_arrivals[hub]
-            if hub in self.hub_departures:
-                del self.hub_departures[hub]
-        for route in routes:
-            if route in self.routes:
-                del self.routes[route]
-
-    def delete_departure(self, hub):
-        if hub in self.hub_departures:
-            del self.hub_departures[hub]
-
-    def get_arrival_agent_in_hub(self, agent: str, hub: str) -> float | None:
-        """Get the arrival time of a specific agent in a specific hub.
-
-        Args:
-            agent: The UID of the agent.
-            hub: The name of the hub.
-
-        Returns:
-            The arrival time as a float if the agent arrived at the hub, otherwise None.
-        """
-        if hub in self.hub_arrivals:
-            for t, agents in self.hub_arrivals[hub].items():
-                if agent == agent:
-                    return t
-        return None
-
-    def merge_with(self, other: History):
-        # merge hubs
-        self.hub_arrivals = self.merge_hub_dp(self.hub_arrivals, other.hub_arrivals)
-        self.hub_departures = self.merge_hub_dp(self.hub_departures, other.hub_departures)
-
-        # merge routes
-        self.routes = self.merge_route_dp(self.routes, other.routes)
-
-        # merge start hubs
-        self.start_hubs.update(other.start_hubs)
-        # merge end hub
-        if self.end_hub is not None and self.end_hub != other.end_hub:
-            print(f"Warning: Overwriting end hub from {self.end_hub} to {other.end_hub}")
-        self.end_hub = other.end_hub if other.end_hub is not None else self.end_hub
-
-    def get_min_max_times(self) -> tuple[float | None, float | None, float | None, float | None]:
-        min_start_time = None
-        max_start_time = None
-        min_end_time = None
-        max_end_time = None
-
-        min_start_times = []
-        max_start_times = []
-        for hub in list(self.start_hubs):
-            if hub in self.hub_departures:
-                dps = self.hub_departures.get(hub).keys()
-                min_start_times.append(min(dps))
-                max_start_times.append(max(dps))
-        if len(min_start_times) > 0:
-            min_start_time = min(min_start_times)
-        if len(max_start_times) > 0:
-            max_start_time = max(max_start_times)
-
-        # end hub is easier - although we might have to backtrack to the start point, so hub_arrivals might be empty
-        if self.end_hub is not None and len(self.hub_arrivals):
-            if self.end_hub in self.hub_arrivals:
-                dps = self.hub_arrivals.get(self.end_hub).keys()
-                min_end_time = min(dps)
-                max_end_time = max(dps)
-            else:
-                print(self.end_hub)
-                print(self.hub_arrivals)
-                exit(99)
-
-        return min_start_time, max_start_time, min_end_time, max_end_time
-
-    def create_combined_hub_data(self, round_to: int = 0):
-        combined_hub_data = {}
-        for hub, times in self.hub_arrivals.items():
-            combined_hub_data[hub] = {}
-            for t, agents in times.items():
-                if round_to > 0:
-                    t = round(t, round_to)
-                combined_hub_data[hub][t] = {'arrivals': len(agents), 'departures': 0}
-
-        for hub, times in self.hub_departures.items():
-            if hub not in combined_hub_data:
-                combined_hub_data[hub] = {}
-            for t, agents in times.items():
-                if round_to > 0:
-                    t = round(t, round_to)
-                if t not in combined_hub_data[hub]:
-                    combined_hub_data[hub][t] = {'arrivals': 0, 'departures': len(agents)}
-                else:
-                    combined_hub_data[hub][t]['departures'] = len(agents)
-
-        return combined_hub_data
-
-    @staticmethod
-    def merge_hub_dp(mine: dict[str, dict[float, set[str]]], other: dict[str, dict[float, set[str]]]) -> dict[str, dict[float, set[str]]]:
-        for hub, times in other.items():
-            # new entry?
-            if hub not in mine:
-                mine[hub] = times
-            else:
-                # hub exists, check times
-                for t, agents in times.items():
-                    # existing entry?
-                    if t in mine[hub]:
-                        mine[hub][t].update(agents)
-                    else:
-                        mine[hub][t] = agents
-
-        return mine
-
-    @staticmethod
-    def merge_route_dp(mine: dict[str, dict[tuple[float, float], dict]], other: dict[str, dict[tuple[float, float], dict]]) -> dict[str, dict[tuple[float, float], dict]]:
-        for route, times in other.items():
-            # new entry?
-            if route not in mine:
-                mine[route] = times
-            else:
-                # route exists, check times
-                for t, data in times.items():
-                    # existing entry?
-                    if t in mine[route]:
-                        # update agents
-                        mine[route][t]['agents'].update(data['agents'])
-                        # # update times
-                        # mine[route][t]['times'] = data['times']
-                        # # update last coordinate
-                        # if 'last_coordinate' in data and data['last_coordinate'] is not None:
-                        #     mine[route][t]['last_coordinate'] = data['last_coordinate']
-                        # # update is_reversed
-                        # if 'is_reversed' in data and data['is_reversed']:
-                        #     mine[route][t]['is_reversed'] = True
-                    else:
-                        mine[route][t] = data
-
-        return mine
-
-    def get_hubs(self) -> list[str]:
-        return list(set(self.hub_arrivals.keys()) | set(self.hub_departures.keys()))
-
-    def get_routes(self) -> list[str]:
-        return list(self.routes.keys())
-
-    def __repr__(self):
-        return f'History arrivals={len(self.hub_arrivals)} departures={len(self.hub_departures)} routes={len(self.routes)}'''
-
 
 class Agent(object):
     """Agent - simulating single travelling entity at a specific time and date"""
 
     def __init__(self, this_hub: str, next_hub: str, route_key: str, state: State | None = None,
-                 current_time: float = 0., max_time: float = 0.):
-        self.uid: str = generate_id()
+                 current_time: float = 0., max_time: float = 0., do_not_generate_uid: bool = False):
+        self.uid: str = '' if do_not_generate_uid else generate_id()
         """unique id"""
 
         """read-only reference to context"""
@@ -486,8 +266,6 @@ class Agent(object):
         """Key id of next/current route between hubs ("name" attribute of edge)"""
         self.last_route: str | None = None
         """Key if of last route taken"""
-        self.parent: str | None = None
-        """UIDs of parent agents"""
 
         self.current_time: float = current_time
         """Current time stamp of agent (each 24 is a day)"""
@@ -508,13 +286,13 @@ class Agent(object):
         self.visited_hubs: set[str] = set()
         """keeps visited hubs"""
         self.forced_route: list[str] = []
-        """force route for this agent for next day"""
-        self.history: History = History()
         """keeps history of agent"""
         self.last_overnight_hub: str = this_hub
         """keeps last overnight hub (for overnight travel)"""
         self.route: list[str] = []
         """keeps ids of hubs and routes (even == route, odd == hub)"""
+        self.route_times: dict[str, list[float]] = {}
+        """keeps times for each route"""
 
         # rest history
         self.rest_history: list[tuple[float, float, str]] = []
@@ -536,11 +314,12 @@ class Agent(object):
         self.current_time = (current_day-1) * 24 + current_time
         self.start_time = current_time
         self.max_time = (current_day-1) * 24 + max_time
-        # self.rest_history = [] # keep
         self.additional_data = {}
         self.state = self.state.reset()
         self.last_overnight_hub: str = self.this_hub
-        self.route = [self.this_hub]
+        # self.rest_history = [] # keep
+        # self.route = []
+        # self.route_data = {}
 
     def __repr__(self) -> str:
         if self.is_finished:
@@ -622,8 +401,67 @@ class Agent(object):
         if sort_by_length:
             fitting_rest_times.sort(key=lambda x: x[1], reverse=True)
 
-        return fitting_rest_times
+        return fitting_rest_times if len(fitting_rest_times) > 0 else []
 
+    def create_route_data(self, from_hub: str, to_hub: str, route_key: str, departure: float, arrival: float):
+        # check, if route is consistent
+        if len(self.route) > 0:
+            if self.route[-1] != from_hub:
+                raise ValueError(f"Route from {self.route[-1]} to {from_hub} is inconsistent.")
+        else: # first agent
+            self.route.append(from_hub)
+
+        # create route entries
+        self.route.append(route_key)
+        self.route.append(to_hub)
+
+        # create list of time points in route
+        t = departure
+        times = [t]
+
+        # calculate actual time for legs (dt and not time taken)
+        for leg_time in self.state.time_for_legs:
+            t += leg_time
+            times.append(t)
+
+        # create route data entries
+        self.route_times[route_key] = times
+
+    def iterate_routes(self) -> Generator:
+        for i, key in enumerate(self.route):
+            # odd or even?
+            if i % 2 == 0:
+                arrival = None
+                departure = None
+                rest = None
+
+                if i != 0:
+                    # get arrival time
+                    arrival = self.route_times[self.route[i-1]][-1]
+                if i!= len(self.route) - 1:
+                    # get departure time
+                    departure = self.route_times[self.route[i+1]][0]
+
+                # do we have a rest here?
+                if arrival is not None and departure is not None:
+                    rest = self.get_rest_times_from_to(arrival, departure)
+                    if len(rest) > 0:
+                        rest = rest[0]
+                    else:
+                        rest = None
+
+                # this is a hub
+                yield {'type': 'hub', 'uid': key, 'arrival': arrival, 'departure': departure, 'rest': rest, 'idx': i}
+            else:
+                times = self.route_times[key]
+
+                # get rest times for this edge
+                rest = self.get_rest_times_from_to(times[0], times[-1])
+                if len(rest) == 0:
+                    rest = None
+
+                # this is an edge
+                yield {'type': 'edge', 'uid': key, 'legs': times, 'rest': rest, 'idx': i}
 
 ########################################################################################################################
 # Set of Results
@@ -633,15 +471,12 @@ class SetOfResults:
     """Set of results represents the results of a simulation"""
 
     def __init__(self):
-        self.agents: ig.Graph = ig.Graph(directed=True)
-        """general list of agents - as list of descend from starting hubs to ending ones"""
+        self.agents: list[Agent] = []
+        """general list of agents"""
 
     def add_agent(self, agent: Agent) -> None:
         # add vertex
-        self.agents.add_vertex(name=agent.uid, agent=agent)
-        # add edge from parent to myself
-        if agent.parent:
-            self.agents.add_edge(agent.parent, agent.uid, name=agent.route_key)
+        self.agents.append(agent)
 
     def __repr__(self) -> str:
         return yaml.dump(self)
@@ -686,6 +521,10 @@ class SimulationDayHookInterface(abc.ABC):
 
     @abc.abstractmethod
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
+        pass
+
+    @abc.abstractmethod
+    def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
         pass
 
 

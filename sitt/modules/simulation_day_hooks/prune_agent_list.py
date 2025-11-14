@@ -72,3 +72,7 @@ class PruneAgentList(SimulationDayHookInterface):
         #                                                           key=edge['key'])
         #
         # return list(hashed_agents.values())
+
+    def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
+        pass
+

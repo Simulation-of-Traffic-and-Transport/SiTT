@@ -74,3 +74,7 @@ class RemoveDanglingAgents(SimulationDayHookInterface):
         #     logger.debug(f"Removed {removed} danging agent(s).")
         #
         # return kept_agents
+
+    def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
+        pass
+
