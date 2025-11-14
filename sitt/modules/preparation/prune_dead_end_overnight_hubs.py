@@ -34,7 +34,7 @@ class PruneDeadEndOvernightHubs(PreparationInterface):
                 counter += 1
 
         if logger.level <= logging.INFO:
-            logger.info(f"PreparationInterface PruneDeadEndOvernightHubs marked: {counter} overnight hubs as no-go (dead ends).")
+            logger.info(f"PreparationInterface PruneDeadEndOvernightHubs marked {counter} overnight hubs as no-go (dead ends).")
 
         return context
 
