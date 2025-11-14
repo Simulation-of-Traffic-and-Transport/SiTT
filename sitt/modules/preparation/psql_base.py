@@ -8,7 +8,7 @@ from urllib import parse
 import geopandas as gpd
 import igraph as ig
 from geoalchemy2 import Geography
-from sqlalchemy import create_engine, MetaData, Column, Table, String, Enum
+from sqlalchemy import create_engine, Connection, MetaData, Column, Table, String, Float, Boolean, Enum, Sequence, Date, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB
 
 from sitt import PreparationInterface
@@ -28,8 +28,8 @@ class PSQLBase(PreparationInterface, ABC):
         self.password = password
         self.schema = schema
         # runtime settings
-        self.connection: str | None = connection
-        self.conn: create_engine | None = None
+        self.connection: str | None = connection # this is used to automatically load the connection from the config
+        self.conn: Connection | None = None
         self.metadata_obj: MetaData = MetaData(schema=self.schema)
 
     def _create_connection_string(self, for_printing=False):
@@ -46,7 +46,7 @@ class PSQLBase(PreparationInterface, ABC):
                 self.password) + '@' + self.server + ':' + str(
                 self.port) + '/' + self.db
 
-    def get_connection(self) -> create_engine:
+    def get_connection(self) -> Connection:
         """
         Load or initialize the connection to the database.
         """
