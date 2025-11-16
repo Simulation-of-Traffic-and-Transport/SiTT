@@ -92,7 +92,7 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         if schema_key in self.metadata_obj.tables:
             return self.metadata_obj.tables[schema_key]
 
-        id_col = Column('id', Integer, Sequence('simulation_id_seq'), primary_key=True)
+        id_col = Column('id', Integer, Sequence('simulation_id_seq', schema=self.schema), primary_key=True)
         ts_route_col = Column('route', String, nullable=False, index=True)
         ts_start_date_col = Column('start_date', Date, nullable=True, index=True)
         ts_col = Column('ts', TIMESTAMP, server_default=func.now(), index=True)
@@ -109,12 +109,15 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         uid_col = Column('uid', String, primary_key=True)
         min_dt_col = Column('min_dt', Float)
         max_dt_col = Column('max_dt', Float)
+        day = Column('day', Integer, index=True)
+        start_hub = Column('start_hub', String, index=True)
+        end_hub = Column('end_hub', String, index=True)
         is_finshed_col = Column('is_finished', Boolean, index=True)
         is_cancelled_col = Column('is_cancelled', Boolean, index=True)
         additional_data_col = Column('additional_data', JSONB)
 
         Index('idx_sim_agent_min_max_dt', min_dt_col, max_dt_col)
-        return Table("sim_agent", self.metadata_obj, simulation_col, uid_col, min_dt_col, max_dt_col, is_finshed_col, is_cancelled_col, additional_data_col, schema=self.schema)
+        return Table("sim_agent", self.metadata_obj, simulation_col, uid_col, min_dt_col, max_dt_col, day, start_hub, end_hub, is_finshed_col, is_cancelled_col, additional_data_col, schema=self.schema)
 
     def get_sim_agent_hub_table(self) -> Table:
         schema_key = self.schema + '.sim_agent_hub'
@@ -144,7 +147,7 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         order_col = Column('sorting', Integer, index=True)
         min_dt_col = Column('min_dt', Float)
         max_dt_col = Column('max_dt', Float)
-        leg_times = Column('leg_times', ARRAY(Integer))
+        leg_times = Column('leg_times', ARRAY(Float))
         additional_data_col = Column('additional_data', JSONB)
 
         Index('idx_sim_agent_route_min_max_dt', min_dt_col, max_dt_col)
@@ -179,6 +182,8 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         for agent in agents_finished_for_today:
             min_dt = None
             max_dt = None
+            start_hub = None
+            end_hub = None
 
             additional_data = copy.deepcopy(agent.additional_data)
 
@@ -188,13 +193,18 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
                 min_dt = agent.route_times[agent.route[1]][0]
                 max_dt = agent.route_times[agent.route[-2]][-1]
 
+            # get start and end hubs
+            if len(agent.route) > 0:
+                start_hub = agent.route[0]
+                end_hub = agent.route[-1]
+
             if agent.is_cancelled and agent.state.last_coordinate_after_stop:
                 print("TODO: agent.state.last_coordinate_after_stop")
                 exit(0)
 
             # create entry in sim_agent table
             self.conn.execute(
-                insert(self.agent_table).values(simulation_id=self.current_simulation_id, uid=agent.uid, min_dt=min_dt, max_dt=max_dt, is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, additional_data=additional_data))
+                insert(self.agent_table).values(simulation_id=self.current_simulation_id, uid=agent.uid, min_dt=min_dt, max_dt=max_dt, day=current_day, start_hub=start_hub, end_hub=end_hub, is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, additional_data=additional_data))
 
             for d in agents_finished_for_today[0].iterate_routes():
                 if d['type'] == 'edge':
