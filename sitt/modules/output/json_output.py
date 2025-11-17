@@ -151,12 +151,12 @@ class JSONOutput(OutputInterface):
                 results, including metadata, agent journeys, and graph
                 topology with traversal data.
         """
-        agents, min_dt, max_dt = self._agent_graph_to_data(set_of_results.agents)
+        agents, min_dt, max_dt = self._agent_list_to_data(set_of_results.agents)
 
-        time_slices = self._agents_to_time_slices(set_of_results.agents, min_dt, max_dt)
+        activities = self._agent_activities(set_of_results.agents)
 
         # add nodes and paths
-        nodes, paths = self._graph_to_data(set_of_results)
+        nodes, paths = self._graph_to_data(activities)
 
         # convert start date to stringq
         start_date = ""
@@ -176,139 +176,116 @@ class JSONOutput(OutputInterface):
             "agents": agents,
             "nodes": nodes,
             "paths": paths,
-            "time_slices": time_slices,
         }
 
-    def _agent_graph_to_data(self, agents: ig.Graph) -> tuple[list[dict], float, float]:
-        """Converts a graph of agents into a list of serializable dictionaries.
+    def _agent_list_to_data(self, agents: list[Agent]) -> tuple[list[dict], float, float]:
+        """Processes a list of agents to generate serializable data and time bounds.
 
-        This method iterates through each vertex in the provided agent graph,
-        extracts the 'agent' object from the vertex attributes, and converts
-        it into a dictionary format using the `_agent_to_data` method.
+        This method iterates through a list of Agent objects, converting each one
+        into a dictionary format suitable for JSON serialization using the
+        `_agent_to_data` helper method. While processing, it also tracks the
+        earliest start time (min_dt) and the latest end time (max_dt) across all
+        agents' journeys. The final list of agent data is sorted by agent UID.
 
         Args:
-            agents (ig.Graph): The graph where each vertex represents an agent
-                and contains an 'agent' attribute holding the Agent object.
+            agents (list[Agent]): A list of Agent objects from the simulation.
 
         Returns:
-            list[dict]: A list of dictionaries, where each dictionary represents
-                the data of a single agent.
+            tuple[list[dict], float, float]: A tuple containing:
+                - A list of dictionaries, each representing an agent's data, sorted by UID.
+                - The overall earliest start time (min_dt) among all agents.
+                - The overall latest end time (max_dt) among all agents.
         """
         list_of_agents: list[dict] = []
         min_dt = float('inf')
         max_dt = float('-inf')
 
-        for v in agents.vs:
-            agent = self._agent_to_data(v['agent'])
-            list_of_agents.append(agent)
-            if agent['start_min'] is not None and agent['start_min'] < min_dt:
-                min_dt = agent['start_min']
-            if agent['end_max'] is not None and agent['end_max'] > max_dt:
-                max_dt = agent['end_max']
+        for agent in agents:
+            data = self._agent_to_data(agent)
+            list_of_agents.append(data)
+            if data['min_dt'] is not None and data['min_dt'] < min_dt:
+                min_dt = data['min_dt']
+            if data['max_dt'] is not None and data['max_dt'] > max_dt:
+                max_dt = data['max_dt']
 
         list_of_agents = sorted(list_of_agents, key=lambda x: x['uid'])
-        return list_of_agents, float(np.round(min_dt, decimals=1) if min_dt < float('inf') else None), float(np.round(max_dt, decimals=1) if max_dt > float('-inf') else None)
+        return list_of_agents, float(np.round(np.floor(min_dt*10)/10, decimals=1) if min_dt < float('inf') else None), float(np.round(np.ceil(max_dt*10)/10, decimals=1) if max_dt > float('-inf') else None)
 
     def _agent_to_data(self, agent: Agent) -> dict:
-        """Converts a single agent object into a serializable dictionary.
+        """Converts an Agent object into a serializable dictionary.
 
-        This method extracts key information about an agent's journey and status
-        and formats it into a dictionary for output.
+        This method extracts key information from an Agent object, including its
+        unique ID, start and end hubs, journey times, and the sequence of hubs
+        and edges in its route. It also includes status flags for cancellation
+        or completion. The resulting dictionary is designed for easy conversion
+        to JSON.
 
         Args:
-            agent (Agent): The agent object to process.
+            agent (Agent): The agent object containing the journey and status
+                information to be serialized.
 
         Returns:
-            dict: A dictionary containing the agent's data, including its UID,
-                traversed hubs and edges, start and end times, and final status
-                (finished or cancelled).
+            dict: A dictionary representing the agent's data, including UID,
+                start/end points, times, route, and status.
         """
+        start_hub, end_hub, min_dt, max_dt = agent.get_start_end()
+
         agent_data: dict[str, Any] = {
             "uid": agent.uid,
-            "hubs": agent.history.get_hubs(),
-            "edges": agent.history.get_routes(),
+            "start_hub": start_hub,
+            "end_hub": end_hub,
+            "min_dt": min_dt,
+            "max_dt": max_dt,
+            "hubs": agent.route[1::2],
+            "edges": agent.route[::2],
         }
-
-        # parent?
-        if agent.parent:
-            agent_data['parent'] = agent.parent
-
-        # set general time data (start/stop times)
-        agent_data['start_min'], agent_data['start_max'], agent_data['end_min'], agent_data['end_max'] = agent.history.get_min_max_times()
 
         if agent.is_cancelled:
             agent_data['cancelled'] = True
+            if agent.state.last_coordinate_after_stop is not None:
+                agent_data['last_coordinate_after_stop'] = agent.state.last_coordinate_after_stop
         if agent.is_finished:
             agent_data['finished'] = True
 
         return agent_data
 
-    def _agents_to_time_slices(self, agents: ig.Graph, min_dt: float, max_dt: float) -> dict[float, list[dict[str, Any]]]:
-        # initialize time slices dictionary
-        time_data: dict[float, dict[tuple[float, float], list[str]]] = {}
-        # we arrange the slices time 10, so we do not have floating point precision issues
-        for t in np.arange(min_dt*10, max_dt*10+1):
-            t = float(np.round(t/10, decimals=1))
-            time_data[t] = {}
+    @staticmethod
+    def _agent_activities(agents: list[Agent]) -> dict:
+        activities: dict[tuple[str, str], dict[tuple[str, str], dict]] = {}
 
-        # now, iterate through agents and add their journeys to time slices
-        for v in agents.vs:
-            agent = v['agent']
-            # iterate through route data
-            combined_hub_data = agent.history.create_combined_hub_data(round_to=1)
-            for hub, dps in combined_hub_data.items():
-                # get hub coordinates
-                hub_geom = self.context.routes.vs.find(name=hub)['geom']
-                coords = (hub_geom.x, hub_geom.y)
-                # get min/max dps
-                t_list = dps.keys()
-                # iterate through times
-                for i, t in enumerate(_enumerate_arrival_departure(min(t_list), max(t_list))):
-                    # create xy in time slice, if needed
-                    if coords not in time_data[t]:
-                        time_data[t][coords] = []
-                        time_data[t][coords].append(v['name'])
+        for agent in agents:
+            for route in agent.iterate_routes():
+                entity_key = (route['uid'], route['type'])
+                if entity_key not in activities:
+                    activities[entity_key] = {}
 
-            # iterate through edges and aggregate points
-            for route, dps in agent.history.routes.items():
-                time_slices_used: set[float] = set()
-                # get edge coordinates
-                edge_coords = self.context.routes.es.find(name=route)['geom'].coords
-                # iterate through data points
-                for dp in dps.values():
-                    # iterate through times
-                    for i, t in enumerate(dp['times']):
-                        # skip first and last entry, because we have added vertices there
-                        if i == 0 or i == len(dp['times']) - 1:
-                            continue
-                        t = _round_time(t)
-                        # we only add the agent to one time slice
-                        if t in time_slices_used:
-                            continue
-                        time_slices_used.add(t)
-                        coord = edge_coords[i]
-                        x = coord[0]
-                        y = coord[1]
-                        # create xy in time slice, if needed
-                        if (x, y) not in time_data[t]:
-                            time_data[t][(x, y)] = []
-                        time_data[t][(x, y)].append(v['name'])
+                if route['type'] == 'hub':
+                    key = (route['arrival'], route['departure'])
+                else:
+                    key = (route['legs'][0], route['legs'][-1])
 
-        time_slices = {}
+                if key not in activities[entity_key]:
+                    if route['type'] == 'hub':
+                        activities[entity_key][key] = {
+                            "arrival": route['arrival'],
+                            "departure": route['departure'],
+                            "agents": [agent.uid],
+                        }
+                        if 'rest' in route and route['rest'] is not None:
+                            activities[entity_key][key]['rest'] = route['rest']
+                    else:
+                        activities[entity_key][key] = {
+                            "legs": route['legs'],
+                            "agents": [agent.uid],
+                        }
+                        if 'rest' in route and route['rest'] is not None:
+                            activities[entity_key][key]['rest'] = route['rest']
+                else:
+                    activities[entity_key][key]['agents'].append(agent.uid)
 
-        # reformat into list, because JSON cannot handle tuples as keys
-        for t, coords in time_data.items():
-            time_slices[t] = []
-            for coord, agent_list in coords.items():
-                agent_list.sort()
-                time_slices[t].append({
-                    'latLng': [coord[1], coord[0]],
-                    'agents': agent_list,
-                })
+        return activities
 
-        return time_slices
-
-    def _graph_to_data(self, set_of_results: SetOfResults) -> tuple[list[dict], list[dict]]:
+    def _graph_to_data(self, activities: dict[tuple[str, str], dict[tuple[str, str], dict]]) -> tuple[list[dict], list[dict]]:
         """Extracts and formats node and path data from the simulation results graph.
 
         This method iterates through the vertices (nodes) and edges (paths) of the
@@ -346,18 +323,26 @@ class JSONOutput(OutputInterface):
                 elif node[key] is not None:
                     data[key] = node[key]
 
+            if (node['name'], 'hub') in activities:
+                data['activity'] = list(activities[(node['name'], 'hub')].values())
+
             nodes.append(data)
 
         # aggregate path data
         for path in self.context.routes.es:
-            paths.append({
+            data = {
                 'id': path['name'],
                 "from": path['from'],
                 "to": path['to'],
                 'type': path["type"],
                 'length_m': path['length_m'],
                 'geom': mapping(path['geom']),
-            })
+            }
+
+            if (path['name'], 'edge') in activities:
+                data['activity'] = list(activities[(path['name'], 'edge')].values())
+
+            paths.append(data)
 
         return nodes, paths
 
@@ -407,41 +392,3 @@ def _round_time(dt: float) -> float:
     if dt is None:
         return 0.
     return np.round(dt, decimals=1)
-
-def _enumerate_arrival_departure(arrival: float | None, departure: tuple[int, float] | None) -> list[float]:
-    """Generates a list of time points between an arrival and departure time.
-
-    This function creates a sequence of time points, in total hours, with a
-    0.1-hour resolution, spanning from the arrival time to the departure time,
-    inclusive. It handles cases where one or both times might be None.
-
-    Args:
-        arrival (float | None): The arrival time as a (day, hour)
-            tuple. If None, and departure is provided, a list with only the
-            departure time is returned.
-        departure (float | None): The departure time as a (day,
-            hour) tuple. If None, and arrival is provided, a list with only
-            the arrival time is returned.
-
-    Returns:
-        list[float]: A list of time points in total hours. If both arrival
-            and departure are provided, it returns a list of times from
-            arrival to departure in 0.1-hour increments. If only one is
-            provided, it returns a list with that single time. If both are
-            None, it returns an empty list.
-    """
-    # sanity, this should not happen in the best of worlds...
-    if arrival is None and departure is None:
-        return []
-    # either arrival or departure is None
-    if departure is None:
-        return [_round_time(arrival)]
-    if arrival is None:
-        return [_round_time(departure)]
-
-    times = []
-
-    for t in np.arange(_round_time(arrival) * 10, _round_time(departure) * 10 + 1):
-        times.append(float(np.round(t / 10, decimals=1)))
-
-    return times
