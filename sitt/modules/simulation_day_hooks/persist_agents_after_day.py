@@ -93,12 +93,12 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
             return self.metadata_obj.tables[schema_key]
 
         id_col = Column('id', Integer, Sequence('simulation_id_seq', schema=self.schema), primary_key=True)
-        ts_route_col = Column('route', String, nullable=False, index=True)
-        ts_start_date_col = Column('start_date', Date, nullable=True, index=True)
-        ts_col = Column('ts', TIMESTAMP, server_default=func.now(), index=True)
-        is_finshed_col = Column('is_finished', Boolean, default=False, nullable=False, index=True)
+        route_col = Column('route', String, nullable=False, index=True)
+        start_date_col = Column('start_date', Date, nullable=True, index=True)
+        start_ts = Column('start_ts', TIMESTAMP, server_default=func.now(), index=True)
+        end_ts = Column('end_ts', TIMESTAMP, index=True)
 
-        return Table("simulation", self.metadata_obj, id_col, ts_route_col, ts_start_date_col, ts_col, is_finshed_col, schema=self.schema)
+        return Table("simulation", self.metadata_obj, id_col, route_col, start_date_col, start_ts, end_ts, schema=self.schema)
 
     def get_sim_agent_table(self) -> Table:
         schema_key = self.schema + '.sim_agent'
@@ -112,12 +112,12 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         day = Column('day', Integer, index=True)
         start_hub = Column('start_hub', String, index=True)
         end_hub = Column('end_hub', String, index=True)
-        is_finshed_col = Column('is_finished', Boolean, index=True)
+        is_finished_col = Column('is_finished', Boolean, index=True)
         is_cancelled_col = Column('is_cancelled', Boolean, index=True)
         additional_data_col = Column('additional_data', JSONB)
 
         Index('idx_sim_agent_min_max_dt', min_dt_col, max_dt_col)
-        return Table("sim_agent", self.metadata_obj, simulation_col, uid_col, min_dt_col, max_dt_col, day, start_hub, end_hub, is_finshed_col, is_cancelled_col, additional_data_col, schema=self.schema)
+        return Table("sim_agent", self.metadata_obj, simulation_col, uid_col, min_dt_col, max_dt_col, day, start_hub, end_hub, is_finished_col, is_cancelled_col, additional_data_col, schema=self.schema)
 
     def get_sim_agent_hub_table(self) -> Table:
         schema_key = self.schema + '.sim_agent_hub'
@@ -226,6 +226,6 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
     def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
         # set simulation to finished
-        self.conn.execute(update(self.sim_table).values(is_finished=True).where(self.sim_table.c.id == self.current_simulation_id))
+        self.conn.execute(update(self.sim_table).values(end_ts=func.now()).where(self.sim_table.c.id == self.current_simulation_id))
         self.conn.commit()
 
