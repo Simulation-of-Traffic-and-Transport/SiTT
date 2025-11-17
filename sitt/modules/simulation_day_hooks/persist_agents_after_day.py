@@ -13,6 +13,9 @@ from sqlalchemy import create_engine, Connection, MetaData, Column, Table, Strin
 from sqlalchemy.dialects.postgresql import JSONB
 
 from sitt import SimulationDayHookInterface, Configuration, Context, Agent
+import logging
+
+logger = logging.getLogger()
 
 
 class PersistAgentsAfterDay(SimulationDayHookInterface):
@@ -173,6 +176,8 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         # set simulation id
         self.current_simulation_id = result.inserted_primary_key[0]
 
+        logger.info(f"Created simulation with id {self.current_simulation_id}")
+
     def run(self, config: Configuration, context: Context, agents: list[Agent],
                             agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
         # initialize by creating simulation id
@@ -182,6 +187,7 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         # do not add duplicate agents on the same hub - so we use a set to keep track of signatures of agents
         agents_per_hub_signatures = set()
 
+        count = 0
         for agent in agents_finished_for_today:
             start_hub, end_hub, min_dt, max_dt = agent.get_start_end()
 
@@ -200,6 +206,8 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
             # ignore agents that have the same start and end hubs
             if start_hub == end_hub:
                 continue
+
+            count += 1
 
             # create entry in sim_agent table
             self.conn.execute(
@@ -220,6 +228,8 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
                         insert(self.agent_hub_table).values(simulation_id=self.current_simulation_id, agent_id=agent.uid, hub_id=d['uid'], sorting=d['idx'], min_dt=d['arrival'], max_dt=d['departure'], additional_data=additional_data))
 
         self.conn.commit()
+
+        logger.info(f"Persisted {count} agents to the database for day {current_day}.")
 
         return agents_finished_for_today
 
