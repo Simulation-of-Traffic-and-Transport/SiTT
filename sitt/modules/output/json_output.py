@@ -236,8 +236,8 @@ class JSONOutput(OutputInterface):
             "end_hub": end_hub,
             "min_dt": min_dt,
             "max_dt": max_dt,
-            "hubs": agent.route[1::2],
-            "edges": agent.route[::2],
+            "hubs": agent.route[::2],
+            "edges": agent.route[1::2],
         }
 
         if agent.is_cancelled:
