@@ -221,7 +221,6 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
         self.conn.commit()
 
-        exit(0)
         return agents_finished_for_today
 
     def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
