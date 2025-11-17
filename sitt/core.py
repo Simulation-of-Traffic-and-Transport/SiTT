@@ -399,6 +399,10 @@ class Simulation(BaseClass):
         # update current hub
         agent.this_hub = agent.next_hub
 
+        # shorten forced routes
+        if len(agent.forced_route) > 0:
+            agent.forced_route = agent.forced_route[1:]
+
         # add to list of agents to proceed
         agents_ok, agents_cancelled = self._split_agent_on_hub(agent)
         agents_proceed.extend(agents_ok)
@@ -477,32 +481,30 @@ class Simulation(BaseClass):
         """
         possible_routes: list[tuple[str, str]] = []
 
-        for edge in self.context.routes.incident(agent.this_hub, mode='out'):
-            e = self.context.routes.es[edge]
-            route_name = e['name']
-            target_hub = e.target_vertex
-
-            # is target hub a no-go? if yes, skip
-            if 'no_go' in target_hub.attributes() and target_hub['no_go'] is True:
-                continue
-
-            # do we have a forced route?
-            had_forced_route = False
-            if len(agent.forced_route) > 0:
-                # skip if names do not match
-                if route_name != agent.forced_route[0]:
-                    continue
-                # if forced route is defined, shorten in for the next step
-                agent.forced_route = agent.forced_route[1:]
-                had_forced_route = True
-
-            # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
-            # If we had a forced route, we will not check this, so we can force our way through visited hubs...
-            if not had_forced_route and target_hub['name'] in agent.visited_hubs:
-                continue
+        # if we have a  forced route, only consider this
+        if len(agent.forced_route) > 0:
+            e = self.context.routes.es.find(name=agent.forced_route[0])
+            if e.source_vertex['name'] != agent.this_hub:
+                raise Exception("Agent has a forced route, but it does not start from the current hub.")
 
             # add target hub and route name to possible routes
-            possible_routes.append((route_name, target_hub['name'],))
+            possible_routes.append((agent.forced_route[0], e.target_vertex['name'],))
+        else:
+            for edge in self.context.routes.incident(agent.this_hub, mode='out'):
+                e = self.context.routes.es[edge]
+                route_name = e['name']
+                target_hub = e.target_vertex
+
+                # is target hub a no-go? if yes, skip
+                if 'no_go' in target_hub.attributes() and target_hub['no_go'] is True:
+                    continue
+
+                # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
+                if target_hub['name'] in agent.visited_hubs:
+                    continue
+
+                # add target hub and route name to possible routes
+                possible_routes.append((route_name, target_hub['name'],))
 
         return possible_routes
 
@@ -579,7 +581,7 @@ class Simulation(BaseClass):
                 visited_hubs.union(agent.visited_hubs)
 
                 # retire agents by adding them to the results
-                #self.results.add_agent(agent)
+                self.results.add_agent(agent)
                 # should be done in a module
 
                 if not (agent.is_finished or agent.is_cancelled):
@@ -606,7 +608,6 @@ class Simulation(BaseClass):
                     new_agent.forced_route = route
                     new_agent.tries = forced_routes_tries[route[0]]
                     agents_proceeding_tomorrow.append(new_agent)
-
             else:
                 # get all possible routes for this hub
                 possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
