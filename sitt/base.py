@@ -331,8 +331,24 @@ class Agent(object):
     def __eq__(self, other) -> bool:
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
-    # def hash(self) -> str:
-    #     return self.this_hub + self.next_hub + str(self.route_key) + "_" + str(self.current_time)
+    def get_start_end(self) -> tuple[str, str, float, float]:
+        min_dt = None
+        max_dt = None
+        start_hub = None
+        end_hub = None
+
+        # only if we have route times
+        if len(self.route_times):
+            # get route times for first and last routes
+            min_dt = self.route_times[self.route[1]][0]
+            max_dt = self.route_times[self.route[-2]][-1]
+
+        # get start and end hubs
+        if len(self.route) > 0:
+            start_hub = self.route[0]
+            end_hub = self.route[-1]
+
+        return start_hub, end_hub, min_dt, max_dt
 
     def generate_uid(self) -> str:
         """generate an unique id of agent"""

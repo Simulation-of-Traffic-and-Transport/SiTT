@@ -610,7 +610,16 @@ class Simulation(BaseClass):
     def _group_agents_by_hub(self, agents: list[Agent]) -> dict[str, list[Agent]]:
         agents_per_hub: dict[str, list[Agent]] = {}
 
+        # do not add duplicate agents on the same hub - so we use a set to keep track of signatures of agents
+        agents_per_hub_signatures = set()
+
         for agent in agents:
+            # create signature of an agent to check for duplicates
+            signature = agent.get_start_end()
+            if signature in agents_per_hub_signatures:
+                continue
+            agents_per_hub_signatures.add(signature)
+
             # ignore cancelled and finished agents
             if agent.is_cancelled or agent.is_finished:
                 # add to results list and continue

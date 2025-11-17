@@ -179,28 +179,27 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
         if self.current_simulation_id == 0:
             self._initialize(config)
 
+        # do not add duplicate agents on the same hub - so we use a set to keep track of signatures of agents
+        agents_per_hub_signatures = set()
+
         for agent in agents_finished_for_today:
-            min_dt = None
-            max_dt = None
-            start_hub = None
-            end_hub = None
+            start_hub, end_hub, min_dt, max_dt = agent.get_start_end()
+
+            # create signature of an agent to check for duplicates
+            signature = agent.get_start_end()
+            if signature in agents_per_hub_signatures:
+                continue
+            agents_per_hub_signatures.add(signature)
 
             additional_data = copy.deepcopy(agent.additional_data)
-
-            # only if we have route times
-            if len(agent.route_times):
-                # get route times for first and last routes
-                min_dt = agent.route_times[agent.route[1]][0]
-                max_dt = agent.route_times[agent.route[-2]][-1]
-
-            # get start and end hubs
-            if len(agent.route) > 0:
-                start_hub = agent.route[0]
-                end_hub = agent.route[-1]
 
             if agent.is_cancelled and agent.state.last_coordinate_after_stop:
                 print("TODO: agent.state.last_coordinate_after_stop")
                 exit(0)
+
+            # ignore agents that have the same start and end hubs
+            if start_hub == end_hub:
+                continue
 
             # create entry in sim_agent table
             self.conn.execute(
@@ -222,6 +221,7 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
         self.conn.commit()
 
+        exit(0)
         return agents_finished_for_today
 
     def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
