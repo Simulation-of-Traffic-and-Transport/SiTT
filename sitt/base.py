@@ -293,6 +293,7 @@ class Agent(object):
         """keeps ids of hubs and routes (even == route, odd == hub)"""
         self.route_times: dict[str, list[float]] = {}
         """keeps times for each route"""
+        self.route_reversed: list[bool] = []
 
         # rest history
         self.rest_history: list[tuple[float, float, str]] = []
@@ -419,7 +420,7 @@ class Agent(object):
 
         return fitting_rest_times if len(fitting_rest_times) > 0 else []
 
-    def create_route_data(self, from_hub: str, to_hub: str, route_key: str, departure: float, arrival: float):
+    def create_route_data(self, from_hub: str, to_hub: str, route_key: str, departure: float, is_revered: bool = False) -> None:
         # check, if route is consistent
         if len(self.route) > 0:
             if self.route[-1] != from_hub:
@@ -430,6 +431,8 @@ class Agent(object):
         # create route entries
         self.route.append(route_key)
         self.route.append(to_hub)
+        # remember reversed
+        self.route_reversed.append(is_revered)
 
         # create list of time points in route
         t = departure
@@ -477,7 +480,7 @@ class Agent(object):
                     rest = None
 
                 # this is an edge
-                yield {'type': 'edge', 'uid': key, 'legs': times, 'rest': rest, 'idx': i}
+                yield {'type': 'edge', 'uid': key, 'legs': times, 'rest': rest, 'idx': i, 'reversed': self.route_reversed[int((i-1)/2)]}
 
 ########################################################################################################################
 # Set of Results

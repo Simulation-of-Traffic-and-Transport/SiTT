@@ -358,7 +358,7 @@ class Simulation(BaseClass):
             # proceed agent to new hub
 
             # add hub and vertex history (this will add the vertex to the agent's history)
-            agent.create_route_data(agent.this_hub, agent.next_hub, agent.route_key, start_time, end_time)
+            agent.create_route_data(agent.this_hub, agent.next_hub, agent.route_key, start_time, agent.state.is_reversed)
 
             # set time and last route
             agent.current_time = end_time
@@ -448,6 +448,7 @@ class Simulation(BaseClass):
                 # update data
                 agent.this_hub = agent.last_overnight_hub
                 agent.route = agent.route[:last_overnight_hub_index + 1]
+                agent.route_reversed = agent.route_reversed[:int((len(agent.route)-1)/2)]
                 agent.forced_route = routes
                 # reduced to none?
                 if len(agent.route) < 2:

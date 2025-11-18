@@ -285,6 +285,7 @@ class JSONOutput(OutputInterface):
                         activities[entity_key][key] = {
                             "legs": route['legs'],
                             "agents": [agent.uid],
+                            "reversed": route['reversed'],
                         }
                         if 'rest' in route and route['rest'] is not None:
                             activities[entity_key][key]['rest'] = route['rest']
