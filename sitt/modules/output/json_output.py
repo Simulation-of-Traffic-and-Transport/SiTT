@@ -270,7 +270,7 @@ class JSONOutput(OutputInterface):
 
                         # get sleep until time if available
                         departure = route['departure']
-                        if departure is None and 'sleep_until' in agent.additional_data:
+                        if departure is None and 'sleep_until' in agent.additional_data and route['arrival'] is not None:
                             departure = agent.additional_data['sleep_until']
                             rest = [(route['arrival'], departure - route['arrival'], 'sleep')]
 
