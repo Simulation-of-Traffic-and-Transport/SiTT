@@ -272,7 +272,7 @@ class JSONOutput(OutputInterface):
                         departure = route['departure']
                         if departure is None and 'sleep_until' in agent.additional_data and route['arrival'] is not None:
                             departure = agent.additional_data['sleep_until']
-                            rest = [(route['arrival'], departure - route['arrival'], 'sleep')]
+                            rest = [route['arrival'], departure - route['arrival'], 'sleep']
 
                         activities[entity_key][key] = {
                             "arrival": route['arrival'],
