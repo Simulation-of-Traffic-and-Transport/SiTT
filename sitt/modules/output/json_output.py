@@ -155,8 +155,8 @@ class JSONOutput(OutputInterface):
 
         activities = self._agent_activities(set_of_results.agents)
 
-        # add nodes and paths
-        nodes, paths = self._graph_to_data(activities)
+        # add hubs and paths
+        hubs, paths = self._graph_to_data(activities)
 
         # convert start date to stringq
         start_date = ""
@@ -174,7 +174,7 @@ class JSONOutput(OutputInterface):
             "start_date": start_date,
             "break_simulation_after": self.config.break_simulation_after,
             "agents": agents,
-            "nodes": nodes,
+            "hubs": hubs,
             "paths": paths,
         }
 
@@ -288,7 +288,7 @@ class JSONOutput(OutputInterface):
     def _graph_to_data(self, activities: dict[tuple[str, str], dict[tuple[str, str], dict]]) -> tuple[list[dict], list[dict]]:
         """Extracts and formats node and path data from the simulation results graph.
 
-        This method iterates through the vertices (nodes) and edges (paths) of the
+        This method iterates through the vertices (hubs) and edges (paths) of the
         route graph contained within the `set_of_results`. It converts graph-specific
         data types (like Shapely geometries) into JSON-serializable formats and
         structures the attributes for the final output.
@@ -304,7 +304,7 @@ class JSONOutput(OutputInterface):
                 - A list of dictionaries, where each dictionary represents a path
                   (edge) and its attributes.
         """
-        nodes: list[dict] = []
+        hubs: list[dict] = []
         paths: list[dict] = []
 
         # aggregate node data
@@ -326,7 +326,7 @@ class JSONOutput(OutputInterface):
             if (node['name'], 'hub') in activities:
                 data['activity'] = list(activities[(node['name'], 'hub')].values())
 
-            nodes.append(data)
+            hubs.append(data)
 
         # aggregate path data
         for path in self.context.routes.es:
@@ -344,7 +344,7 @@ class JSONOutput(OutputInterface):
 
             paths.append(data)
 
-        return nodes, paths
+        return hubs, paths
 
     def _format_departure_arrival_times(self, data: list[tuple[float, str, str]], add_reasons: bool = True) -> list[dict]:
         """Formats raw departure/arrival data into a structured list of dictionaries.
