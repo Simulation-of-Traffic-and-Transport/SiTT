@@ -276,7 +276,7 @@ class Simulation(BaseClass):
 
         # run day hook pre
         for day_hook_pre in self.config.simulation_day_hook_pre:
-            agents = day_hook_pre.run(self.config, self.context, agents, agents_finished_for_today, self.current_day)
+            agents = day_hook_pre.run(self.config, self.context, agents, agents_finished_for_today, self.results, self.current_day)
 
         if logger.level <= logging.INFO:
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
@@ -299,7 +299,7 @@ class Simulation(BaseClass):
 
         # run day hook post
         for day_hook_post in self.config.simulation_day_hook_post:
-            agents_finished_for_today = day_hook_post.run(self.config, self.context, agents, agents_finished_for_today, self.current_day)
+            agents_finished_for_today = day_hook_post.run(self.config, self.context, agents, agents_finished_for_today, self.results, self.current_day)
 
         agents_proceeding_tomorrow = self._finish_day(agents_finished_for_today)
 
@@ -582,7 +582,6 @@ class Simulation(BaseClass):
 
                 # retire agents by adding them to the results
                 self.results.add_agent(agent)
-                # should be done in a module
 
                 if not (agent.is_finished or agent.is_cancelled):
                     has_agents_to_proceed = True

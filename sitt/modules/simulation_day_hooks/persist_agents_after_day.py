@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, Connection, MetaData, Column, Table, Strin
     Date, TIMESTAMP, insert, func, ForeignKey, ForeignKeyConstraint, Index, ARRAY, update
 from sqlalchemy.dialects.postgresql import JSONB
 
-from sitt import SimulationDayHookInterface, Configuration, Context, Agent
+from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
 import logging
 
 logger = logging.getLogger()
@@ -178,8 +178,8 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
         logger.info(f"Created simulation with id {self.current_simulation_id}")
 
-    def run(self, config: Configuration, context: Context, agents: list[Agent],
-                            agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
+    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
+            results: SetOfResults, current_day: int) -> list[Agent]:
         # initialize by creating simulation id
         if self.current_simulation_id == 0:
             self._initialize(config)

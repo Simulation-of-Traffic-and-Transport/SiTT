@@ -536,7 +536,7 @@ class SimulationDayHookInterface(abc.ABC):
         self.conditions: list[str] = []
 
     @abc.abstractmethod
-    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent], current_day: int) -> list[Agent]:
+    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent], results: SetOfResults, current_day: int) -> list[Agent]:
         pass
 
     @abc.abstractmethod

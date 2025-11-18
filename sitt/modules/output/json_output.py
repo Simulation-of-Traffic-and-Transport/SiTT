@@ -266,13 +266,21 @@ class JSONOutput(OutputInterface):
 
                 if key not in activities[entity_key]:
                     if route['type'] == 'hub':
+                        rest = route['rest'] if 'rest' in route and route['rest'] is not None else None
+
+                        # get sleep until time if available
+                        departure = route['departure']
+                        if departure is None and 'sleep_until' in agent.additional_data:
+                            departure = agent.additional_data['sleep_until']
+                            rest = [(route['arrival'], departure - route['arrival'], 'sleep')]
+
                         activities[entity_key][key] = {
                             "arrival": route['arrival'],
-                            "departure": route['departure'],
+                            "departure": departure,
                             "agents": [agent.uid],
                         }
-                        if 'rest' in route and route['rest'] is not None:
-                            activities[entity_key][key]['rest'] = route['rest']
+                        if rest is not None:
+                            activities[entity_key][key]['rest'] = rest
                     else:
                         activities[entity_key][key] = {
                             "legs": route['legs'],
