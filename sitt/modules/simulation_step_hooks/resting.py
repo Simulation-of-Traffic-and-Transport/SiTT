@@ -13,7 +13,7 @@ from sitt.base import SimulationStepHookInterface
 logger = logging.getLogger()
 
 class Resting(SimulationStepHookInterface):
-    def __init__(self, rest_times = [{'after_minutes': 180, 'pause_minutes': 20}, {'after_minutes': 60, 'pause_minutes': 5}], noon: bool = True, noon_start: float = 11., noon_end: float = 14., noon_pause_minutes: int = 60, noon_gap_to_last_rest: int = 60, noon_gap_max_pause: int = 20, noon_gap_min_gap: int = 30):
+    def __init__(self, rest_times = [{'after_minutes': 160, 'pause_minutes': 20}, {'after_minutes': 55, 'pause_minutes': 5}], noon: bool = True, noon_start: float = 11., noon_end: float = 14., noon_pause_minutes: int = 60, noon_gap_to_last_rest: int = 60, noon_gap_max_pause: int = 20, noon_gap_min_gap: int = 30):
         super().__init__()
         self.rest_times: list[dict] = rest_times
         """Resting rules for different time periods."""
@@ -74,7 +74,7 @@ class Resting(SimulationStepHookInterface):
             rest_length = agent.get_longest_rest_time_within(now, after)
             if rest_length is None or rest_length < pause:
                 # no rest found, add one
-                agent.add_rest(pause, time=now, reason='short')
+                agent.add_rest(pause, time=now, reason=f"{rest_time['pause_minutes']}mins")
                 time_offset += pause
 
         return time_offset, False

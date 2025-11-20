@@ -382,7 +382,7 @@ class Agent(object):
 
         # now go back the rest history
         for ts in self.get_rest_times_within(start_time):
-            if ts[0] < start_time:
+            if ts[0] + ts[1] < start_time:
                 break
             if min_time is None or ts[1] > min_time:
                 min_time = ts[1]
@@ -392,10 +392,10 @@ class Agent(object):
     def get_rest_times_within(self, start_time) -> Generator[tuple[float, float, str], None, None]:
         # go back the rest history
         for time, length, reason in reversed(self.rest_history):
-            if time >= start_time:
+            if time + length >= start_time:
                 yield time, length, reason
             else:
-                break
+                continue
 
     def get_most_recent_rest_time(self) -> float | None:
         """
