@@ -55,7 +55,7 @@ class Resting(SimulationStepHookInterface):
                 if rest_length is None or rest_length <= max_pause:
                     # do noon rest
                     pause = self.noon_pause_minutes / 60.
-                    agent.add_rest(pause, time=now, reason='noon rest')
+                    agent.add_rest(pause, time=now, reason='noon')
                     time_offset += pause
                     # set flag
                     agent.additional_data['noon_rest'] = True
@@ -74,7 +74,7 @@ class Resting(SimulationStepHookInterface):
             rest_length = agent.get_longest_rest_time_within(now, after)
             if rest_length is None or rest_length < pause:
                 # no rest found, add one
-                agent.add_rest(pause, time=now, reason='short rest')
+                agent.add_rest(pause, time=now, reason='short')
                 time_offset += pause
 
         return time_offset, False

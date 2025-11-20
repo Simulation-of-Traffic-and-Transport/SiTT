@@ -356,7 +356,7 @@ class Agent(object):
         self.uid = generate_id()
         return self.uid
 
-    def add_rest(self, length: float, time: float = -1, reason: str = 'resting') -> None:
+    def add_rest(self, length: float, time: float = -1, reason: str = 'rest') -> None:
         """
         Add rest event to history
         :param length: length of rest in hours
