@@ -13,7 +13,7 @@ from sitt.base import SimulationStepHookInterface
 logger = logging.getLogger()
 
 class Resting(SimulationStepHookInterface):
-    def __init__(self, rest_times = [{'after_minutes': 180, 'pause_minutes': 20}, {'after_minutes': 60, 'pause_minutes': 5}], noon: bool = True, noon_start: float = 11., noon_end: float = 14., noon_pause_minutes: int = 60, noon_gap_to_last_rest: int = 60, noon_gap_max_pause: int = 15, noon_gap_min_gap: int = 30):
+    def __init__(self, rest_times = [{'after_minutes': 180, 'pause_minutes': 20}, {'after_minutes': 60, 'pause_minutes': 5}], noon: bool = True, noon_start: float = 11., noon_end: float = 14., noon_pause_minutes: int = 60, noon_gap_to_last_rest: int = 60, noon_gap_max_pause: int = 20, noon_gap_min_gap: int = 30):
         super().__init__()
         self.rest_times: list[dict] = rest_times
         """Resting rules for different time periods."""
@@ -37,19 +37,25 @@ class Resting(SimulationStepHookInterface):
 
         # Get current day time (in hours)
         now = agent.current_time + time_offset
+        time_of_day = now % 24.
+
+        # reset at time_offset
+        if agent.current_time == agent.start_time:
+            agent.additional_data['noon_rest'] = False
+            return time_offset, False
 
         # Check if it's noon
-        if self.is_noon(now) and not agent.additional_data.get('noon_rest', False):
+        if self.is_noon(time_of_day) and not agent.additional_data.get('noon_rest', False):
             min_gap = self.noon_gap_min_gap / 60.0
             most_recent_rest = agent.get_most_recent_rest_time()
             if most_recent_rest is None or most_recent_rest <= now - min_gap:
-                after = self.noon_gap_to_last_rest / 60.0
+                after = agent.start_time + self.noon_gap_to_last_rest / 60.0
                 max_pause = self.noon_gap_max_pause / 60.0
                 rest_length = agent.get_longest_rest_time_within(now, after)
-                if rest_length is None or rest_length < max_pause:
+                if rest_length is None or rest_length <= max_pause:
                     # do noon rest
                     pause = self.noon_pause_minutes / 60.
-                    agent.add_rest(pause, time=now)
+                    agent.add_rest(pause, time=now, reason='noon rest')
                     time_offset += pause
                     # set flag
                     agent.additional_data['noon_rest'] = True
@@ -68,10 +74,10 @@ class Resting(SimulationStepHookInterface):
             rest_length = agent.get_longest_rest_time_within(now, after)
             if rest_length is None or rest_length < pause:
                 # no rest found, add one
-                agent.add_rest(pause, time=now)
+                agent.add_rest(pause, time=now, reason='short rest')
                 time_offset += pause
 
         return time_offset, False
 
-    def is_noon(self, now: float) -> bool:
-        return self.noon and self.noon_start <= now <= self.noon_end
+    def is_noon(self, time_of_day: float) -> bool:
+        return self.noon and self.noon_start <= time_of_day <= self.noon_end
