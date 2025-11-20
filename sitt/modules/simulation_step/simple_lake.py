@@ -40,9 +40,10 @@ class SimpleLake(SimulationStepInterface):
         for i in r:
             coords = next_leg['geom'].coords[i]
             # run hooks
-            if not self.run_hooks(config, context, agent, next_leg, coords, time_taken):
+            (time_taken, cancelled) = self.run_hooks(config, context, agent, next_leg, coords, time_taken)
+            if cancelled:
                 if logger.level <= logging.DEBUG:
-                    logger.debug(f"SimulationInterface hooks run, {agent} cancelled")
+                    logger.debug(f"SimulationInterface hooks run, cancelled state")
                 return agent.state
 
             length = next_leg['legs'][i]  # length is in meters

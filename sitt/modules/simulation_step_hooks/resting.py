@@ -49,7 +49,7 @@ class Resting(SimulationStepHookInterface):
             min_gap = self.noon_gap_min_gap / 60.0
             most_recent_rest = agent.get_most_recent_rest_time()
             if most_recent_rest is None or most_recent_rest <= now - min_gap:
-                after = agent.start_time + self.noon_gap_to_last_rest / 60.0
+                after = self.noon_gap_to_last_rest / 60.0
                 max_pause = self.noon_gap_max_pause / 60.0
                 rest_length = agent.get_longest_rest_time_within(now, after)
                 if rest_length is None or rest_length <= max_pause:
