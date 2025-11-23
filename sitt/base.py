@@ -31,7 +31,6 @@ __all__ = [
     "SpatioTemporalInterface",
     "SpaceTimeData",
     "SpaceData",
-    "History"
     "Agent",
     "SetOfResults",
     "PreparationInterface",
