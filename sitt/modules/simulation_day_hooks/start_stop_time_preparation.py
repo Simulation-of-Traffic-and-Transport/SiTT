@@ -46,9 +46,10 @@ class StartStopTimePreparation(SimulationDayHookInterface):
         # update result agents, so that the end times correlate with the start times of the next day
         if len(results.agents):
             for agent in results.agents:
-                last_hub = agent.route[-1]
-                if 'sleep_until' not in agent.additional_data and last_hub in hubs:
-                    agent.additional_data['sleep_until'] = hubs[last_hub][0]
+                if len(agent.route) > 0:
+                    last_hub = agent.route[-1]
+                    if 'sleep_until' not in agent.additional_data and last_hub in hubs:
+                        agent.additional_data['sleep_until'] = hubs[last_hub][0]
 
         return agents
 
