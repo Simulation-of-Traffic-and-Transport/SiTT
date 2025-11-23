@@ -446,7 +446,8 @@ class Simulation(BaseClass):
 
                 # delete from history
                 for hub in hubs:
-                    agent.visited_hubs.remove(hub)
+                    if hub in agent.visited_hubs:
+                        agent.visited_hubs.remove(hub)
                 for route in routes:
                     last_known_departure = agent.route_times[route][0]
                     del agent.route_times[route]
