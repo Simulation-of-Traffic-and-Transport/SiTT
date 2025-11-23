@@ -586,8 +586,10 @@ class Simulation(BaseClass):
                     forced_routes_tries[agent.forced_route[0]] = max(forced_routes_tries[agent.forced_route[0]], agent.tries)
                 visited_hubs.union(agent.visited_hubs)
 
-                # retire agents by adding them to the results
-                self.results.add_agent(agent)
+                # retire agents by adding them to the results, but only if agent is not at its start hub (we will weed
+                # out those, because they will just clutter our data).
+                if len(agent.route) > 1 or agent.is_cancelled or agent.is_finished:
+                    self.results.add_agent(agent)
 
                 if not (agent.is_finished or agent.is_cancelled):
                     has_agents_to_proceed = True
