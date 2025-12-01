@@ -40,16 +40,30 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         db.enable_load_extension(True)
         db.execute("SELECT load_extension('mod_spatialite')")
         db.execute("SELECT InitSpatialMetadata(1)")
-        db.execute("CREATE TABLE agent (id TEXT PRIMARY KEY, start_hub TEXT, end_hub TEXT, day TIMESTAMP, start_time TIMESTAMP, end_time TIMESTAMP, is_finished NUMERIC DEFAULT 0, is_cancelled NUMERIC DEFAULT 0, stops TEXT DEFAULT NULL, hubs TEXT, edges TEXT, last_coordinate TEXT DEFAULT NULL, end_coordinate TEXT, complete_route TEXT)")
+        # create agent table
+        db.execute("CREATE TABLE agent (id TEXT PRIMARY KEY, start_hub TEXT, end_hub TEXT, day TIMESTAMP, start_time TIMESTAMP, end_time TIMESTAMP, is_finished BOOL DEFAULT 0, is_cancelled BOOL DEFAULT 0, stops TEXT DEFAULT NULL, hubs TEXT, edges TEXT, last_coordinate TEXT DEFAULT NULL, end_coordinate TEXT, complete_route TEXT)")
         db.execute(
-            "SELECT AddGeometryColumn('agent', 'geom', 4326, 'LINESTRING', 'XY');"
+            "SELECT AddGeometryColumn('agent', 'geom', 4326, 'LINESTRING', 'XY')"
         )
         db.execute(
             "SELECT CreateSpatialIndex('agent', 'geom');"
         )
+        # create route table
+        db.execute("CREATE TABLE route (id TEXT PRIMARY KEY, start_hub TEXT, end_hub TEXT, type TEXT, attempted INTEGER DEFAULT 0, succeeded INTEGER DEFAULT 0)")
+        db.execute(
+            "SELECT AddGeometryColumn('route', 'geom', 4326, 'LINESTRING', 'XY')"
+        )
+        db.execute(
+            "SELECT CreateSpatialIndex('route', 'geom');"
+        )
         self.con = db
 
         logger.info(f"Saving agents to Spatialite database named {self.filename}")
+
+    def _initialize_routes(self, context: Context):
+        # create route entries for each route
+        for e in context.routes.es:
+            self.con.execute("INSERT INTO route (id, start_hub, end_hub, type, geom) VALUES (?,?,?,?,GeomFromText(?,4326))", (e['name'], e.source_vertex['name'], e.target_vertex['name'], e['type'], force_2d(e['geom']).wkt))
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
             results: SetOfResults, current_day: int) -> list[Agent]:
@@ -59,9 +73,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         # initialize by creating spatialite connection
         if self.con is None:
             self._initialize(config)
+            self._initialize_routes(context)
 
         for agent in agents_finished_for_today:
-            self._persist_agent(agent, config, context)
+            self._persist_agent(agent, context)
 
         return agents_finished_for_today
 
@@ -75,16 +90,19 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         self.con.execute("CREATE INDEX idx_agent_is_finished ON agent (is_finished);")
         self.con.execute("CREATE INDEX idx_agent_is_cancelled ON agent (is_cancelled);")
 
+        self.con.execute("CREATE INDEX idx_route_attempted ON route (attempted);")
+        self.con.execute("CREATE INDEX idx_route_succeeded ON route (succeeded);")
+
         self.con.commit()
         self.con.close()
 
         logger.info(f"Saved agents to Spatialite database named {self.filename}")
 
-    def _persist_agent(self, agent: Agent, config: Configuration, context: Context):
+    def _persist_agent(self, agent: Agent, context: Context):
         # get route/geometry
         route = self._merge_route(agent.route, agent.route_reversed, context)
         # get whole route
-        route_before_stop = self._merge_route(agent.route_before_traceback, agent.route_reversed_before_traceback, context)
+        route_before_stop = self._merge_route(agent.route_before_traceback, agent.route_reversed_before_traceback, context, is_attempt=True)
 
         # not traced back...
         if route_before_stop.is_empty:
@@ -113,8 +131,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         self.con.execute(f"INSERT INTO agent (id, start_hub, end_hub, day, start_time, end_time, is_finished, is_cancelled, last_coordinate, end_coordinate, stops, hubs, edges, complete_route, geom) VALUES (?,?,?,?,?,?,?,?,{last_coordinate},{end_coordinate},?,?,?,?,GeomFromText(?,4326))", (agent.uid, start_hub, end_hub, day, start_time, end_time, agent.is_finished, agent.is_cancelled, str(agent.rest_history), hubs, edges, route.wkt, route_before_stop.wkt))
 
-    @staticmethod
-    def _merge_route(route: list[str], route_reversed: list[bool], context: Context) -> LineString | None:
+    def _merge_route(self, route: list[str], route_reversed: list[bool], context: Context, is_attempt = False) -> LineString | None:
         coordinates = []
 
         for idx, route_id in enumerate(route[1::2]):
@@ -130,5 +147,13 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 # last coordinate is equal to first coordinate, remove it
                 coordinates.pop()
             coordinates.extend(coords)
+            # increment route counter
+            self._increment_route_counter(route_id, is_attempt)
 
         return LineString(coordinates)
+
+    def _increment_route_counter(self, route_id: str, is_attempt = False):
+        # update counter(s)
+        self.con.execute(f"UPDATE route SET attempted = attempted + 1 WHERE id = ?", (route_id,))
+        if not is_attempt:
+            self.con.execute(f"UPDATE route SET succeeded = succeeded + 1 WHERE id = ?", (route_id,))
