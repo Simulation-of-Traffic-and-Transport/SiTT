@@ -2,25 +2,24 @@
 #
 # SPDX-License-Identifier: MIT
 """
-Prune the agent list to reduce the number of agents to only unique ones, merging route data for duplicates.
+Persists all agents after each simulation day to PostgresSQL.
 """
 import copy
+import logging
 from urllib import parse
 
-from geoalchemy2 import Geography
 from sqlalchemy import create_engine, Connection, MetaData, Column, Table, String, Float, Boolean, Integer, Sequence, \
     Date, TIMESTAMP, insert, func, ForeignKey, ForeignKeyConstraint, Index, ARRAY, update
 from sqlalchemy.dialects.postgresql import JSONB
 
 from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
-import logging
 
 logger = logging.getLogger()
 
 
 class PersistAgentsAfterDay(SimulationDayHookInterface):
     """
-    Prune the agent list to reduce the number of agents to only unique ones, merging route data for duplicates.
+    Persists all agents after each simulation day to PostgresSQL.
     """
 
     def __init__(self, server: str = 'localhost',
@@ -200,8 +199,7 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
             additional_data = copy.deepcopy(agent.additional_data)
 
             if agent.is_cancelled and agent.state.last_coordinate_after_stop:
-                print("TODO: agent.state.last_coordinate_after_stop")
-                exit(0)
+                additional_data['last_coordinate_after_stop'] = agent.state.last_coordinate_after_stop
 
             # ignore agents that have the same start and end hubs
             if start_hub == end_hub:
