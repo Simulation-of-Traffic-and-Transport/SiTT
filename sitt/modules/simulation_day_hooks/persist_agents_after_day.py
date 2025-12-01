@@ -22,9 +22,9 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
     Persists all agents after each simulation day to PostgresSQL.
     """
 
-    def __init__(self, server: str = 'localhost',
-                 port: int = 5432, db: str = 'sitt', user: str = 'postgres', password: str = 'postgres',
-                 schema: str = 'sitt', connection: str | None = None):
+    def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
+                 password: str = 'postgres', schema: str = 'sitt', connection: str | None = None):
+        super().__init__()
         # connection data - should be set/overwritten by config
         self.server = server
         self.port = port
@@ -179,6 +179,9 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
             results: SetOfResults, current_day: int) -> list[Agent]:
+        if self.skip:
+            return agents_finished_for_today
+
         # initialize by creating simulation id
         if self.current_simulation_id == 0:
             self._initialize(config)

@@ -293,6 +293,11 @@ class Agent(object):
         self.route_times: dict[str, list[float]] = {}
         """keeps times for each route"""
         self.route_reversed: list[bool] = []
+        """keeps information if route is reversed"""
+        self.route_before_traceback: list[str] = []
+        """keeps ids of hubs before traceback to last possible resting place"""
+        self.route_reversed_before_traceback: list[bool] = []
+        """keeps information if route is reversed before traceback to last possible resting place"""
 
         # rest history
         self.rest_history: list[tuple[float, float, str]] = []

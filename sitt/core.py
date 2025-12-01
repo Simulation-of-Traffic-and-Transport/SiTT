@@ -436,8 +436,19 @@ class Simulation(BaseClass):
 
             # traceback to last possible resting place, if needed
             if self.config.overnight_trace_back and self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
+                # copy route to history
+                agent.route_before_traceback = agent.route.copy()
+                agent.route_reversed_before_traceback = agent.route_reversed.copy()
+
                 # get index of last overnight hub
                 last_overnight_hub_index = agent.route.index(agent.last_overnight_hub)
+                # do not track back to the beginning - cancel such agents, because they give an interesting insight into
+                # routes that could not be tracked today
+                if last_overnight_hub_index == 0:
+                    agent.is_cancelled = True
+                    agents_finished_for_today.append(agent)
+                    return
+
                 to_delete = agent.route[last_overnight_hub_index+1:]
                 # get hubs and routes for deletion
                 hubs = to_delete[1::2]
@@ -446,8 +457,8 @@ class Simulation(BaseClass):
 
                 # delete from history
                 for hub in hubs:
-                    if hub in agent.visited_hubs:
-                        agent.visited_hubs.remove(hub)
+                    # if hub in agent.visited_hubs:
+                    agent.visited_hubs.remove(hub)
                 for route in routes:
                     last_known_departure = agent.route_times[route][0]
                     del agent.route_times[route]
@@ -541,6 +552,8 @@ class Simulation(BaseClass):
         if len(possible_routes) == 0:
             # add to failed routes
             agent.is_cancelled = True
+            coords = self.context.graph.vs.find(name=agent.this_hub)['geom']
+            agent.state.last_coordinate_after_stop = (coords.x, coords.y)
             return [], [agent]
 
         # contains routes: clone agent for each possible route
