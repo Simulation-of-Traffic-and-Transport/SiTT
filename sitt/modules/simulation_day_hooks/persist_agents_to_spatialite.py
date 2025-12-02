@@ -41,7 +41,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         db.execute("SELECT load_extension('mod_spatialite')")
         db.execute("SELECT InitSpatialMetadata(1)")
         # create agent table
-        db.execute("CREATE TABLE agent (id TEXT PRIMARY KEY, start_hub TEXT, end_hub TEXT, day TIMESTAMP, start_time TIMESTAMP, end_time TIMESTAMP, is_finished BOOL DEFAULT 0, is_cancelled BOOL DEFAULT 0, stops TEXT DEFAULT NULL, hubs TEXT, edges TEXT, last_coordinate TEXT DEFAULT NULL, end_coordinate TEXT, complete_route TEXT)")
+        db.execute("CREATE TABLE agent (id TEXT PRIMARY KEY, start_hub TEXT, end_hub TEXT, day TIMESTAMP, start_time TIMESTAMP, end_time TIMESTAMP, is_finished BOOL DEFAULT 0, is_cancelled BOOL DEFAULT 0, cancel_reason TEXT DEFAULT NULL, stops TEXT DEFAULT NULL, hubs TEXT, edges TEXT, last_coordinate TEXT DEFAULT NULL, end_coordinate TEXT, complete_route TEXT)")
         db.execute(
             "SELECT AddGeometryColumn('agent', 'geom', 4326, 'LINESTRING', 'XY')"
         )
@@ -120,8 +120,12 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         if agent.state.last_coordinate_after_stop:
             last_coordinate = f"'POINT({agent.state.last_coordinate_after_stop[0]} {agent.state.last_coordinate_after_stop[1]})'"
 
-        p = route.coords[-1]
-        end_coordinate = f"'POINT({p[0]} {p[1]})'"
+        if len(route.coords) > 0:
+            p = route.coords[-1]
+            end_coordinate = f"'POINT({p[0]} {p[1]})'"
+        else:
+            p = context.routes.vs.find(name=agent.route[0])['geom']
+            end_coordinate = f"'POINT({p.x} {p.y})'"
 
         if end_coordinate == last_coordinate:
             last_coordinate = 'NULL'
@@ -129,7 +133,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         hubs = ','.join(agent.route[::2])
         edges = ','.join(agent.route[1::2])
 
-        self.con.execute(f"INSERT INTO agent (id, start_hub, end_hub, day, start_time, end_time, is_finished, is_cancelled, last_coordinate, end_coordinate, stops, hubs, edges, complete_route, geom) VALUES (?,?,?,?,?,?,?,?,{last_coordinate},{end_coordinate},?,?,?,?,GeomFromText(?,4326))", (agent.uid, start_hub, end_hub, day, start_time, end_time, agent.is_finished, agent.is_cancelled, str(agent.rest_history), hubs, edges, route.wkt, route_before_stop.wkt))
+        self.con.execute(f"INSERT INTO agent (id, start_hub, end_hub, day, start_time, end_time, is_finished, is_cancelled, cancel_reason, last_coordinate, end_coordinate, stops, hubs, edges, complete_route, geom) VALUES (?,?,?,?,?,?,?,?,?,{last_coordinate},{end_coordinate},?,?,?,?,GeomFromText(?,4326))", (agent.uid, start_hub, end_hub, day, start_time, end_time, agent.is_finished, agent.is_cancelled, agent.cancel_reason, str(agent.rest_history), hubs, edges, route.wkt, route_before_stop.wkt))
 
     def _merge_route(self, route: list[str], route_reversed: list[bool], context: Context, is_attempt = False) -> LineString | None:
         coordinates = []

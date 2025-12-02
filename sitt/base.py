@@ -277,6 +277,8 @@ class Agent(object):
         """finished at this day"""
         self.is_cancelled: bool = False
         """cancelled at this day"""
+        self.cancel_reason: str | None = None
+        """reason for cancellation"""
         self.tries: int = 0
         """internal value for tries at this hub - will break at a defined number"""
         self.last_resting_place: str = this_hub
@@ -347,6 +349,9 @@ class Agent(object):
             # get route times for first and last routes
             min_dt = self.route_times[self.route[1]][0]
             max_dt = self.route_times[self.route[-2]][-1]
+        else:
+            min_dt = self.start_time
+            max_dt = self.start_time
 
         # get start and end hubs
         if len(self.route) > 0:
