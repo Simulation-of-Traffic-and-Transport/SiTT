@@ -173,12 +173,15 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         # get route/geometry
         route = self._merge_route(agent.route, agent.route_reversed, context)
 
-        # get whole route - created to calculate attempts, too
-        self._merge_route(agent.route_before_traceback, agent.route_reversed_before_traceback, context, is_attempt=True)
-
         # do not save agents with no routes
         if self.ignore_empty_agents and route.is_empty:
             return
+
+        # calculate attempts
+        for route_id in list(agent.route[1::2]):
+            self._increment_route_counter(route_id)
+        for route_id in list(agent.route_before_traceback[1::2]):
+            self._increment_route_counter(route_id, is_attempt=True)
 
         # get start/end time
         start_hub, end_hub, start_delta, end_delta = agent.get_start_end()
@@ -218,7 +221,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             'edges': edges,
         }})
 
-    def _merge_route(self, route: list[str], route_reversed: list[bool], context: Context, is_attempt = False) -> LineString | None:
+    def _merge_route(self, route: list[str], route_reversed: list[bool], context: Context) -> LineString | None:
         coordinates = []
 
         for idx, route_id in enumerate(route[1::2]):
@@ -234,8 +237,6 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 # last coordinate is equal to first coordinate, remove it
                 coordinates.pop()
             coordinates.extend(coords)
-            # increment route counter
-            self._increment_route_counter(route_id, is_attempt)
 
         return force_2d(LineString(coordinates))
 
