@@ -2,6 +2,7 @@ Shapely>=2.0.4
 cdsapi>=0.7.0
 dask>=2025.5.1
 extremitypathfinder[numba]~=2.7.1
+fiona>=1.10.1
 geoalchemy2>=0.15.1
 geopandas>=1.0.1
 igraph>=1.0.0
