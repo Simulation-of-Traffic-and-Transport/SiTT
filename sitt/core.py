@@ -387,17 +387,20 @@ class Simulation(BaseClass):
         if self.config.overnight_trace_back:
             # get some data about the hub that was just reached
             reached_hub = self.context.routes.vs.find(name=agent.next_hub)
-            has_overnight_hub = 'overnight_hub' in reached_hub.attribute_names()
-
-            # save last possible resting place and time, if new hub is an overnight stay
-            if reached_hub['overnight'] or (has_overnight_hub and reached_hub['overnight_hub']):
-                # do we have a connection to this hub? => only if we find it in neighbors, do we add it to the last
-                # possible resting places
-                for n in reached_hub.neighbors():
-                    if n['name'] == reached_hub['overnight_hub']:
-                        # mark hub as overnight hub
-                        agent.last_overnight_hub = reached_hub['name']
-                        break
+            # reached hub is an overnight hub?
+            if reached_hub['overnight']:
+                agent.last_overnight_hub = reached_hub['name']
+                # save last possible resting place
+            else:
+                # check neighbors if there is an overnight hub close by
+                if 'overnight_hub' in reached_hub.attribute_names() and reached_hub['overnight_hub']:
+                    # do we have a connection to this hub? => only if we find it in neighbors, do we add it to the last
+                    # possible resting places
+                    for n in reached_hub.neighbors():
+                        if n['name'] == reached_hub['overnight_hub']:
+                            # mark hub as overnight hub
+                            agent.last_overnight_hub = reached_hub['name']
+                            break
 
         # add current hub to visited ones
         agent.visited_hubs.add(agent.next_hub)
