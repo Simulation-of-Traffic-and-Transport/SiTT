@@ -11,7 +11,7 @@ import numpy as np
 import psycopg2
 import shapefile
 from pyproj import Transformer
-from shapely import wkb, Point, LineString
+from shapely import wkb, Point, LineString, force_3d
 from shapely.ops import transform
 
 if __name__ == "__main__":
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # add flow geometry column, if needed
     cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_flow_geometry_column}')")
     if not cur.fetchone()[0]:
-        cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_flow_geometry_column} geometry(LineString,4326)")
+        cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_flow_geometry_column} geometry(LineStringZ,4326)")
         conn.commit()
         print("Adding geometry column for river flows...")
 
@@ -278,7 +278,7 @@ if __name__ == "__main__":
             flow_coordinates[i] = np.array((coords[0], coords[1]))
 
         c += len(flows)
-        new_coords = LineString(flow_coordinates).wkt
+        new_coords = force_3d(LineString(flow_coordinates)).wkt
 
         # update river width in database
         flows_str = "{" + ','.join([str(flow) for flow in flows]) + "}"

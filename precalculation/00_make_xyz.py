@@ -197,21 +197,25 @@ if __name__ == "__main__":
     for table in tables:
         print("Updating " + table)
 
+        geom_col_name = 'geom'
+        if table == 'recrivers':
+            geom_col_name = 'geom_flow'
+
         # get hubs - create statement via sql alchemy
         idCol = Column('id')
-        geomCol = Column('geom')
+        geomCol = Column(geom_col_name)
         t = Table(table, MetaData(), idCol, geomCol, schema=args.schema)
         s = select(idCol, geomCol).select_from(t)
         data = gpd.GeoDataFrame.from_postgis(str(s.compile()), conn,
-                                             geom_col='geom',
+                                             geom_col=geom_col_name,
                                              index_col='id')
 
         counter = 0
         total = len(data)
 
         for idx, row in data.iterrows():
-            if 'geom' in row:
-                g = row.geom
+            if geom_col_name in row:
+                g = row[geom_col_name]
                 if g is None:
                     # skip empty geometries
                     continue
@@ -246,14 +250,14 @@ if __name__ == "__main__":
                         new_coords, changed_any = work_coordinates(g.coords)
                     if len(new_coords) <= 0:
                         continue
-                    new_shape = shape({"type": row.geom.geom_type, "coordinates": new_coords})
+                    new_shape = shape({"type": row[geom_col_name].geom_type, "coordinates": new_coords})
 
                 # any change?
                 if changed_any:
                     # create SQL statement
                     new_value = text(String().literal_processor(dialect=conn.dialect)(
                         value="SRID=" + str(args.crs_no) + ";" + str(new_shape)))
-                    stmt = update(t).where(idCol == row.name).values(geom=new_value)
+                    stmt = update(t).where(idCol == row.name).values({geom_col_name: new_value})
                     conn.execute(stmt)
                     counter += 1
 
