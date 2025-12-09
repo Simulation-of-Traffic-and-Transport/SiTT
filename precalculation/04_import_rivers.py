@@ -180,6 +180,8 @@ if __name__ == "__main__":
 
         # leg lengths
         legs = []
+        slopes = []  # in percent - we need this for towing only
+
         last_coord = None
         for coord in geom.coords:
             if last_coord is not None:
@@ -187,11 +189,23 @@ if __name__ == "__main__":
                 leg = transform(transformer.transform, LineString([last_coord, coord]))
                 legs.append(leg.length)
 
+                # asc/desc
+                diff = last_coord[2] - coord[2]
+
+                # logger.info("%f, %f", diff, leg_length)
+                if leg.length > 0:
+                    slope = diff / leg.length  # slope is in percent (0.00-1.00)
+                else:
+                    slope = 0.0
+
+                slopes.append(slope)
+
             last_coord = coord
 
         # add length in m
         data['length_m'] = transform(transformer.transform, geom).length
         data['legs'] = legs
+        data['slopes'] = slopes # this is used for towing only
 
         # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
