@@ -22,25 +22,64 @@ from sqlalchemy import create_engine, Table, Column, MetaData, \
 
 def work_coordinates(coords) -> tuple[list, bool]:
     changed = False
-    geom = []
 
+    # create height map
+    height_map: dict[tuple[float, float], float] = {}
+    missing_coords = set()
+
+    # fetch heights from raster
     for coord in coords:
-        # keep?
-        if args.keep_existing and len(coord) > 2 and coord[2] > 0:
-            continue
-
         lng = coord[0]
         lat = coord[1]
+        key = (lng, lat)
 
-        height = get_height_for_coordinate((lng, lat))
+        # keep?
+        if args.keep_existing and len(coord) > 2 and coord[2] > 0:
+            height_map[key] = coord[2]
+        else:
+            changed = True
+            # fetch height from raster
+            if key not in height_map:
+                height = get_height_for_coordinate(key, height_map)
+                if height < -1000.:
+                    missing_coords.add(key)
+                else:
+                    height_map[key] = height
 
+    # update missing coordinates from Google API, if needed
+    if args.google_api_key and len(missing_coords) > 0:
+        missing_coords = list(missing_coords)
+        coordinates = [f"{c[1]},{c[0]}" for c in list(missing_coords)] # lat/lng!
+        if len(coordinates) > 512:
+            # TODO: split coordinates into smaller chunks and make multiple requests
+            print("Google API request limit exceeded (>512). Please reduce the number of coordinates.")
+            exit(1)
+
+        response = requests.get(
+            f"https://maps.googleapis.com/maps/api/elevation/json?locations={'|'.join(coordinates)}&key={args.google_api_key}")
+        resp = response.json()
+        if resp and 'results' in resp:
+            idx = 0
+            for result in resp['results']:
+                key = missing_coords[idx]
+                height_map[key] = result['elevation']
+                idx += 1
+
+    # create updated geometry
+    geom = []
+
+    # create new coordinates with height
+    for coord in coords:
+        lng = coord[0]
+        lat = coord[1]
+        key = (lng, lat)
+        height = height_map.get(key, -1001.)  # default to -1001 if no height is available
         geom.append((lng, lat, height))
-        changed = True
 
     return geom, changed
 
 
-def get_height_for_coordinate(coord: tuple[float, float]) -> float:
+def get_height_for_coordinate(coord: tuple[float, float], height_map: dict[tuple[float, float], float]) -> float:
     # get height for coordinate
     xx, yy = transformer.transform(coord[0], coord[1])
     x, y = rds.index(xx, yy)
@@ -48,15 +87,6 @@ def get_height_for_coordinate(coord: tuple[float, float]) -> float:
         height = band[x, y]
     except IndexError:
         height = -1001.  # default to -1001 if no height is available
-
-    # Fallback?
-    if height < -1000. and args.google_api_key:
-        # TODO: combine more than one coordinate in one request to make this way cheaper
-        response = requests.get(f"https://maps.googleapis.com/maps/api/elevation/json?locations={coord[1]}%2C{coord[0]}&key={args.google_api_key}")
-        data = response.json()
-
-        # print(data)
-        return data['results'][0]['elevation']
 
     return height
 
@@ -214,7 +244,7 @@ if __name__ == "__main__":
                         changed_any = True
                     else:
                         new_coords, changed_any = work_coordinates(g.coords)
-                    if len(new_coords) <= 1:
+                    if len(new_coords) <= 0:
                         continue
                     new_shape = shape({"type": row.geom.geom_type, "coordinates": new_coords})
 
