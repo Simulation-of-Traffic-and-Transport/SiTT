@@ -186,7 +186,7 @@ if __name__ == "__main__":
     # which tables should be updated
     tables = args.tables
     if tables == 'all' or 'all' in tables:
-        tables = ['rechubs', 'recroads']
+        tables = ['rechubs', 'recroads', 'recrivers']
 
     # connect to database
     conn = create_engine('postgresql://' + args.user + ':' + parse.quote_plus(args.password) + '@' + args.server + ':' +
