@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from typing import Iterable
 
 import fiona
 import igraph as ig
@@ -70,12 +71,12 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         return agents_finished_for_today
 
     def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context, current_day: int) -> None:
-        self._save_routes(config)
+        self._save_routes(config, context)
         self._calculate_totals(context)
 
         logger.info(f"Saved data to {self.folder}")
 
-    def _save_routes(self, config: Configuration):
+    def _save_routes(self, config: Configuration, context: Context):
         filename = os.path.join(self.folder, "routes.gpkg")
         excel_filename = os.path.join(self.folder, "routes.xlsx")
         logger.info(f"Saving routes to {filename} and {excel_filename}")
@@ -95,14 +96,15 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             cell.style = 'header'
 
         for endpoint in self.route_graph.vs.select(is_finished=True):
-            geoms = []
+            routes = set()
             start_hubs = set()
             start_times = set()
             overnight_hubs = set()
             lowest_time = endpoint['start_time']
 
             for v in self.route_graph.bfsiter(endpoint):
-                geoms.append(force_2d(v['route']))
+                for r in v['route']:
+                    routes.add(r)
                 start_hub = v['start_hub']
                 if start_hub in config.simulation_starts:
                     start_hubs.add(v['start_hub'])
@@ -112,12 +114,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 else:
                     overnight_hubs.add(v['start_hub'])
 
-            geom = union_all(geoms)
-            if geom.is_empty:
-                logger.warning(f"Empty route for endpoint {endpoint}")
-                exit(9)
-            if geom.geom_type == 'LineString':
-                geom = MultiLineString([geom.coords])
+            geom = self._create_route_from_edge_ids(context, routes)
 
             difference = (endpoint['end_time'] - lowest_time).total_seconds() / 3600  # convert to hours
             diff_padded = f'{difference:.2f}'.rjust(7, '0')
@@ -167,14 +164,15 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                                                                                                'overnight_hubs': 'str'}})
 
         for endpoint in self.route_graph.vs.select(is_cancelled=True):
-            geoms = []
+            routes = set()
             start_hubs = set()
             start_times = set()
             overnight_hubs = set()
             lowest_time = endpoint['start_time']
 
             for v in self.route_graph.bfsiter(endpoint):
-                geoms.append(force_2d(v['route']))
+                for r in v['route']:
+                    routes.add(r)
                 start_hub = v['start_hub']
                 if start_hub in config.simulation_starts:
                     start_hubs.add(v['start_hub'])
@@ -184,12 +182,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 else:
                     overnight_hubs.add(v['start_hub'])
 
-            geom = union_all(geoms)
-            if geom.is_empty:
-                logger.warning(f"Empty route for endpoint {endpoint}")
-                exit(9)
-            if geom.geom_type == 'LineString':
-                geom = MultiLineString([geom.coords])
+            geom = self._create_route_from_edge_ids(context, routes)
 
             difference = (endpoint['end_time'] - lowest_time).total_seconds() / 3600  # convert to hours
             diff_padded = f'{difference:.2f}'.rjust(7, '0')
@@ -223,6 +216,17 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         con.close()
 
         wb.save(excel_filename)
+
+    def _create_route_from_edge_ids(self, context: Context, routes: Iterable[str]) -> MultiLineString:
+        # get geometries from edge IDs
+        geoms = context.routes.es.select(name_in=routes)['geom']
+        geom = force_2d(union_all(geoms))
+        if geom.is_empty:
+            logger.warning(f"Empty route for endpoint {endpoint}")
+            exit(9)
+        if geom.geom_type == 'LineString':
+            return MultiLineString([geom.coords])
+        return geom
 
     def _calculate_totals(self, context: Context):
         filename = os.path.join(self.folder, "route_totals.gpkg")
@@ -383,11 +387,11 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         }})
 
         # persist to route graph
-        self._save_to_route_graph(agent, route, start_hub, end_hub, start_time, end_time, current_day)
+        self._save_to_route_graph(agent, start_hub, end_hub, start_time, end_time, current_day)
 
-    def _save_to_route_graph(self, agent: Agent, route: LineString, start_hub: str, end_hub: str, start_time: dt.datetime, end_time: dt.datetime, current_day: int):
+    def _save_to_route_graph(self, agent: Agent, start_hub: str, end_hub: str, start_time: dt.datetime, end_time: dt.datetime, current_day: int):
         # add route as vertex
-        self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=route, is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, day=current_day)
+        self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=agent.route[1::2], is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, day=current_day)
 
         # add edges to parents
         for parent in self.route_graph.vs.select(name_in=agent.parents):
