@@ -647,11 +647,12 @@ class Simulation(BaseClass):
                     new_agent.tries = forced_routes_tries[route[0]]
                     new_agent.parents = agent_ids
                     agents_proceeding_tomorrow.append(new_agent)
+            else:
+                # get all possible routes for this hub
+                possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
 
-            # get all other possible routes for this hub
-            for route in self._get_possible_routes_for_agent_on_hub(agent):
-                # skip forced routes - we have handled those above
-                if route[0] not in forced_hubs_starts:
+                # then, other possible routes
+                for route in possible_routes:
                     new_agent = Agent(hub, route[1], route[0])
                     new_agent.visited_hubs = copy.deepcopy(visited_hubs)
                     new_agent.parents = agent_ids
