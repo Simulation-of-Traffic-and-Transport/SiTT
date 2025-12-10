@@ -151,7 +151,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         # now do cancelled routes
         wb.create_sheet(title="Cancelled")
-        ws = wb.get_sheet_by_name("Cancelled")
+        ws = wb["Cancelled"]
         ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
