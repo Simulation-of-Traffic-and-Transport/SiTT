@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "sitt"
 description = "Si.T.T. (Simulation of Traffic and Transport) is an agent-based simulation for pre-industrial trade routes."
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.11,<3.13"
 license = "MIT"
 keywords = ["simulation", "history", "university", "trade", "ancient"]
 authors = [
@@ -27,12 +27,39 @@ classifiers = [
     "Topic :: Scientific/Engineering",
     "Typing :: Typed",
 ]
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    "cdsapi>=0.7.7",
+    "dask>=2025.11.0",
+    "extremitypathfinder[numba]~=2.7.1",
+    "fiona>=1.10.1",
+    "geoalchemy2>=0.18.1",
+    "geopandas>=1.1.1",
+    "igraph>=1.0.0",
+    "matplotlib>=3.10.7",
+    "nanoid>=2.0.0",
+    "netcdf4>=1.7.3",
+    "numpy>=1.26.4",
+    "pandas>=2.3.3",
+    "psycopg2-binary>=2.9.11",
+    "pyproj>=3.7.2",
+    "pyshp>=3.0.3",
+    "python-dateutil>=2.9.0.post0",
+    "pyyaml>=6.0.3",
+    "rasterio>=1.4.3",
+    "requests>=2.32.5",
+    "rioxarray>=0.19.0",
+    "shapely>=2.1.2",
+    "sortedcontainers>=2.4.0",
+    "sqlalchemy>=2.0.45",
+    "suntime>=1.3.2",
+    "timezonefinder>=8.1.0",
+    "xarray>=2025.12.0",
+]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.2",
-    "psycopg2-binary>=2.9.9",
+    "pytest>=8.4.2",
 ]
 
 [project.urls]
@@ -42,8 +69,8 @@ Source = "https://codeberg.org/SiTT/SiTT"
 
 [tool.hatch.version]
 path = "sitt/__about__.py"
-[tool.hatch.metadata.hooks.requirements_txt]
-files = ["requirements.txt"]
+#[tool.hatch.metadata.hooks.requirements_txt]
+#files = ["requirements.txt"]
 
 # automatically checks .gitignore
 #[tool.hatch.build.targets.sdist]
@@ -63,7 +90,7 @@ cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=sitt -
 no-cov = "cov --no-cov {args}"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["310", "311"]
+python = ["311", "312"]
 
 [tool.coverage.run]
 branch = true
