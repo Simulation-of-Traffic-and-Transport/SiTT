@@ -599,6 +599,12 @@ class Simulation(BaseClass):
 
             has_agents_to_proceed = False
 
+            # check if overnight stay is actually an end point of the simulation, if so, we set agent to finished
+            v = self.context.graph.vs.find(name=hub)
+            if 'overnight_hub' in v.attribute_names() and v['overnight_hub'] in self.config.simulation_ends:
+                for agent in agent_list:
+                    agent.is_finished = True
+
             for agent in agent_list:
                 # add forced routes to the set, so we can handle those later on
                 if len(agent.forced_route) > 0:
