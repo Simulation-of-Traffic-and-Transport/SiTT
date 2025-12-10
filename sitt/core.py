@@ -628,6 +628,8 @@ class Simulation(BaseClass):
             agent = Agent(hub, '', '', do_not_generate_uid=True)
             agent.visited_hubs = visited_hubs
 
+            agent_ids = [a.uid for a in agent_list]
+
             # only consider forced routes on retried hubs
             if len(forced_routes) > 0:
                 for route in forced_routes:
@@ -637,6 +639,7 @@ class Simulation(BaseClass):
                     new_agent.visited_hubs = copy.deepcopy(visited_hubs)
                     new_agent.forced_route = route
                     new_agent.tries = forced_routes_tries[route[0]]
+                    new_agent.parents = agent_ids
                     agents_proceeding_tomorrow.append(new_agent)
             else:
                 # get all possible routes for this hub
@@ -646,6 +649,7 @@ class Simulation(BaseClass):
                 for route in possible_routes:
                     new_agent = Agent(hub, route[1], route[0])
                     new_agent.visited_hubs = copy.deepcopy(visited_hubs)
+                    new_agent.parents = agent_ids
                     agents_proceeding_tomorrow.append(new_agent)
 
         return agents_proceeding_tomorrow

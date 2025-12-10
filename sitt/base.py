@@ -300,6 +300,7 @@ class Agent(object):
         """keeps ids of hubs before traceback to last possible resting place"""
         self.route_reversed_before_traceback: list[bool] = []
         """keeps information if route is reversed before traceback to last possible resting place"""
+        self.parents: list[str] = []
 
         # rest history
         self.rest_history: list[tuple[float, float, str]] = []

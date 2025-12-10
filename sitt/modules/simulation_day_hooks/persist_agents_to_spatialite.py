@@ -12,7 +12,10 @@ import shutil
 import sqlite3
 
 import fiona
-from shapely import LineString, force_2d
+import igraph as ig
+from shapely import LineString, force_2d, union_all, MultiLineString
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill, NamedStyle
 
 from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
 
@@ -32,6 +35,9 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         self.folder: str|None = None
         self.min_time: dt.datetime = dt.datetime.now()
         self.counters: dict[str, dict[str, int]] = {}
+        """Counters for routes."""
+        self.route_graph: ig.Graph = ig.Graph(directed=True)
+        """Keep start and end vertices as graph, so we can find the shortest paths in the end."""
 
     def _initialize(self, config: Configuration):
         # set min time
@@ -49,8 +55,177 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         logger.info(f"Saving data to folder {self.folder}")
 
-    def _initialize_routes(self, context: Context):
+
+    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
+            results: SetOfResults, current_day: int) -> list[Agent]:
+        if self.skip:
+            return agents_finished_for_today
+
+        # initialize output
+        if self.folder is None:
+            self._initialize(config)
+
+        self._persist_agents(agents_finished_for_today, context, current_day)
+
+        return agents_finished_for_today
+
+    def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context, current_day: int) -> None:
+        self._save_routes(config)
+        self._calculate_totals(context)
+
+        logger.info(f"Saved data to {self.folder}")
+
+    def _save_routes(self, config: Configuration):
         filename = os.path.join(self.folder, "routes.gpkg")
+        excel_filename = os.path.join(self.folder, "routes.xlsx")
+        logger.info(f"Saving routes to {filename} and {excel_filename}")
+
+        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
+
+        wb = Workbook()
+        if 'header' not in wb.named_styles:
+            my_header = NamedStyle(name="header")
+            my_header.font.bold = True
+            wb.add_named_style(my_header)
+
+        ws = wb.active
+        ws.title = "Routes"
+        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
+        for cell in ws['1:1']:
+            cell.style = 'header'
+
+        for endpoint in self.route_graph.vs.select(is_finished=True):
+            geoms = []
+            start_hubs = set()
+            start_times = set()
+            overnight_hubs = set()
+            lowest_time = endpoint['start_time']
+
+            for v in self.route_graph.bfsiter(endpoint):
+                geoms.append(force_2d(v['route']))
+                start_hub = v['start_hub']
+                if start_hub in config.simulation_starts:
+                    start_hubs.add(v['start_hub'])
+                    start_times.add(v['start_time'].strftime('%Y-%m-%d %H:%M'))
+                    if v['start_time'] < lowest_time:
+                        lowest_time = v['start_time']
+                else:
+                    overnight_hubs.add(v['start_hub'])
+
+            geom = union_all(geoms)
+            if geom.is_empty:
+                logger.warning(f"Empty route for endpoint {endpoint}")
+                exit(9)
+            if geom.geom_type == 'LineString':
+                geom = MultiLineString([geom.coords])
+
+            difference = (endpoint['end_time'] - lowest_time).total_seconds() / 3600  # convert to hours
+            diff_padded = f'{difference:.2f}'.rjust(7, '0')
+            my_id = f'{diff_padded}_{endpoint["end_hub"]}'
+            stat_hubs = ', '.join(list(start_hubs))
+            start_times = ', '.join(list(start_times))
+            overnight_hubs = ', '.join(list(overnight_hubs))
+
+            out.write({'geometry': geom, 'properties': {
+                'id': my_id,
+                'length_hrs': difference,
+                'end_hub': endpoint['end_hub'],
+                'end_time': endpoint['end_time'],
+                'start_hubs': stat_hubs,
+                'start_times': start_times,
+                'overnight_hubs': overnight_hubs,
+            }})
+
+            ws.append([my_id, difference, endpoint['day'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
+        out.close()
+
+        # copy styles for QGIS
+        con = sqlite3.connect(filename)
+        cur = con.cursor()
+        cur.execute("CREATE TABLE layer_styles (id INTEGER PRIMARY KEY, f_table_catalog TEXT, f_table_schema TEXT, f_table_name TEXT, f_geometry_column TEXT, styleName TEXT, styleQML TEXT, styleSLD TEXT, useAsDefault BOOLEAN, description TEXT, owner TEXT, ui TEXT, update_time DATETIME)")
+        con.commit()
+        cur.execute("INSERT INTO layer_styles (id, f_table_catalog, f_table_schema, f_table_name, f_geometry_column, styleName, styleQML, styleSLD, useAsDefault, description, owner, ui, update_time) VALUES (1, '', '', 'routes', 'geom', 'style', '<!DOCTYPE qgis PUBLIC ''http://mrcc.com/qgis.dtd'' ''SYSTEM''> <qgis styleCategories=\"Symbology\" version=\"3.44.5-Solothurn\">  <renderer-v2 referencescale=\"-1\" forceraster=\"0\" type=\"singleSymbol\" enableorderby=\"0\" symbollevels=\"0\">   <symbols>    <symbol frame_rate=\"10\" is_animated=\"0\" name=\"0\" force_rhr=\"0\" type=\"line\" clip_to_extent=\"1\" alpha=\"1\">     <data_defined_properties>      <Option type=\"Map\">       <Option value=\"\" name=\"name\" type=\"QString\"/>       <Option name=\"properties\"/>       <Option value=\"collection\" name=\"type\" type=\"QString\"/>      </Option>     </data_defined_properties>     <layer pass=\"0\" class=\"SimpleLine\" id=\"{214833f4-dcad-4ca6-bb47-114a2110e960}\" locked=\"0\" enabled=\"1\">      <Option type=\"Map\">       <Option value=\"0\" name=\"align_dash_pattern\" type=\"QString\"/>       <Option value=\"square\" name=\"capstyle\" type=\"QString\"/>       <Option value=\"5;2\" name=\"customdash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"customdash_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"customdash_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"dash_pattern_offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"dash_pattern_offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"dash_pattern_offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"draw_inside_polygon\" type=\"QString\"/>       <Option value=\"bevel\" name=\"joinstyle\" type=\"QString\"/>       <Option value=\"72,123,182,255,rgb:0.2823529,0.4823529,0.7137255,1\" name=\"line_color\" type=\"QString\"/>       <Option value=\"solid\" name=\"line_style\" type=\"QString\"/>       <Option value=\"0.66\" name=\"line_width\" type=\"QString\"/>       <Option value=\"MM\" name=\"line_width_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"ring_filter\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_end\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_end_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_end_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_start\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_start_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_start_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"tweak_dash_pattern_on_corners\" type=\"QString\"/>       <Option value=\"0\" name=\"use_custom_dash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"width_map_unit_scale\" type=\"QString\"/>      </Option>      <data_defined_properties>       <Option type=\"Map\">        <Option value=\"\" name=\"name\" type=\"QString\"/>        <Option name=\"properties\"/>        <Option value=\"collection\" name=\"type\" type=\"QString\"/>       </Option>      </data_defined_properties>     </layer>    </symbol>   </symbols>   <rotation/>   <sizescale/>   <data-defined-properties>    <Option type=\"Map\">     <Option value=\"\" name=\"name\" type=\"QString\"/>     <Option name=\"properties\"/>     <Option value=\"collection\" name=\"type\" type=\"QString\"/>    </Option>   </data-defined-properties>  </renderer-v2>  <selection mode=\"Default\">   <selectionColor invalid=\"1\"/>   <selectionSymbol>    <symbol frame_rate=\"10\" is_animated=\"0\" name=\"\" force_rhr=\"0\" type=\"line\" clip_to_extent=\"1\" alpha=\"1\">     <data_defined_properties>      <Option type=\"Map\">       <Option value=\"\" name=\"name\" type=\"QString\"/>       <Option name=\"properties\"/>       <Option value=\"collection\" name=\"type\" type=\"QString\"/>      </Option>     </data_defined_properties>     <layer pass=\"0\" class=\"SimpleLine\" id=\"{de8ac958-4167-4765-b8e7-9ceedea1870a}\" locked=\"0\" enabled=\"1\">      <Option type=\"Map\">       <Option value=\"0\" name=\"align_dash_pattern\" type=\"QString\"/>       <Option value=\"square\" name=\"capstyle\" type=\"QString\"/>       <Option value=\"5;2\" name=\"customdash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"customdash_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"customdash_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"dash_pattern_offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"dash_pattern_offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"dash_pattern_offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"draw_inside_polygon\" type=\"QString\"/>       <Option value=\"bevel\" name=\"joinstyle\" type=\"QString\"/>       <Option value=\"35,35,35,255,rgb:0.1372549,0.1372549,0.1372549,1\" name=\"line_color\" type=\"QString\"/>       <Option value=\"solid\" name=\"line_style\" type=\"QString\"/>       <Option value=\"0.26\" name=\"line_width\" type=\"QString\"/>       <Option value=\"MM\" name=\"line_width_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"ring_filter\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_end\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_end_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_end_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_start\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_start_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_start_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"tweak_dash_pattern_on_corners\" type=\"QString\"/>       <Option value=\"0\" name=\"use_custom_dash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"width_map_unit_scale\" type=\"QString\"/>      </Option>      <data_defined_properties>       <Option type=\"Map\">        <Option value=\"\" name=\"name\" type=\"QString\"/>        <Option name=\"properties\"/>        <Option value=\"collection\" name=\"type\" type=\"QString\"/>       </Option>      </data_defined_properties>     </layer>    </symbol>   </selectionSymbol>  </selection>  <blendMode>0</blendMode>  <featureBlendMode>0</featureBlendMode>  <layerGeometryType>1</layerGeometryType> </qgis>', '<?xml version= \"1.0 \" encoding= \"UTF-8 \"?> <StyledLayerDescriptor xmlns= \"http://www.opengis.net/sld \" xsi:schemaLocation= \"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd \" xmlns:ogc= \"http://www.opengis.net/ogc \" xmlns:xsi= \"http://www.w3.org/2001/XMLSchema-instance \" xmlns:xlink= \"http://www.w3.org/1999/xlink \" xmlns:se= \"http://www.opengis.net/se \" version= \"1.1.0 \">  <NamedLayer>   <se:Name>routes</se:Name>   <UserStyle>    <se:Name>routes</se:Name>    <se:FeatureTypeStyle>     <se:Rule>      <se:Name>Single symbol</se:Name>      <se:LineSymbolizer>       <se:Stroke>        <se:SvgParameter name= \"stroke \">#487bb6</se:SvgParameter>        <se:SvgParameter name= \"stroke-width \">2</se:SvgParameter>        <se:SvgParameter name= \"stroke-linejoin \">bevel</se:SvgParameter>        <se:SvgParameter name= \"stroke-linecap \">square</se:SvgParameter>       </se:Stroke>      </se:LineSymbolizer>     </se:Rule>    </se:FeatureTypeStyle>   </UserStyle>  </NamedLayer> </StyledLayerDescriptor>', 0, 'Mi. Dez. 10 12:22:15 2025', '', null, '2025-12-10T11:22:15.000Z');")
+
+        con.commit()
+        con.close()
+
+        # now do cancelled routes
+        wb.create_sheet(title="Cancelled")
+        ws = wb.get_sheet_by_name("Cancelled")
+        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
+        for cell in ws['1:1']:
+            cell.style = 'header'
+
+        filename = os.path.join(self.folder, "routes_cancelled.gpkg")
+        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
+                                                                                'properties': {'id': 'str',
+                                                                                               'length_hrs': 'float',
+                                                                                               'end_hub': 'str',
+                                                                                               'end_time': 'datetime',
+                                                                                               'start_hubs': 'str',
+                                                                                               'start_times': 'str',
+                                                                                               'overnight_hubs': 'str'}})
+
+        for endpoint in self.route_graph.vs.select(is_cancelled=True):
+            geoms = []
+            start_hubs = set()
+            start_times = set()
+            overnight_hubs = set()
+            lowest_time = endpoint['start_time']
+
+            for v in self.route_graph.bfsiter(endpoint):
+                geoms.append(force_2d(v['route']))
+                start_hub = v['start_hub']
+                if start_hub in config.simulation_starts:
+                    start_hubs.add(v['start_hub'])
+                    start_times.add(v['start_time'].strftime('%Y-%m-%d %H:%M'))
+                    if v['start_time'] < lowest_time:
+                        lowest_time = v['start_time']
+                else:
+                    overnight_hubs.add(v['start_hub'])
+
+            geom = union_all(geoms)
+            if geom.is_empty:
+                logger.warning(f"Empty route for endpoint {endpoint}")
+                exit(9)
+            if geom.geom_type == 'LineString':
+                geom = MultiLineString([geom.coords])
+
+            difference = (endpoint['end_time'] - lowest_time).total_seconds() / 3600  # convert to hours
+            diff_padded = f'{difference:.2f}'.rjust(7, '0')
+            my_id = f'{diff_padded}_{endpoint["end_hub"]}'
+            stat_hubs = ', '.join(list(start_hubs))
+            start_times = ', '.join(list(start_times))
+            overnight_hubs = ', '.join(list(overnight_hubs))
+
+            out.write({'geometry': geom, 'properties': {
+                'id': my_id,
+                'length_hrs': difference,
+                'end_hub': endpoint['end_hub'],
+                'end_time': endpoint['end_time'],
+                'start_hubs': stat_hubs,
+                'start_times': start_times,
+                'overnight_hubs': overnight_hubs,
+            }})
+
+            ws.append([my_id, difference, endpoint['day'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
+
+        out.close()
+
+        # copy styles for QGIS
+        con = sqlite3.connect(filename)
+        cur = con.cursor()
+        cur.execute("CREATE TABLE layer_styles (id INTEGER PRIMARY KEY, f_table_catalog TEXT, f_table_schema TEXT, f_table_name TEXT, f_geometry_column TEXT, styleName TEXT, styleQML TEXT, styleSLD TEXT, useAsDefault BOOLEAN, description TEXT, owner TEXT, ui TEXT, update_time DATETIME)")
+        con.commit()
+        cur.execute("INSERT INTO layer_styles (id, f_table_catalog, f_table_schema, f_table_name, f_geometry_column, styleName, styleQML, styleSLD, useAsDefault, description, owner, ui, update_time) VALUES (1, '', '', 'routes_cancelled', 'geom', 'style', '<!DOCTYPE qgis PUBLIC ''http://mrcc.com/qgis.dtd'' ''SYSTEM''> <qgis styleCategories=\"Symbology\" version=\"3.44.5-Solothurn\">  <renderer-v2 referencescale=\"-1\" forceraster=\"0\" type=\"singleSymbol\" enableorderby=\"0\" symbollevels=\"0\">   <symbols>    <symbol frame_rate=\"10\" is_animated=\"0\" name=\"0\" force_rhr=\"0\" type=\"line\" clip_to_extent=\"1\" alpha=\"1\">     <data_defined_properties>      <Option type=\"Map\">       <Option value=\"\" name=\"name\" type=\"QString\"/>       <Option name=\"properties\"/>       <Option value=\"collection\" name=\"type\" type=\"QString\"/>      </Option>     </data_defined_properties>     <layer pass=\"0\" class=\"SimpleLine\" id=\"{214833f4-dcad-4ca6-bb47-114a2110e960}\" locked=\"0\" enabled=\"1\">      <Option type=\"Map\">       <Option value=\"0\" name=\"align_dash_pattern\" type=\"QString\"/>       <Option value=\"square\" name=\"capstyle\" type=\"QString\"/>       <Option value=\"5;2\" name=\"customdash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"customdash_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"customdash_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"dash_pattern_offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"dash_pattern_offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"dash_pattern_offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"draw_inside_polygon\" type=\"QString\"/>       <Option value=\"bevel\" name=\"joinstyle\" type=\"QString\"/>       <Option value=\"72,123,182,255,rgb:0.2823529,0.4823529,0.7137255,1\" name=\"line_color\" type=\"QString\"/>       <Option value=\"solid\" name=\"line_style\" type=\"QString\"/>       <Option value=\"0.66\" name=\"line_width\" type=\"QString\"/>       <Option value=\"MM\" name=\"line_width_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"ring_filter\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_end\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_end_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_end_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_start\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_start_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_start_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"tweak_dash_pattern_on_corners\" type=\"QString\"/>       <Option value=\"0\" name=\"use_custom_dash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"width_map_unit_scale\" type=\"QString\"/>      </Option>      <data_defined_properties>       <Option type=\"Map\">        <Option value=\"\" name=\"name\" type=\"QString\"/>        <Option name=\"properties\"/>        <Option value=\"collection\" name=\"type\" type=\"QString\"/>       </Option>      </data_defined_properties>     </layer>    </symbol>   </symbols>   <rotation/>   <sizescale/>   <data-defined-properties>    <Option type=\"Map\">     <Option value=\"\" name=\"name\" type=\"QString\"/>     <Option name=\"properties\"/>     <Option value=\"collection\" name=\"type\" type=\"QString\"/>    </Option>   </data-defined-properties>  </renderer-v2>  <selection mode=\"Default\">   <selectionColor invalid=\"1\"/>   <selectionSymbol>    <symbol frame_rate=\"10\" is_animated=\"0\" name=\"\" force_rhr=\"0\" type=\"line\" clip_to_extent=\"1\" alpha=\"1\">     <data_defined_properties>      <Option type=\"Map\">       <Option value=\"\" name=\"name\" type=\"QString\"/>       <Option name=\"properties\"/>       <Option value=\"collection\" name=\"type\" type=\"QString\"/>      </Option>     </data_defined_properties>     <layer pass=\"0\" class=\"SimpleLine\" id=\"{de8ac958-4167-4765-b8e7-9ceedea1870a}\" locked=\"0\" enabled=\"1\">      <Option type=\"Map\">       <Option value=\"0\" name=\"align_dash_pattern\" type=\"QString\"/>       <Option value=\"square\" name=\"capstyle\" type=\"QString\"/>       <Option value=\"5;2\" name=\"customdash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"customdash_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"customdash_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"dash_pattern_offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"dash_pattern_offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"dash_pattern_offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"draw_inside_polygon\" type=\"QString\"/>       <Option value=\"bevel\" name=\"joinstyle\" type=\"QString\"/>       <Option value=\"35,35,35,255,rgb:0.1372549,0.1372549,0.1372549,1\" name=\"line_color\" type=\"QString\"/>       <Option value=\"solid\" name=\"line_style\" type=\"QString\"/>       <Option value=\"0.26\" name=\"line_width\" type=\"QString\"/>       <Option value=\"MM\" name=\"line_width_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"offset\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"offset_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"offset_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"ring_filter\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_end\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_end_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_end_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"trim_distance_start\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"trim_distance_start_map_unit_scale\" type=\"QString\"/>       <Option value=\"MM\" name=\"trim_distance_start_unit\" type=\"QString\"/>       <Option value=\"0\" name=\"tweak_dash_pattern_on_corners\" type=\"QString\"/>       <Option value=\"0\" name=\"use_custom_dash\" type=\"QString\"/>       <Option value=\"3x:0,0,0,0,0,0\" name=\"width_map_unit_scale\" type=\"QString\"/>      </Option>      <data_defined_properties>       <Option type=\"Map\">        <Option value=\"\" name=\"name\" type=\"QString\"/>        <Option name=\"properties\"/>        <Option value=\"collection\" name=\"type\" type=\"QString\"/>       </Option>      </data_defined_properties>     </layer>    </symbol>   </selectionSymbol>  </selection>  <blendMode>0</blendMode>  <featureBlendMode>0</featureBlendMode>  <layerGeometryType>1</layerGeometryType> </qgis>', '<?xml version= \"1.0 \" encoding= \"UTF-8 \"?> <StyledLayerDescriptor xmlns= \"http://www.opengis.net/sld \" xsi:schemaLocation= \"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd \" xmlns:ogc= \"http://www.opengis.net/ogc \" xmlns:xsi= \"http://www.w3.org/2001/XMLSchema-instance \" xmlns:xlink= \"http://www.w3.org/1999/xlink \" xmlns:se= \"http://www.opengis.net/se \" version= \"1.1.0 \">  <NamedLayer>   <se:Name>routes_cancelled</se:Name>   <UserStyle>    <se:Name>routes_cancelled</se:Name>    <se:FeatureTypeStyle>     <se:Rule>      <se:Name>Single symbol</se:Name>      <se:LineSymbolizer>       <se:Stroke>        <se:SvgParameter name= \"stroke \">#db1e2a</se:SvgParameter>        <se:SvgParameter name= \"stroke-width \">2</se:SvgParameter>        <se:SvgParameter name= \"stroke-linejoin \">bevel</se:SvgParameter>        <se:SvgParameter name= \"stroke-linecap \">square</se:SvgParameter>       </se:Stroke>      </se:LineSymbolizer>     </se:Rule>    </se:FeatureTypeStyle>   </UserStyle>  </NamedLayer> </StyledLayerDescriptor>', 0, 'Mi. Dez. 10 12:22:15 2025', '', null, '2025-12-10T11:22:15.000Z');")
+
+        con.commit()
+        con.close()
+
+        wb.save(excel_filename)
+
+    def _calculate_totals(self, context: Context):
+        filename = os.path.join(self.folder, "route_totals.gpkg")
         out = fiona.open(filename, 'w', layer='routes', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'type': 'str', 'attempted': 'int', 'succeeded': 'int'}})
 
         # create route entries for each route
@@ -90,25 +265,6 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         con.commit()
         con.close()
 
-
-    def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
-            results: SetOfResults, current_day: int) -> list[Agent]:
-        if self.skip:
-            return agents_finished_for_today
-
-        # initialize output
-        if self.folder is None:
-            self._initialize(config)
-
-        self._persist_agents(agents_finished_for_today, context, current_day)
-
-        return agents_finished_for_today
-
-    def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context, current_day: int) -> None:
-        self._initialize_routes(context)
-
-        logger.info(f"Saved data to {self.folder}")
-
     def _persist_agents(self, agents: list[Agent], context: Context, current_day: int):
         day_with_zeroes = str(current_day).rjust(3, '0')
         filename = os.path.join(self.folder, f"day_{day_with_zeroes}.gpkg")
@@ -122,7 +278,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         self.end_hubs: dict[str, list[str]] = {}
 
         for agent in agents:
-            self._persist_agent(agent, context, agent_data)
+            self._persist_agent(agent, context, agent_data, current_day)
 
         agent_data.close()
 
@@ -174,7 +330,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         con.commit()
         con.close()
 
-    def _persist_agent(self, agent: Agent, context: Context, agent_data: fiona.Collection):
+    def _persist_agent(self, agent: Agent, context: Context, agent_data: fiona.Collection, current_day: int):
         # get route/geometry
         route = self._merge_route(agent.route, agent.route_reversed, context)
 
@@ -225,6 +381,17 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             'hubs': hubs,
             'edges': edges,
         }})
+
+        # persist to route graph
+        self._save_to_route_graph(agent, route, start_hub, end_hub, start_time, end_time, current_day)
+
+    def _save_to_route_graph(self, agent: Agent, route: LineString, start_hub: str, end_hub: str, start_time: dt.datetime, end_time: dt.datetime, current_day: int):
+        # add route as vertex
+        self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=route, is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, day=current_day)
+
+        # add edges to parents
+        for parent in self.route_graph.vs.select(name_in=agent.parents):
+            self.route_graph.add_edge(agent.uid, parent['name'])
 
     def _merge_route(self, route: list[str], route_reversed: list[bool], context: Context) -> LineString | None:
         coordinates = []
