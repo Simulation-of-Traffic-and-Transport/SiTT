@@ -718,9 +718,9 @@ class Simulation(BaseClass):
         Run end simulation tasks
         """
         for day_hook_pre in self.config.simulation_day_hook_pre:
-            day_hook_pre.finish_simulation(self.config, self.context, self.current_day)
+            day_hook_pre.finish_simulation(self.results, self.config, self.context, self.current_day)
         for day_hook_post in self.config.simulation_day_hook_post:
-            day_hook_post.finish_simulation(self.config, self.context, self.current_day)
+            day_hook_post.finish_simulation(self.results, self.config, self.context, self.current_day)
 
 
 ########################################################################################################################

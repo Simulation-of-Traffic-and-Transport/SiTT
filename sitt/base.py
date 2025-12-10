@@ -552,7 +552,7 @@ class SimulationDayHookInterface(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
+    def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context, current_day: int) -> None:
         pass
 
 

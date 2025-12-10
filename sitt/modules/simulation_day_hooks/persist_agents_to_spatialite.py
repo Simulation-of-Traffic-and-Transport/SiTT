@@ -104,7 +104,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         return agents_finished_for_today
 
-    def finish_simulation(self, config: Configuration, context: Context, current_day: int) -> None:
+    def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context, current_day: int) -> None:
         self._initialize_routes(context)
 
         logger.info(f"Saved data to {self.folder}")
