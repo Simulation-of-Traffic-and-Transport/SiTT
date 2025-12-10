@@ -613,6 +613,12 @@ class Simulation(BaseClass):
                     if agent.forced_route[0] not in forced_routes_tries:
                         forced_routes_tries[agent.forced_route[0]] = 0
                     forced_routes_tries[agent.forced_route[0]] = max(forced_routes_tries[agent.forced_route[0]], agent.tries)
+                else:
+                    # agent has ended here to sleep, so we check the next hubs and routes to add this to forced routes
+                    all_forced_routes.add((agent.route_key,))
+                    if agent.route_key not in forced_routes_tries:
+                        forced_routes_tries[agent.route_key] = 0
+
                 visited_hubs.union(agent.visited_hubs)
 
                 # retire agents by adding them to the results, but only if agent is not at its start hub (we will weed
@@ -648,6 +654,8 @@ class Simulation(BaseClass):
                     new_agent.parents = agent_ids
                     agents_proceeding_tomorrow.append(new_agent)
             else:
+                # TODO: this is probably never called anymore - check by logging
+                logging.warning(f"No forced routes for agent {agent_ids} on hub {hub}")
                 # get all possible routes for this hub
                 possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
 
