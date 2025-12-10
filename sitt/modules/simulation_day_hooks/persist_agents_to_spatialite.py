@@ -14,9 +14,9 @@ from typing import Iterable
 
 import fiona
 import igraph as ig
-from shapely import LineString, force_2d, union_all, MultiLineString
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill, NamedStyle
+from openpyxl.styles import NamedStyle
+from shapely import LineString, force_2d, union_all, MultiLineString
 
 from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
 
