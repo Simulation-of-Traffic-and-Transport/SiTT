@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 """
-This preparation will add a certain padding to the agent's start and stop time.
+Persist agents' routes to a Spatialite/GEoPackage database. We will save each day separately, so it is easier to
+comprehend the data.
 """
 import datetime as dt
 import logging
@@ -18,6 +19,10 @@ from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetO
 logger = logging.getLogger()
 
 class PersistAgentsToSpatialite(SimulationDayHookInterface):
+    """
+    Persist agents' routes to a Spatialite/GEoPackage database. We will save each day separately, so it is easier to
+    comprehend the data.
+    """
     def __init__(self, ignore_empty_agents: bool = True, only_unique: bool = True):
         super().__init__()
         self.ignore_empty_agents: bool = ignore_empty_agents
