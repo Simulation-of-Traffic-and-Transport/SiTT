@@ -621,12 +621,10 @@ class Simulation(BaseClass):
 
                 visited_hubs.union(agent.visited_hubs)
 
-                # retire agents by adding them to the results, but only if agent is not at its start hub (we will weed
-                # out those, because they will just clutter our data).
-                if len(agent.route) > 1 or agent.is_cancelled or agent.is_finished:
+                # retire agents by adding them to the results
+                if agent.is_cancelled or agent.is_finished:
                     self.results.add_agent(agent)
-
-                if not (agent.is_finished or agent.is_cancelled):
+                else:
                     has_agents_to_proceed = True
 
             # hub in end? no new agents!
