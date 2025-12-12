@@ -94,6 +94,14 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
+        ws.column_dimensions['A'].width = 40
+        ws.column_dimensions['B'].width = 20
+        ws.column_dimensions['C'].width = 12
+        ws.column_dimensions['D'].width = 32
+        ws.column_dimensions['E'].width = 20
+        ws.column_dimensions['F'].width = 35
+        ws.column_dimensions['G'].width = 20
+        ws.column_dimensions['H'].width = 200
 
         for endpoint in self.route_graph.vs.select(is_finished=True):
             routes = set()
@@ -152,6 +160,15 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
+        ws.column_dimensions['A'].width = 40
+        ws.column_dimensions['B'].width = 20
+        ws.column_dimensions['C'].width = 12
+        ws.column_dimensions['D'].width = 30
+        ws.column_dimensions['E'].width = 32
+        ws.column_dimensions['F'].width = 20
+        ws.column_dimensions['G'].width = 35
+        ws.column_dimensions['H'].width = 20
+        ws.column_dimensions['I'].width = 200
 
         filename = os.path.join(self.folder, "routes_cancelled.gpkg")
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
@@ -161,7 +178,8 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                                                                                                'end_time': 'datetime',
                                                                                                'start_hubs': 'str',
                                                                                                'start_times': 'str',
-                                                                                               'overnight_hubs': 'str'}})
+                                                                                               'overnight_hubs': 'str',
+                                                                                               'cancel_reason': 'str'}})
 
         for endpoint in self.route_graph.vs.select(is_cancelled=True):
             routes = set()
@@ -199,9 +217,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 'start_hubs': stat_hubs,
                 'start_times': start_times,
                 'overnight_hubs': overnight_hubs,
+                'cancel_reason': endpoint['cancel_reason'],
             }})
 
-            ws.append([my_id, difference, endpoint['day'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
+            ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
 
         out.close()
 
