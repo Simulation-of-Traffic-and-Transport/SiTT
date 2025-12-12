@@ -27,10 +27,8 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
     Persist agents' routes to a Spatialite/GEoPackage database. We will save each day separately, so it is easier to
     comprehend the data.
     """
-    def __init__(self, ignore_empty_agents: bool = True, only_unique: bool = True):
+    def __init__(self, only_unique: bool = True):
         super().__init__()
-        self.ignore_empty_agents: bool = ignore_empty_agents
-        """Ignore agents with no routes."""
         self.only_unique: bool =  only_unique
         """Save unique routes only (never the same ones)."""
         self.folder: str|None = None
@@ -291,8 +289,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
     def _persist_agents(self, agents: list[Agent], context: Context, current_day: int):
         day_with_zeroes = str(current_day).rjust(3, '0')
         filename = os.path.join(self.folder, f"day_{day_with_zeroes}.gpkg")
+        filename_failed = os.path.join(self.folder, f"day_{day_with_zeroes}_failed.gpkg")
 
         agent_data = fiona.open(filename, 'w', driver='GPKG', layer='agents', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'start_time': 'datetime', 'end_time': 'datetime', 'is_finished': 'bool', 'is_cancelled': 'bool', 'cancel_reason':'str', 'stops': 'str', 'hubs': 'str', 'edges': 'str'}})
+        failed_data = fiona.open(filename_failed, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'start_time': 'datetime', 'end_time': 'datetime', 'hubs': 'str', 'edges': 'str'}})
 
         if self.only_unique:
             self.agent_hashes = set()
@@ -301,9 +301,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         self.end_hubs: dict[str, list[str]] = {}
 
         for agent in agents:
-            self._persist_agent(agent, context, agent_data, current_day)
+            self._persist_agent(agent, context, agent_data, failed_data, current_day)
 
         agent_data.close()
+        failed_data.close()
 
         hub_data = fiona.open(filename, 'w', driver='GPKG', layer='hubs', crs='EPSG:4326', schema={'geometry': 'Point', 'properties': {'id': 'str', 'is_start': 'bool', 'is_end': 'bool', 'is_both': 'bool', 'start_agents': 'str', 'end_agents': 'str'}})
 
@@ -353,12 +354,29 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         con.commit()
         con.close()
 
-    def _persist_agent(self, agent: Agent, context: Context, agent_data: fiona.Collection, current_day: int):
+    def _persist_agent(self, agent: Agent, context: Context, agent_data: fiona.Collection, failed_data: fiona.Collection, current_day: int):
         # get route/geometry
         route = self._merge_route(agent.route, agent.route_reversed, context)
 
-        # do not save agents with no routes
-        if self.ignore_empty_agents and route.is_empty:
+        # save failed routes separately
+        if route.is_empty:
+            hubs = ','.join(agent.route_before_traceback[::2])
+            edges = ','.join(agent.route_before_traceback[1::2])
+
+            start_time = self.min_time + dt.timedelta(hours=agent.start_time)
+            end_time = self.min_time + dt.timedelta(hours=agent.current_time)
+
+            route = self._merge_route(agent.route_before_traceback, agent.route_reversed_before_traceback, context)
+
+            failed_data.write({'geometry': route, 'properties': {
+                'id': agent.uid,
+                'start_hub': agent.route_before_traceback[0],
+                'end_hub': agent.route_before_traceback[-1],
+                'start_time': start_time,
+                'end_time': end_time,
+                'hubs': hubs,
+                'edges': edges,
+            }})
             return
 
         # calculate attempts
