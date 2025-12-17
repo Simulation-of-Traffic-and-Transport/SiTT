@@ -90,15 +90,15 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         ws = wb.active
         ws.title = "Routes"
-        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
+        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
         ws.column_dimensions['A'].width = 40
         ws.column_dimensions['B'].width = 20
         ws.column_dimensions['C'].width = 12
-        ws.column_dimensions['D'].width = 32
+        ws.column_dimensions['D'].width = 35
         ws.column_dimensions['E'].width = 20
-        ws.column_dimensions['F'].width = 35
+        ws.column_dimensions['F'].width = 32
         ws.column_dimensions['G'].width = 20
         ws.column_dimensions['H'].width = 200
 
@@ -140,7 +140,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 'overnight_hubs': overnight_hubs,
             }})
 
-            ws.append([my_id, difference, endpoint['day'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
+            ws.append([my_id, difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
         out.close()
 
         # copy styles for QGIS
@@ -156,16 +156,16 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         # now do cancelled routes
         wb.create_sheet(title="Cancelled")
         ws = wb["Cancelled"]
-        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
+        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
         ws.column_dimensions['A'].width = 40
         ws.column_dimensions['B'].width = 20
         ws.column_dimensions['C'].width = 12
         ws.column_dimensions['D'].width = 30
-        ws.column_dimensions['E'].width = 32
+        ws.column_dimensions['E'].width = 35
         ws.column_dimensions['F'].width = 20
-        ws.column_dimensions['G'].width = 35
+        ws.column_dimensions['G'].width = 32
         ws.column_dimensions['H'].width = 20
         ws.column_dimensions['I'].width = 200
 
@@ -220,7 +220,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                     'cancel_reason': endpoint['cancel_reason'],
                 }})
 
-            ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
+            ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
 
         out.close()
 
