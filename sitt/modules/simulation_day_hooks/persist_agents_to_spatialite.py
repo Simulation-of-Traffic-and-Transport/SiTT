@@ -17,6 +17,7 @@ import igraph as ig
 from openpyxl import Workbook
 from openpyxl.styles import NamedStyle
 from shapely import LineString, force_2d, union_all, MultiLineString
+from shapely.geometry.base import EmptyGeometry
 
 from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
 
@@ -155,7 +156,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         # now do cancelled routes
         wb.create_sheet(title="Cancelled")
         ws = wb["Cancelled"]
-        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
+        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'End Hub', 'End Time', 'Start Hubs', 'Start Times', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
         ws.column_dimensions['A'].width = 40
@@ -207,16 +208,17 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             start_times = ', '.join(list(start_times))
             overnight_hubs = ', '.join(list(overnight_hubs))
 
-            out.write({'geometry': geom, 'properties': {
-                'id': my_id,
-                'length_hrs': difference,
-                'end_hub': endpoint['end_hub'],
-                'end_time': endpoint['end_time'],
-                'start_hubs': stat_hubs,
-                'start_times': start_times,
-                'overnight_hubs': overnight_hubs,
-                'cancel_reason': endpoint['cancel_reason'],
-            }})
+            if not geom.is_empty:
+                out.write({'geometry': geom, 'properties': {
+                    'id': my_id,
+                    'length_hrs': difference,
+                    'end_hub': endpoint['end_hub'],
+                    'end_time': endpoint['end_time'],
+                    'start_hubs': stat_hubs,
+                    'start_times': start_times,
+                    'overnight_hubs': overnight_hubs,
+                    'cancel_reason': endpoint['cancel_reason'],
+                }})
 
             ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['end_hub'], endpoint['end_time'], stat_hubs, start_times, overnight_hubs])
 
@@ -234,13 +236,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         wb.save(excel_filename)
 
-    def _create_route_from_edge_ids(self, context: Context, routes: Iterable[str]) -> MultiLineString:
+    def _create_route_from_edge_ids(self, context: Context, routes: Iterable[str]) -> MultiLineString | EmptyGeometry:
         # get geometries from edge IDs
         geoms = context.routes.es.select(name_in=routes)['geom']
         geom = force_2d(union_all(geoms))
-        if geom.is_empty:
-            logger.warning(f"Empty route for endpoint {endpoint}")
-            exit(9)
         if geom.geom_type == 'LineString':
             return MultiLineString([geom.coords])
         return geom
@@ -379,11 +378,13 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             end_time = self.min_time + dt.timedelta(hours=agent.current_time)
 
             route = self._merge_route(agent.route_before_traceback, agent.route_reversed_before_traceback, context)
+            start_hub = agent.route_before_traceback[0]
+            end_hub = agent.route_before_traceback[-1]
 
             failed_data.write({'geometry': route, 'properties': {
                 'id': agent.uid,
-                'start_hub': agent.route_before_traceback[0],
-                'end_hub': agent.route_before_traceback[-1],
+                'start_hub': start_hub,
+                'end_hub': end_hub,
                 'start_time': start_time,
                 'end_time': end_time,
                 'is_cancelled': agent.is_cancelled,
@@ -392,63 +393,63 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 'hubs': hubs,
                 'edges': edges,
             }})
-            return
-
-        # calculate attempts
-        for route_id in list(agent.route[1::2]):
-            self._increment_route_counter(route_id)
-        for route_id in list(agent.route_before_traceback[1::2]):
-            self._increment_route_counter(route_id, is_attempt=True)
-
-        # get start/end time
-        start_hub, end_hub, start_delta, end_delta = agent.get_start_end()
-
-        # only save unique routes, if setting is so
-        if self.only_unique:
-            key = (start_hub, end_hub, start_delta, end_delta)
-            if key in self.agent_hashes:
-                return
-            self.agent_hashes.add(key)
-
-        start_time = self.min_time + dt.timedelta(hours=start_delta)
-        end_time = self.min_time + dt.timedelta(hours=end_delta)
-
-        # aggregate start and end hubs and times
-        if start_hub not in self.start_hubs:
-            self.start_hubs[start_hub] = []
-        self.start_hubs[start_hub].append(agent.uid + ': ' + start_time.strftime('%Y-%m-%d %H:%M'))
-        if end_hub not in self.end_hubs:
-            self.end_hubs[end_hub] = []
-        self.end_hubs[end_hub].append(agent.uid + ': ' + start_time.strftime('%Y-%m-%d %H:%M'))
-
-        hubs = ','.join(agent.route[::2])
-        edges = ','.join(agent.route[1::2])
-
-        if agent.is_cancelled:
-            failed_data.write({'geometry': route, 'properties': {
-                'id': agent.uid,
-                'start_hub': start_hub,
-                'end_hub': end_hub,
-                'start_time': start_time,
-                'end_time': end_time,
-                'is_cancelled': agent.is_cancelled,
-                'cancel_reason': agent.cancel_reason,
-                'traceback_to_start': False,
-                'hubs': hubs,
-                'edges': edges,
-            }})
         else:
-            agent_data.write({'geometry': route, 'properties': {
-                'id': agent.uid,
-                'start_hub': start_hub,
-                'end_hub': end_hub,
-                'start_time': start_time,
-                'end_time': end_time,
-                'is_finished': agent.is_finished,
-                'stops': str(agent.rest_history),
-                'hubs': hubs,
-                'edges': edges,
-            }})
+
+            # calculate attempts
+            for route_id in list(agent.route[1::2]):
+                self._increment_route_counter(route_id)
+            for route_id in list(agent.route_before_traceback[1::2]):
+                self._increment_route_counter(route_id, is_attempt=True)
+
+            # get start/end time
+            start_hub, end_hub, start_delta, end_delta = agent.get_start_end()
+
+            # only save unique routes, if setting is so
+            if self.only_unique:
+                key = (start_hub, end_hub, start_delta, end_delta)
+                if key in self.agent_hashes:
+                    return
+                self.agent_hashes.add(key)
+
+            start_time = self.min_time + dt.timedelta(hours=start_delta)
+            end_time = self.min_time + dt.timedelta(hours=end_delta)
+
+            # aggregate start and end hubs and times
+            if start_hub not in self.start_hubs:
+                self.start_hubs[start_hub] = []
+            self.start_hubs[start_hub].append(agent.uid + ': ' + start_time.strftime('%Y-%m-%d %H:%M'))
+            if end_hub not in self.end_hubs:
+                self.end_hubs[end_hub] = []
+            self.end_hubs[end_hub].append(agent.uid + ': ' + start_time.strftime('%Y-%m-%d %H:%M'))
+
+            hubs = ','.join(agent.route[::2])
+            edges = ','.join(agent.route[1::2])
+
+            if agent.is_cancelled:
+                failed_data.write({'geometry': route, 'properties': {
+                    'id': agent.uid,
+                    'start_hub': start_hub,
+                    'end_hub': end_hub,
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'is_cancelled': agent.is_cancelled,
+                    'cancel_reason': agent.cancel_reason,
+                    'traceback_to_start': False,
+                    'hubs': hubs,
+                    'edges': edges,
+                }})
+            else:
+                agent_data.write({'geometry': route, 'properties': {
+                    'id': agent.uid,
+                    'start_hub': start_hub,
+                    'end_hub': end_hub,
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'is_finished': agent.is_finished,
+                    'stops': str(agent.rest_history),
+                    'hubs': hubs,
+                    'edges': edges,
+                }})
 
         # persist to route graph
         self._save_to_route_graph(agent, start_hub, end_hub, start_time, end_time, current_day)
