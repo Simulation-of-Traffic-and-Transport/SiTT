@@ -81,7 +81,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         excel_filename = os.path.join(self.folder, "routes.xlsx")
         logger.info(f"Saving routes to {filename} and {excel_filename}")
 
-        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
+        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
 
         wb = Workbook()
         if 'header' not in wb.named_styles:
@@ -91,17 +91,18 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
         ws = wb.active
         ws.title = "Routes"
-        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
+        ws.append(['ID', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
         ws.column_dimensions['A'].width = 40
-        ws.column_dimensions['B'].width = 20
-        ws.column_dimensions['C'].width = 12
-        ws.column_dimensions['D'].width = 35
-        ws.column_dimensions['E'].width = 20
-        ws.column_dimensions['F'].width = 32
-        ws.column_dimensions['G'].width = 20
-        ws.column_dimensions['H'].width = 200
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 20
+        ws.column_dimensions['D'].width = 12
+        ws.column_dimensions['E'].width = 35
+        ws.column_dimensions['F'].width = 20
+        ws.column_dimensions['G'].width = 32
+        ws.column_dimensions['H'].width = 20
+        ws.column_dimensions['I'].width = 200
 
         for endpoint in self.route_graph.vs.select(is_finished=True):
             routes = set()
@@ -130,6 +131,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             stat_hubs = ', '.join(list(start_hubs))
             start_times = ', '.join(list(start_times))
             overnight_hubs = ', '.join(list(overnight_hubs))
+            variant_paths = len(self.route_graph.get_all_shortest_paths(endpoint))
 
             out.write({'geometry': geom, 'properties': {
                 'id': my_id,
@@ -139,9 +141,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 'start_hubs': stat_hubs,
                 'start_times': start_times,
                 'overnight_hubs': overnight_hubs,
+                'variant_paths': variant_paths,
             }})
 
-            ws.append([my_id, difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+            ws.append([my_id, variant_paths, difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
         out.close()
 
         # copy styles for QGIS
