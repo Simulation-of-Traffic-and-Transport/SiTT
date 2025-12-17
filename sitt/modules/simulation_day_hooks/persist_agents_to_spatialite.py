@@ -7,6 +7,7 @@ comprehend the data.
 """
 import datetime as dt
 import logging
+import math
 import os
 import shutil
 import sqlite3
@@ -173,6 +174,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                                                 'properties': {'id': 'str',
                                                                                                'length_hrs': 'float',
+                                                                                               'day': 'int',
                                                                                                'end_hub': 'str',
                                                                                                'end_time': 'datetime',
                                                                                                'start_hubs': 'str',
@@ -212,6 +214,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 out.write({'geometry': geom, 'properties': {
                     'id': my_id,
                     'length_hrs': difference,
+                    'day': math.floor(difference / 24) + 1,
                     'end_hub': endpoint['end_hub'],
                     'end_time': endpoint['end_time'],
                     'start_hubs': stat_hubs,
