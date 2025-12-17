@@ -291,8 +291,8 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         filename = os.path.join(self.folder, f"day_{day_with_zeroes}.gpkg")
         filename_failed = os.path.join(self.folder, f"day_{day_with_zeroes}_failed.gpkg")
 
-        agent_data = fiona.open(filename, 'w', driver='GPKG', layer='agents', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'start_time': 'datetime', 'end_time': 'datetime', 'is_finished': 'bool', 'is_cancelled': 'bool', 'cancel_reason':'str', 'stops': 'str', 'hubs': 'str', 'edges': 'str'}})
-        failed_data = fiona.open(filename_failed, 'w', driver='GPKG', layer='failed', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'start_time': 'datetime', 'end_time': 'datetime', 'hubs': 'str', 'edges': 'str'}})
+        agent_data = fiona.open(filename, 'w', driver='GPKG', layer='agents', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'start_time': 'datetime', 'end_time': 'datetime', 'is_finished': 'bool', 'stops': 'str', 'hubs': 'str', 'edges': 'str'}})
+        failed_data = fiona.open(filename_failed, 'w', driver='GPKG', layer='failed', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'start_time': 'datetime', 'end_time': 'datetime', 'is_cancelled': 'bool', 'traceback_to_start': 'bool', 'cancel_reason':'str', 'hubs': 'str', 'edges': 'str'}})
 
         if self.only_unique:
             self.agent_hashes = set()
@@ -386,6 +386,9 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 'end_hub': agent.route_before_traceback[-1],
                 'start_time': start_time,
                 'end_time': end_time,
+                'is_cancelled': agent.is_cancelled,
+                'cancel_reason': agent.cancel_reason,
+                'traceback_to_start': True,
                 'hubs': hubs,
                 'edges': edges,
             }})
@@ -421,19 +424,31 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         hubs = ','.join(agent.route[::2])
         edges = ','.join(agent.route[1::2])
 
-        agent_data.write({'geometry': route, 'properties': {
-            'id': agent.uid,
-            'start_hub': start_hub,
-            'end_hub': end_hub,
-            'start_time': start_time,
-            'end_time': end_time,
-            'is_finished': agent.is_finished,
-            'is_cancelled': agent.is_cancelled,
-            'cancel_reason': agent.cancel_reason,
-            'stops': str(agent.rest_history),
-            'hubs': hubs,
-            'edges': edges,
-        }})
+        if agent.is_cancelled:
+            failed_data.write({'geometry': route, 'properties': {
+                'id': agent.uid,
+                'start_hub': start_hub,
+                'end_hub': end_hub,
+                'start_time': start_time,
+                'end_time': end_time,
+                'is_cancelled': agent.is_cancelled,
+                'cancel_reason': agent.cancel_reason,
+                'traceback_to_start': False,
+                'hubs': hubs,
+                'edges': edges,
+            }})
+        else:
+            agent_data.write({'geometry': route, 'properties': {
+                'id': agent.uid,
+                'start_hub': start_hub,
+                'end_hub': end_hub,
+                'start_time': start_time,
+                'end_time': end_time,
+                'is_finished': agent.is_finished,
+                'stops': str(agent.rest_history),
+                'hubs': hubs,
+                'edges': edges,
+            }})
 
         # persist to route graph
         self._save_to_route_graph(agent, start_hub, end_hub, start_time, end_time, current_day)
