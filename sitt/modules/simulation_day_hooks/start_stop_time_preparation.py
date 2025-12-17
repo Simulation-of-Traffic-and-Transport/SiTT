@@ -38,7 +38,7 @@ class StartStopTimePreparation(SimulationDayHookInterface):
         current_dt: dt.date = config.start_date + dt.timedelta(days=current_day - 1)
 
         # date times by hubs
-        hubs: dict[str, tuple[float, float]] = {}
+        hubs: dict[str, tuple[float, float, float, float]] = {}
 
         for agent in agents:
             self.prepare_for_new_day(context, hubs, agent, current_day, current_dt)
@@ -53,24 +53,26 @@ class StartStopTimePreparation(SimulationDayHookInterface):
 
         return agents
 
-    def prepare_for_new_day(self, context: Context, hubs: dict[str, tuple[float, float]], agent: Agent, current_day: int, current_dt: dt.date):
+    def prepare_for_new_day(self, context: Context, hubs: dict[str, tuple[float, float, float, float]], agent: Agent, current_day: int, current_dt: dt.date):
         try:
             # aggregate hub data
             if agent.this_hub not in hubs:
-                start_time, end_time = self.get_start_end_time_for_hub(context, current_dt, current_day, agent.this_hub)
-                hubs[agent.this_hub] = (start_time, end_time)
+                sunrise, sunset, start_time, end_time = self.get_start_end_time_for_hub(context, current_dt, current_day, agent.this_hub)
+                hubs[agent.this_hub] = (sunrise, sunset, start_time, end_time)
             else:
-                start_time, end_time = hubs[agent.this_hub]
+                sunrise, sunset, start_time, end_time = hubs[agent.this_hub]
 
             agent.start_time = start_time
             agent.current_time = start_time
             agent.max_time = end_time
+            agent.additional_data['sunrise'] = sunrise
+            agent.additional_data['sunset'] = sunset
         except Exception as ex:
             print(ex)
             # ignore exceptions completely
             pass
 
-    def get_start_end_time_for_hub(self, context: Context, current_dt: dt.date, current_day: int, hub: str) -> tuple[float, float]:
+    def get_start_end_time_for_hub(self, context: Context, current_dt: dt.date, current_day: int, hub: str) -> tuple[float, float, float, float]:
         """
         Get the start and end time for a specific hub on a given day.
 
@@ -106,12 +108,20 @@ class StartStopTimePreparation(SimulationDayHookInterface):
         sunset -= dt.timedelta(seconds=sunset.dst().seconds)
 
         # adjust with deltas for sunrise and sunset
-        sunrise += dt.timedelta(hours=self.day_start_padding)
-        sunset -= dt.timedelta(hours=self.day_end_padding)
+        sunrise_adjusted = sunrise + dt.timedelta(hours=self.day_start_padding)
+        sunset_adjusted = sunset + dt.timedelta(hours=self.day_end_padding)
         # technically, sunset will be different at the destination - on the other hand, this will hardly make a
         # difference in a real-world scenario (a few minutes at most).
 
-        return sunrise.hour + sunrise.minute / 60 + (current_day - 1) * 24, sunset.hour + sunset.minute/60 + (current_day - 1) * 24
+        return (self._calculate_hour(current_day, sunrise),
+                self._calculate_hour(current_day, sunset),
+                self._calculate_hour(current_day, sunrise_adjusted),
+                self._calculate_hour(current_day, sunset_adjusted))
+
+    @staticmethod
+    def _calculate_hour(current_day: int, date_time: dt.datetime) -> float:
+        # calculate hour since start of day
+        return date_time.hour + date_time.minute / 60 + (current_day - 1) * 24
 
     @staticmethod
     def _force_range(v, max):
