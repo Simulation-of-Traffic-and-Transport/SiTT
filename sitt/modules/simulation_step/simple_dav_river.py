@@ -107,6 +107,8 @@ class SimpleDAVRiver(SimulationStepInterface):
             # all other cases -> so upriver, or downriver, if river is too slow
             if calculated_time <= 0:
                 m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
+                if agent.state.is_reversed:
+                    m_asc_desc = -m_asc_desc  # reverse m_asc_desc for descending part
 
                 if m_asc_desc < 0:
                     up_down_time = (m_asc_desc * -1) / self.descend_per_hour

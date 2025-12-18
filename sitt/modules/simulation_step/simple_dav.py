@@ -80,6 +80,8 @@ class SimpleDAV(SimulationStepInterface):
 
             length = next_leg['legs'][i]  # length is in meters
             m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
+            if agent.state.is_reversed:
+                m_asc_desc = -m_asc_desc  # reverse m_asc_desc for descending part
 
             if m_asc_desc < 0:
                 up_down_time = (m_asc_desc * -1) / self.descend_per_hour
