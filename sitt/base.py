@@ -127,7 +127,7 @@ class Configuration:
         self.start_date: dt.date | None = None
         """used as global start date (e.g. in nc files)"""
 
-        self.break_simulation_after: int = 100
+        self.break_simulation_after: int = 10
         """Break single simulation entity after not advancing for this many steps"""
 
         # define logging

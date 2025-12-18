@@ -2,7 +2,7 @@
 # It demonstrates how to set all the existing variables to make your simulation work.
 
 # Note that command line arguments override the values set in the configuration file. This makes it easier to change the
-# behavior of your simulation without having to edit your configuration file.
+# behaviour of your simulation without having to edit your configuration file.
 
 # You can define some values dynamically, e.g. to keep secrets out of your config file. In order to do this, use the
 # YAML tag !Env as prefix of the values.
@@ -33,8 +33,8 @@ quiet: false
 #skip_simulation: false
 #skip_output: false
 
-# break simulation step after this number of iterations, defaults to 100
-# break_simulation_after: 100
+# break simulation step after this number of iterations, defaults to 10
+# break_simulation_after: 10
 
 # Simulation start and end points (detect automatically)
 simulation_starts: &simulation_starts []
