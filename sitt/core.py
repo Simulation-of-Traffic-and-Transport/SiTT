@@ -613,7 +613,7 @@ class Simulation(BaseClass):
                     if agent.forced_route[0] not in forced_routes_tries:
                         forced_routes_tries[agent.forced_route[0]] = 0
                     forced_routes_tries[agent.forced_route[0]] = max(forced_routes_tries[agent.forced_route[0]], agent.tries)
-                else:
+                elif agent.this_hub != agent.next_hub:
                     # agent has ended here to sleep, so we check the next hubs and routes to add this to forced routes
                     all_forced_routes.add((agent.route_key,))
                     if agent.route_key not in forced_routes_tries:
