@@ -50,8 +50,11 @@ start_date: &start_date 1990-08-01
 # Trace back simulation to last hub with overnight stay - defaults to true
 # overnight_trace_back: true
 
-# Keep agent data in set of results (might use quite a lot of memory, but will enable analysis of agent routes)
+# Keep agent data in set of results (might use quite a lot of memory, but will enable analysis of agent routes) - defaults to true
 # keep_agent_data_in_results: true
+
+# Keep leg times in agent data (uses up memory and if you do not need them, set to false) - defaults to true
+# keep_leg_times: true
 
 ########################################################################################################################
 # variables to use below - variables are normal YAML variables prefixed with &node anchors and aliased using *

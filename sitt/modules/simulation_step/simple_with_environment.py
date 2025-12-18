@@ -120,8 +120,10 @@ class SimpleWithEnvironment(SimulationStepInterface):
 
         # save things in state
         state.time_taken = time_taken
-        state.time_for_legs = time_for_legs
-        state.data_for_legs = space_time_data_legs
+
+        if config.keep_leg_times:
+            state.time_for_legs = time_for_legs
+            state.data_for_legs = space_time_data_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(

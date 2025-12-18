@@ -91,7 +91,9 @@ class SimpleRiver(SimulationStepInterface):
 
         # save things in state
         agent.state.time_taken = time_taken
-        agent.state.time_for_legs = time_for_legs
+
+        if config.keep_leg_times:
+            agent.state.time_for_legs = time_for_legs
 
         if not self.skip and logger.level <= logging.DEBUG:
             logger.debug(
