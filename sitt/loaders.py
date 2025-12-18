@@ -88,6 +88,8 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
     # Other settings
     if 'overnight_trace_back' in data:
         config.overnight_trace_back = data['overnight_trace_back']
+    if 'keep_agent_data_in_results' in data:
+        config.keep_agent_data_in_results = data['keep_agent_data_in_results']
 
     # step configuration
     for key in ['preparation', 'simulation_day_hook_pre', 'simulation_day_hook_post',

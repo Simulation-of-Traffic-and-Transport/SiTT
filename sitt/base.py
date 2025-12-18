@@ -116,6 +116,8 @@ class Configuration:
         """
         self.overnight_trace_back: bool = True
         """Trace back to last hub with overnight stay"""
+        self.keep_agent_data_in_results: bool = False
+        """Keep agent data in set of results (might use quite a lot of memory, but will enable analysis of agent routes)"""
         self.simulation_starts: list[str] | None = None
         """"Starting hubs for simulation"""
         self.simulation_ends: list[str] | None = None

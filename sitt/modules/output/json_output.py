@@ -96,6 +96,10 @@ class JSONOutput(OutputInterface):
         if self.skip:
             return ''
 
+        if not config.keep_agent_data_in_results:
+            logger.info("Skipping JSON output due to configuration setting 'keep_agent_data_in_results' being false - no data available.")
+            return ''
+
         # replace some stuff in filename
         filename = self.filename
         filename = filename.replace('${ROUTE}', config.simulation_route)

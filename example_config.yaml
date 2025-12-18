@@ -47,6 +47,12 @@ simulation_route_reverse: &simulation_route_reverse false
 # used as global start date (e.g. in nc files), must be ISO date YYYY-MM-DD
 start_date: &start_date 1990-08-01
 
+# Trace back simulation to last hub with overnight stay - defaults to true
+# overnight_trace_back: true
+
+# Keep agent data in set of results (might use quite a lot of memory, but will enable analysis of agent routes)
+# keep_agent_data_in_results: true
+
 ########################################################################################################################
 # variables to use below - variables are normal YAML variables prefixed with &node anchors and aliased using *
 # example:

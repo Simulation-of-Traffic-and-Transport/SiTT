@@ -623,7 +623,8 @@ class Simulation(BaseClass):
 
                 # retire agents by adding them to the results
                 if agent.is_cancelled or agent.is_finished:
-                    self.results.add_agent(agent)
+                    if self.config.keep_agent_data_in_results:
+                        self.results.add_agent(agent)
                 else:
                     has_agents_to_proceed = True
 
