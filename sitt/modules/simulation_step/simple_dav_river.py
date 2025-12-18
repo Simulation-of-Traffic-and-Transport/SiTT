@@ -2,19 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 """
-Simple stepper using DAV (Deutscher Alpenverein, German Alpine Association) formula. The formula is based on experience
-and used to denote times for trails through the mountains. The formula is pretty simple:
-
-* 4 km of flat terrain = 1h
-* 300 m ascending = 1h
-* 400 m descending = 1h
-
-Total absolute time taken is km in flat terrain plus total ascension in m plus total descension in m.
-
-More information: https://services.alpenverein.de/Gehzeitrechner/
-
-Moreover, this stepper will not care for the type of path (river, etc.).
-Other than that, it does not take into account weather or other factors.
+This is a variation if the SimpleDAV stepper including river flow for downstream movement. It works exactly the same as
+the SimpleDAV stepper, but if a river section downstream is faster than the minimum speed, we use the river's flow for
+downstream movement.
 """
 import logging
 
@@ -28,19 +18,9 @@ logger = logging.getLogger()
 
 class SimpleDAVRiver(SimulationStepInterface):
     """
-    Simple stepper using DAV (Deutscher Alpenverein, German Alpine Association) formula. The formula is based on
-    experience and used to denote times for trails through the mountains. The formula is pretty simple:
-
-    * 4 km of flat terrain = 1h
-    * 300 m ascending = 1h
-    * 400 m descending = 1h
-
-    Total absolute time taken is km in flat terrain plus total ascension in m plus total descension in m.
-
-    More information: https://services.alpenverein.de/Gehzeitrechner/
-
-    Moreover, this stepper will not care for the type of path (river, etc.).
-    Other than that, it does not take into account weather or other factors.
+    This is a variation if the SimpleDAV stepper including river flow for downstream movement. It works exactly the same
+    as the SimpleDAV stepper, but if a river section downstream is faster than the minimum speed, we use the river's
+    flow for downstream movement.
     """
 
     def __init__(self, speed: float = 4.0, ascend_per_hour: float = 300, descend_per_hour: float = 400,
@@ -56,6 +36,28 @@ class SimpleDAVRiver(SimulationStepInterface):
         """minimum speed per hour at which we do *not* tow downstream (instead we use the river flow)"""
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+        """Updates the agent's state after traversing a river leg.
+
+        This method calculates the time it takes for an agent to traverse a given
+        river leg. When moving downstream, if the river's flow speed is above a
+        minimum threshold, the agent moves with the river's current. Otherwise,
+        (e.g., moving upstream or on a slow-moving river), the agent's speed is
+        calculated based on a fixed speed, adjusted for ascent or descent, similar
+        to hiking.
+
+        The method updates the agent's state with the total time taken for the
+        leg and handles stopping the agent if the daily maximum travel time is
+        exceeded.
+
+        Args:
+            config: The simulation configuration.
+            context: The simulation context, containing shared data like the graph.
+            agent: The agent that is moving.
+            next_leg: The graph edge representing the river leg to be traversed.
+
+        Returns:
+            The updated state of the agent after the simulation step.
+        """
         # precalculate next hub
         path_id = agent.route_key
         if not next_leg:
