@@ -162,7 +162,7 @@ if __name__ == "__main__":
     c = 0
 
     # load all river paths
-    cur.execute(f"select {args.river_id_column}, {args.river_geo_column} from {args.river_table}")
+    cur.execute(f"select {args.river_id_column}, {args.river_geo_column} from {args.river_table} WHERE {args.river_width_column} IS NOT NULL")
     for data in cur:
         recroadid: str = data[0]
         path: LineString = wkb.loads(data[1])
