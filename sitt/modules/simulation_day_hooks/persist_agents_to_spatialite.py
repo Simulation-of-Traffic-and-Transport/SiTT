@@ -107,6 +107,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
         for endpoint in self.route_graph.vs.select(is_finished=True):
             routes = set()
             start_hubs = set()
+            start_hubs_ids = []
             start_times = set()
             overnight_hubs = set()
             lowest_time = endpoint['start_time']
@@ -116,6 +117,7 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                     routes.add(r)
                 start_hub = v['start_hub']
                 if start_hub in config.simulation_starts:
+                    start_hubs_ids.append(v.index)
                     start_hubs.add(v['start_hub'])
                     start_times.add(v['start_time'].strftime('%Y-%m-%d %H:%M'))
                     if v['start_time'] < lowest_time:
@@ -131,7 +133,6 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
             stat_hubs = ', '.join(list(start_hubs))
             start_times = ', '.join(list(start_times))
             overnight_hubs = ', '.join(list(overnight_hubs))
-            variant_paths = len(self.route_graph.get_all_shortest_paths(endpoint))
 
             out.write({'geometry': geom, 'properties': {
                 'id': my_id,
@@ -141,10 +142,10 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
                 'start_hubs': stat_hubs,
                 'start_times': start_times,
                 'overnight_hubs': overnight_hubs,
-                'variant_paths': variant_paths,
+                'variant_paths': endpoint['count'],
             }})
 
-            ws.append([my_id, variant_paths, difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+            ws.append([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
         out.close()
 
         # copy styles for QGIS
@@ -474,11 +475,16 @@ class PersistAgentsToSpatialite(SimulationDayHookInterface):
 
     def _save_to_route_graph(self, agent: Agent, start_hub: str, end_hub: str, start_time: dt.datetime, end_time: dt.datetime, current_day: int):
         # add route as vertex
-        self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=agent.route[1::2], is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, day=current_day)
+        v = self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=agent.route[1::2], is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, day=current_day, count=1)
 
         # add edges to parents
+        count = 0
         for parent in self.route_graph.vs.select(name_in=agent.parents):
             self.route_graph.add_edge(agent.uid, parent['name'])
+            count += parent['count']
+
+        if count > 0:
+            v['count'] = count
 
     def _merge_route(self, route: list[str], route_reversed: list[bool], context: Context) -> LineString | None:
         coordinates = []
