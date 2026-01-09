@@ -563,7 +563,7 @@ class Simulation(BaseClass):
             # add to failed routes
             agent.is_cancelled = True
             agent.cancel_reason = "No possible routes left (dead end)"
-            agent.cancel_details = f"coming from hub {agent.route[-2]} via {agent.route[-1]}"
+            agent.cancel_details = "route via: " + ', '.join(agent.route[::2])
             coords = self.context.graph.vs.find(name=agent.this_hub)['geom']
             agent.state.last_coordinate_after_stop = (coords.x, coords.y)
             return [], [agent]
