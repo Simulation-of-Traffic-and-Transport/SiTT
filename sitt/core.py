@@ -433,7 +433,7 @@ class Simulation(BaseClass):
         # if tries exceeded, cancel agent
         if agent.tries > self.config.break_simulation_after:
             agent.is_cancelled = True
-            agent.cancel_reason = f"Exceeded tries ({self.config.break_simulation_after})"
+            agent.cancel_reason = f"Exceeded agent tries on this route ({self.config.break_simulation_after})"
         else:
             # reset forced route data
             agent.forced_route = []
@@ -450,7 +450,7 @@ class Simulation(BaseClass):
                 # routes that could not be tracked today
                 if last_overnight_hub_index == 0:
                     agent.is_cancelled = True
-                    agent.cancel_reason = "Back to the beginning of the day"
+                    agent.cancel_reason = "No sleep today"
                     agent.route = agent.route[:1]
                     agent.route_reversed = []
                     agent.route_times = {}
@@ -560,7 +560,7 @@ class Simulation(BaseClass):
         if len(possible_routes) == 0:
             # add to failed routes
             agent.is_cancelled = True
-            agent.cancel_reason = "No possible routes left"
+            agent.cancel_reason = "No possible routes left (dead end)"
             coords = self.context.graph.vs.find(name=agent.this_hub)['geom']
             agent.state.last_coordinate_after_stop = (coords.x, coords.y)
             return [], [agent]
