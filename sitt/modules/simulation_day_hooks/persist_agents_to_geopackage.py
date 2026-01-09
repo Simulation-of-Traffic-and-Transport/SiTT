@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-Persist agents' routes to a Spatialite/GEoPackage database. We will save each day separately, so it is easier to
+Persist agents' routes to a GeoPackage file/database. We will save each day separately, so it is easier to
 comprehend the data.
 """
 import datetime as dt
@@ -24,9 +24,9 @@ from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetO
 
 logger = logging.getLogger()
 
-class PersistAgentsToSpatialite(SimulationDayHookInterface):
+class PersistAgentsToGeoPackage(SimulationDayHookInterface):
     """
-    Persist agents' routes to a Spatialite/GEoPackage database. We will save each day separately, so it is easier to
+    Persist agents' routes to a GeoPackage file/database. We will save each day separately, so it is easier to
     comprehend the data.
     """
     def __init__(self, only_unique: bool = True):
