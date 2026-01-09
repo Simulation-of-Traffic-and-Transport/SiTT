@@ -161,7 +161,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         # now do cancelled routes
         wb.create_sheet(title="Cancelled")
         ws = wb["Cancelled"]
-        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
+        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'Cancel Details', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
         for cell in ws['1:1']:
             cell.style = 'header'
         ws.column_dimensions['A'].width = 40
@@ -169,10 +169,11 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         ws.column_dimensions['C'].width = 12
         ws.column_dimensions['D'].width = 30
         ws.column_dimensions['E'].width = 35
-        ws.column_dimensions['F'].width = 20
-        ws.column_dimensions['G'].width = 32
-        ws.column_dimensions['H'].width = 20
-        ws.column_dimensions['I'].width = 200
+        ws.column_dimensions['F'].width = 35
+        ws.column_dimensions['G'].width = 20
+        ws.column_dimensions['H'].width = 32
+        ws.column_dimensions['I'].width = 20
+        ws.column_dimensions['J'].width = 200
 
         filename = os.path.join(self.folder, "routes_cancelled.gpkg")
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
@@ -184,7 +185,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                                                                                                'start_hubs': 'str',
                                                                                                'start_times': 'str',
                                                                                                'overnight_hubs': 'str',
-                                                                                               'cancel_reason': 'str'}})
+                                                                                               'cancel_reason': 'str',
+                                                                                               'cancel_details': 'str'}})
 
         for endpoint in self.route_graph.vs.select(is_cancelled=True):
             routes = set()
@@ -225,9 +227,10 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                     'start_times': start_times,
                     'overnight_hubs': overnight_hubs,
                     'cancel_reason': endpoint['cancel_reason'],
+                    'cancel_details': endpoint['cancel_details'],
                 }})
 
-            ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+            ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['cancel_details'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
 
         out.close()
 
@@ -475,7 +478,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
     def _save_to_route_graph(self, agent: Agent, start_hub: str, end_hub: str, start_time: dt.datetime, end_time: dt.datetime, current_day: int):
         # add route as vertex
-        v = self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=agent.route[1::2], is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, day=current_day, count=1)
+        v = self.route_graph.add_vertex(name=agent.uid, start_time=start_time, end_time=end_time, start_hub=start_hub, end_hub=end_hub, route=agent.route[1::2], is_finished=agent.is_finished, is_cancelled=agent.is_cancelled, cancel_reason=agent.cancel_reason, cancel_details=agent.cancel_details, day=current_day, count=1)
 
         # add edges to parents
         count = 0

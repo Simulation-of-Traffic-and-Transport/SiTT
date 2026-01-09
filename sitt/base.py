@@ -283,6 +283,8 @@ class Agent(object):
         """cancelled at this day"""
         self.cancel_reason: str | None = None
         """reason for cancellation"""
+        self.cancel_details: str | None = None
+        """details on cancellation"""
         self.tries: int = 0
         """internal value for tries at this hub - will break at a defined number"""
         self.last_resting_place: str = this_hub
