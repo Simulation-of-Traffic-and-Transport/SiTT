@@ -13,6 +13,8 @@ logger = logging.getLogger()
 
 
 class SimpleLake(SimulationStepInterface):
+    """Simple lake stepper that assumes a fixed speed on lakes (like being rowed)."""
+
     def __init__(self, speed: float = 3.):
         super().__init__()
         self.speed: float = speed
