@@ -61,7 +61,7 @@ class SimpleDAVRiver(SimulationStepInterface):
         # precalculate next hub
         path_id = agent.route_key
         if not next_leg:
-            logger.error("SimulationInterface SimpleRunner error, path not found ", str(path_id))
+            logger.error("SimulationInterface SimpleDAVRiver error, path not found ", str(path_id))
             # state.status = Status.CANCELLED
             return agent.state
 
