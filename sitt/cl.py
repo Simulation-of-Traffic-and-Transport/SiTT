@@ -63,7 +63,9 @@ def run():
     # create configuration from command line arguments
     config = create_config_from_command_line()
 
-    logging.getLogger().info("Si.T.T. command line - running core (" + __version__ + ").")
+    logger = logging.getLogger()
+    logger.info(f"Si.T.T. command line - running core ({__version__}).")
+    logger.info(f"Configuration key: {config.config_key}")
 
     # Create and run a Si.T.T. core
     core = Core(config)

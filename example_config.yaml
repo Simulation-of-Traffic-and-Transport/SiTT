@@ -20,6 +20,9 @@
 ########################################################################################################################
 # runtime configuration
 
+# unique configuration key (used to differentiate different configuration settings - should be unique per configuration)
+# config_key: default
+
 # verbose output/logging
 verbose: false
 # suppress output/logging - will override quiet of set to true
