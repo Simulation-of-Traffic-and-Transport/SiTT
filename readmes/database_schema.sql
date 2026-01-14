@@ -66,9 +66,6 @@ create table sitt.rivers
     is_tow     boolean default false        not null
 );
 
-alter table sitt.rivers
-    owner to postgres;
-
 create index rivers_geom_index
     on sitt.rivers using gist (geom);
 
@@ -117,9 +114,6 @@ create table sitt.water_bodies
     is_river boolean
 );
 
-alter table sitt.water_bodies
-    owner to postgres;
-
 create index water_bodies_geom_index
     on sitt.water_bodies using gist (geom);
 
@@ -163,9 +157,6 @@ create table sitt.water_lines
     geom geometry
 );
 
-alter table sitt.water_lines
-    owner to postgres;
-
 create index sidx_water_lines_geom
     on sitt.water_lines using gist (geom);
 
@@ -189,9 +180,6 @@ create table sitt.edges
     cost_b_a double precision default 1 not null,
     data     jsonb not null default '{}'::jsonb
 );
-
-alter table sitt.edges
-    owner to postgres;
 
 create index edges_hub_id_a_index
     on sitt.edges (hub_id_a);
