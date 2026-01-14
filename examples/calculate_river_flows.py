@@ -35,7 +35,6 @@ if __name__ == "__main__":
     parser.add_argument('-rs', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
     parser.add_argument('-rw', '--river-width-column', dest='river_width_column', default='width', type=str, help='river width column')
     parser.add_argument('-rf', '--river-flow-column', dest='river_flow_column', default='flow', type=str, help='river flow column')
-    parser.add_argument('-rfc', '--river-flow-geometry-column', dest='river_flow_geometry_column', default='geom_flow', type=str, help='river flow geometry column (linestring)')
 
     # chunk settings
     parser.add_argument('--chunk-size', dest='chunk_size', default=10, type=float, help='Size of chunks to put back together')
@@ -143,13 +142,6 @@ if __name__ == "__main__":
         conn.commit()
         print("Adding column for river flows...")
 
-    # add flow geometry column, if needed
-    cur.execute(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{schema}' AND column_name = '{args.river_flow_geometry_column}')")
-    if not cur.fetchone()[0]:
-        cur_upd.execute(f"ALTER TABLE {args.river_table} ADD {args.river_flow_geometry_column} geometry(LineStringZ,4326)")
-        conn.commit()
-        print("Adding geometry column for river flows...")
-
     # create shapefile to check lines
     w = shapefile.Writer(target='river_flows', shapeType=shapefile.POINT, autoBalance=True)
     w.field("width", "N", decimal=10)
@@ -161,7 +153,7 @@ if __name__ == "__main__":
     we = shapefile.Writer(target='river_flows_errors', shapeType=shapefile.POINT, autoBalance=True)
     we.field("reason", "C")
 
-    c = 0
+    counter = 0
 
     # load all river paths
     cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column} from {args.river_table}")
@@ -177,7 +169,9 @@ if __name__ == "__main__":
         slope: np.float64 = np.float64(data[4])
         widths: np.ndarray = np.array(data[5])
         # append first and last point to widths
-        widths = np.insert(np.append(widths, 0.), 0, 0.)
+        first_width = widths[0]
+        last_width = widths[-1]
+        widths = np.insert(np.append(widths, last_width), 0, first_width)
 
         # check sanity of data - lengths should be equal
         if len(segments.coords) != len(depths) or len(segments.coords) != len(widths):
@@ -187,52 +181,71 @@ if __name__ == "__main__":
             print(len(segments.coords))
             continue
 
-        # create split indexes for calculation
-        indexes = create_segmentable_list(len(segments.coords))
-        depth_sections: list[np.array] = np.split(depths, indexes)
-        coord_sections: list[np.array] = np.split(np.array(segments.coords), indexes)
-        width_sections: list[np.array] = np.split(widths, indexes)
-        size = len(depth_sections)
+        indexes = np.zeros(len(path.coords), dtype=int)
+        start = 0
+        for i in range(len(path.coords)):
+            for j in range(start, len(segments.coords)):
+                if path.coords[i][0] == segments.coords[j][0] and path.coords[i][1] == segments.coords[j][1]:
+                    indexes[i] = j
+                    start = j # we do not add +1 here, because we have double points and zero length segments
+                    break
 
-        # this will hold the flows for each point
-        flows = np.zeros(size)
-        flow_coordinates = np.zeros((size, 2))
+        # first and last point should be correct
+        if indexes[0]!= 0 or indexes[-1]!= len(segments.coords) - 1:
+            print(f"Skipping {recroadid} (first or last point not correct)")
+            continue
 
-        for i in range(size):
+        # this will hold the flows for each segment
+        flows = np.zeros(len(path.coords)-1)
+
+        for i in range(1, len(indexes)):
+            from_idx = indexes[i-1]
+            to_idx = indexes[i]
+            size = to_idx - from_idx
+
+            if size == 0:
+                print(f"Skipping some points of {recroadid} (same index) in the same segment: {from_idx}, {to_idx}")
+                # flow stays at 0. for this empty segment
+                continue
+            if size < 0:
+                print(f"Skipping some points of {recroadid} (reversed order) in the same segment: {from_idx}, {to_idx}")
+                # flow stays at 0. for this empty segment
+                continue
+
             # get river segment lengths for setting weights
-            section_lengths = np.zeros(len(coord_sections[i]) - 1)
-            for j in range(len(coord_sections[i]) - 1):
-                line = LineString([(coord_sections[i][j][0], coord_sections[i][j][1]), (coord_sections[i][j+1][0], coord_sections[i][j+1][1])])
-                section_lengths[j] = transform(project_forward, line).length
+            section_lengths = np.zeros(size)
+            for j in range(from_idx, to_idx):
+                line = LineString([(segments.coords[j][0], segments.coords[j][1]), (segments.coords[j+1][0], segments.coords[j+1][1])])
+                section_lengths[j - from_idx] = transform(project_forward, line).length
 
-            section_weights = np.zeros(len(coord_sections[i]))
-            for j in range(len(coord_sections[i])):
+            # calculate section weights to balance the widths of sections respective to segment lengths
+            section_weights = np.zeros(size+1)
+            for j in range(size+1):
                 if j == 0:
                     section_weights[j] = section_lengths[j] / 2
-                elif j == len(coord_sections[i]) - 1:
-                    section_weights[j] = section_lengths[j-1] / 2
+                elif j == size:
+                    section_weights[j] = section_lengths[j - 1] / 2
                 else:
-                    section_weights[j] = section_lengths[j-1] / 2 + section_lengths[j] / 2
+                    section_weights[j] = section_lengths[j - 1] / 2 + section_lengths[j] / 2
 
-            # create weights per section
+            # normalize weights per section
             section_weights = section_weights / np.sum(section_weights)
 
             # calculate average depth and width for this river segment - use weights from sections
-            average_depth = -np.average(depth_sections[i], weights=section_weights)
+            average_depth = -np.average(depths[from_idx:to_idx+1], weights=section_weights)
             if average_depth <= 0.:
-                average_depth = 0.2 # set depth to 0.2 m if depth is negative
-            average_width = np.average(width_sections[i], weights=section_weights)
+                average_depth = 0.2  # set depth to 0.2 m if depth is negative
+
+            average_width = np.average(widths[from_idx:to_idx+1], weights=section_weights)
+
+            # create point for recording
             if i == 0:
                 # take first point of starting point
-                coords = coord_sections[i][0]
-            elif i == size - 1:
-                # take last point of ending point
-                coords = coord_sections[i][-1]
+                coords = path.coords[0]
+            elif i == len(indexes)-1:
+                coords = path.coords[-1]
             else:
-                # take middle point
-                coords = coord_sections[i][len(coord_sections[i]) // 2]
-            # create point without Z
-            p = Point(coords[0], coords[1])
+                coords = tuple(np.average(np.array(path.coords[i:i+2]), axis = 0))
 
             # calculate flow velocity using Gauckler-Manning-Strickler (Kst)
             # taken from https://www.gabrielstrommer.com/rechner/fliessgeschwindigkeit-durchfluss/
@@ -274,18 +287,17 @@ if __name__ == "__main__":
             w.record(average_width, average_depth, slope, vm)
 
             # add to list of flows
-            flows[i] = np.float64(vm)
-            flow_coordinates[i] = np.array((coords[0], coords[1]))
+            flows[i-1] = np.float64(vm)
 
-        c += len(flows)
-        new_coords = force_3d(LineString(flow_coordinates)).wkt
+
+        counter += len(flows)
 
         # update river width in database
         flows_str = "{" + ','.join([str(flow) for flow in flows]) + "}"
-        cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}', {args.river_flow_geometry_column} = st_geomfromewkt('SRID={args.crs_source};{new_coords}') WHERE {args.river_id_column} = '{recroadid}'")
+        cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}' WHERE {args.river_id_column} = '{recroadid}'")
         conn.commit()
 
     w.close()
     we.close()
 
-    print(f"Created {c} river flow points.")
+    print(f"Created {counter} river flow points.")
