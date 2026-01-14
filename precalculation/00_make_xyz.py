@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
         geom_col_name = 'geom'
         if table == 'recrivers':
-            geom_col_name = 'geom_flow'
+            geom_col_name = 'geom'
 
         # get hubs - create statement via sql alchemy
         idCol = Column('id')

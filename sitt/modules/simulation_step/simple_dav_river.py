@@ -99,8 +99,8 @@ class SimpleDAVRiver(SimulationStepInterface):
             # now check if river runs downwards
             calculated_time = -1.
             if 'direction' in next_leg.attribute_names() and next_leg['direction'] == 'downwards':
-                # river speed - we take this and the next point's flow rate to calculate the speed
-                kph = (flows[i] + flows[i + 1]) / 2 * 3.6
+                # river speed - we take this point's flow rate to calculate the speed
+                kph = flows[i] * 3.6
                 if kph >= self.min_speed_down:
                     # calculate time taken in units (hours) for this part
                     calculated_time = length / (kph * 1000)

@@ -73,8 +73,8 @@ class SimpleRiver(SimulationStepInterface):
                 # this is only used, if self.upstream_is_dav is false
                 current_speed = self.min_speed_up
             else:
-                # river speed - we take this and the next point's flow rate to calculate the speed
-                kph = (flows[i] + flows[i + 1]) / 2 * 3.6
+                # river speed - we take this point's flow rate to calculate the speed
+                kph = flows[i] * 3.6
                 current_speed = max(self.min_speed_down, kph)
 
             # calculate time taken in units (hours) for this part

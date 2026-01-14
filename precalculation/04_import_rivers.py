@@ -39,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument('--id-field', dest='id_field', default='recroadid', type=str, help='field containing unique identifier')
     parser.add_argument('--hub-a-field', dest='huba_field', default='hubaid', type=str, help='field containing from hub id')
     parser.add_argument('--hub-b-field', dest='hubb_field', default='hubbid', type=str, help='field containing to hub id')
-    parser.add_argument('--geom-field', dest='geom_field', default='geom_flow', type=str, help='field containing geometry (should be 3D)')
+    parser.add_argument('--geom-field', dest='geom_field', default='geom', type=str, help='field containing geometry (should be 3D)')
 
     parser.add_argument('--correct-directions', dest='correct', default=True, type=bool, help='correct directions if necessary (tests geography of linestring)')
     parser.add_argument('--delete', dest='delete', default=True, type=bool, help='delete before import')
