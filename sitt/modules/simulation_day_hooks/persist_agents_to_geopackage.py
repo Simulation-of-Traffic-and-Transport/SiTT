@@ -148,7 +148,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             ws.append([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
 
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
-        out.write_records(geo_data)
+        out.writerecords(geo_data)
         out.close()
 
         # copy styles for QGIS
