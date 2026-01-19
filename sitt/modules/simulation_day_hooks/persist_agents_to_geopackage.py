@@ -81,8 +81,6 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         excel_filename = os.path.join(self.folder, "routes.xlsx")
         logger.info(f"Saving routes to {filename} and {excel_filename}")
 
-        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
-
         wb = Workbook()
         if 'header' not in wb.named_styles:
             my_header = NamedStyle(name="header")
@@ -103,6 +101,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         ws.column_dimensions['G'].width = 32
         ws.column_dimensions['H'].width = 20
         ws.column_dimensions['I'].width = 200
+
+        geo_data = []
 
         for endpoint in self.route_graph.vs.select(is_finished=True):
             routes = set()
@@ -134,7 +134,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             start_times = ', '.join(list(start_times))
             overnight_hubs = ', '.join(list(overnight_hubs))
 
-            out.write({'geometry': geom, 'properties': {
+            geo_data.append({'geometry': geom, 'properties': {
                 'id': my_id,
                 'length_hrs': difference,
                 'end_hub': endpoint['end_hub'],
@@ -146,6 +146,9 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             }})
 
             ws.append([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+
+        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
+        out.write_records(geo_data)
         out.close()
 
         # copy styles for QGIS
@@ -175,18 +178,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         ws.column_dimensions['I'].width = 20
         ws.column_dimensions['J'].width = 200
 
-        filename = os.path.join(self.folder, "routes_cancelled.gpkg")
-        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
-                                                                                'properties': {'id': 'str',
-                                                                                               'length_hrs': 'float',
-                                                                                               'day': 'int',
-                                                                                               'end_hub': 'str',
-                                                                                               'end_time': 'datetime',
-                                                                                               'start_hubs': 'str',
-                                                                                               'start_times': 'str',
-                                                                                               'overnight_hubs': 'str',
-                                                                                               'cancel_reason': 'str',
-                                                                                               'cancel_details': 'str'}})
+        geo_data = []
 
         for endpoint in self.route_graph.vs.select(is_cancelled=True):
             routes = set()
@@ -217,7 +209,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             overnight_hubs = ', '.join(list(overnight_hubs))
 
             if not geom.is_empty:
-                out.write({'geometry': geom, 'properties': {
+                geo_data.append({'geometry': geom, 'properties': {
                     'id': my_id,
                     'length_hrs': difference,
                     'day': math.floor(difference / 24) + 1,
@@ -232,6 +224,19 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
             ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['cancel_details'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
 
+        filename = os.path.join(self.folder, "routes_cancelled.gpkg")
+        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
+                                                                                'properties': {'id': 'str',
+                                                                                               'length_hrs': 'float',
+                                                                                               'day': 'int',
+                                                                                               'end_hub': 'str',
+                                                                                               'end_time': 'datetime',
+                                                                                               'start_hubs': 'str',
+                                                                                               'start_times': 'str',
+                                                                                               'overnight_hubs': 'str',
+                                                                                               'cancel_reason': 'str',
+                                                                                               'cancel_details': 'str'}})
+        out.writerecords(geo_data)
         out.close()
 
         # copy styles for QGIS
@@ -256,8 +261,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
     def _calculate_totals(self, context: Context):
         filename = os.path.join(self.folder, "route_totals.gpkg")
-        out = fiona.open(filename, 'w', layer='routes', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'type': 'str', 'attempted': 'int', 'succeeded': 'int'}})
 
+        geo_data = []
         # create route entries for each route
         for e in context.routes.es:
             attempted = 0
@@ -267,7 +272,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 attempted = self.counters[e['name']]['attempted']
                 succeeded = self.counters[e['name']]['succeeded']
 
-            out.write({'geometry': force_2d(e['geom']), 'properties': {
+            geo_data.append({'geometry': force_2d(e['geom']), 'properties': {
                 'id': e['name'],
                 'start_hub': e.source_vertex['name'],
                 'end_hub': e.target_vertex['name'],
@@ -276,12 +281,16 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 'succeeded': succeeded,
             }})
 
-        out = fiona.open(filename, 'w', layer='hubs', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'Point', 'properties': {'id': 'str'}})
+        out = fiona.open(filename, 'w', layer='routes', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'LineString', 'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str', 'type': 'str', 'attempted': 'int', 'succeeded': 'int'}})
+        out.writerecords(geo_data)
 
         # create hub entries for each hub
+        geo_data = []
         for e in context.routes.vs:
-            out.write({'geometry': {'type': 'Point', 'coordinates': (e['geom'].x, e['geom'].y)}, 'properties': {'id': e['name']}})
+            geo_data.append({'geometry': {'type': 'Point', 'coordinates': (e['geom'].x, e['geom'].y)}, 'properties': {'id': e['name']}})
 
+        out = fiona.open(filename, 'w', layer='hubs', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'Point', 'properties': {'id': 'str'}})
+        out.writerecords(geo_data)
         out.close()
 
         # copy styles for QGIS
@@ -300,6 +309,22 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         filename = os.path.join(self.folder, f"day_{day_with_zeroes}.gpkg")
         filename_failed = os.path.join(self.folder, f"day_{day_with_zeroes}_failed.gpkg")
 
+        if self.only_unique:
+            self.agent_hashes = set()
+
+        self.start_hubs: dict[str, list[str]] = {}
+        self.end_hubs: dict[str, list[str]] = {}
+
+        agent_list = []
+        failed_list = []
+
+        logger.info(f"Aggregating data of {len(agents)} agents")
+
+        for agent in agents:
+            self._persist_agent(agent, context, agent_list, failed_list, current_day)
+
+        logger.info(f"Writing {len(agents)} agents to {filename}")
+
         agent_data = fiona.open(filename, 'w', driver='GPKG', layer='agents', crs='EPSG:4326',
                                 schema={'geometry': 'LineString',
                                         'properties': {'id': 'str', 'start_hub': 'str', 'end_hub': 'str',
@@ -313,19 +338,15 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                                                         'is_cancelled': 'bool', 'traceback_to_start': 'bool',
                                                         'cancel_reason': 'str', 'hubs': 'str', 'edges': 'str'}})
 
-        if self.only_unique:
-            self.agent_hashes = set()
-
-        self.start_hubs: dict[str, list[str]] = {}
-        self.end_hubs: dict[str, list[str]] = {}
-
-        for agent in agents:
-            self._persist_agent(agent, context, agent_data, failed_data, current_day)
+        agent_data.writerecords(agent_list)
+        failed_data.writerecords(failed_list)
 
         agent_data.close()
         failed_data.close()
 
         hub_data = fiona.open(filename, 'w', driver='GPKG', layer='hubs', crs='EPSG:4326', schema={'geometry': 'Point', 'properties': {'id': 'str', 'is_start': 'bool', 'is_end': 'bool', 'is_both': 'bool', 'start_agents': 'str', 'end_agents': 'str'}})
+
+        hub_list = []
 
         for hub_id in self.start_hubs:
             hub = context.routes.vs.find(name=hub_id)
@@ -336,7 +357,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 is_end = True
                 end_agents = '\n'.join(self.end_hubs[hub_id])
 
-            hub_data.write({'geometry': force_2d(hub['geom']), 'properties': {
+            hub_list.append({'geometry': force_2d(hub['geom']), 'properties': {
                 'id': hub_id,
                 'is_start': True,
                 'is_end': is_end,
@@ -351,7 +372,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 continue
 
             hub = context.routes.vs.find(name=hub_id)
-            hub_data.write({'geometry': force_2d(hub['geom']), 'properties': {
+            hub_list.append({'geometry': force_2d(hub['geom']), 'properties': {
                 'id': hub_id,
                 'is_start': False,
                 'is_end': True,
@@ -360,6 +381,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 'end_agents': '\n'.join(self.end_hubs[hub_id]),
             }})
 
+        hub_data.writerecords(hub_list)
         hub_data.close()
 
         # copy styles for QGIS
@@ -385,7 +407,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         con.commit()
         con.close()
 
-    def _persist_agent(self, agent: Agent, context: Context, agent_data: fiona.Collection, failed_data: fiona.Collection, current_day: int):
+    def _persist_agent(self, agent: Agent, context: Context, agent_list: list, failed_list: list, current_day: int):
         # get route/geometry
         route = self._merge_route(agent.route, agent.route_reversed, context)
 
@@ -401,7 +423,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             start_hub = agent.route_before_traceback[0]
             end_hub = agent.route_before_traceback[-1]
 
-            failed_data.write({'geometry': route, 'properties': {
+            failed_list.append({'geometry': route, 'properties': {
                 'id': agent.uid,
                 'start_hub': start_hub,
                 'end_hub': end_hub,
@@ -447,7 +469,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             arrival_after_sunset = 'sunset' in agent.additional_data and end_delta > agent.additional_data['sunset']
 
             if agent.is_cancelled:
-                failed_data.write({'geometry': route, 'properties': {
+                failed_list.append({'geometry': route, 'properties': {
                     'id': agent.uid,
                     'start_hub': start_hub,
                     'end_hub': end_hub,
@@ -460,7 +482,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                     'edges': edges,
                 }})
             else:
-                agent_data.write({'geometry': route, 'properties': {
+                agent_list.append({'geometry': route, 'properties': {
                     'id': agent.uid,
                     'start_hub': start_hub,
                     'end_hub': end_hub,
