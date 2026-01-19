@@ -293,15 +293,20 @@ class Simulation(BaseClass):
 
             agents = agents_proceed
 
-        if logger.level <= logging.DEBUG:
-            logger.debug(f" - step {step} {len(agents)} {len(agents_finished_for_today)}")
-            step += 1
+            if logger.level <= logging.INFO:
+                logger.info(f" - step {step}, {len(agents)} agents, {len(agents_finished_for_today)} finished.")
+                step += 1
 
+        logger.info("Day " + str(self.current_day) + " finished.")
         # run day hook post
         for day_hook_post in self.config.simulation_day_hook_post:
             agents_finished_for_today = day_hook_post.run(self.config, self.context, agents, agents_finished_for_today, self.results, self.current_day)
 
+        logger.info("Day " + str(self.current_day) + " finished - post.")
+
         agents_proceeding_tomorrow = self._finish_day(agents_finished_for_today)
+
+        logger.info(f"{len(agents_proceeding_tomorrow)} proceeding.")
 
         # increase day
         self.current_day += 1
