@@ -504,9 +504,13 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
         # add edges to parents
         count = 0
+        edges_to_add = []
         for parent in self.route_graph.vs.select(name_in=agent.parents):
-            self.route_graph.add_edge(agent.uid, parent['name'])
+            edges_to_add.append((agent.uid, parent['name']))
             count += parent['count']
+
+        if len(edges_to_add) > 0:
+            self.route_graph.add_edges(edges_to_add)
 
         if count > 0:
             v['count'] = count
