@@ -11,6 +11,7 @@ import math
 import os
 import shutil
 import sqlite3
+import sys
 from typing import Iterable
 
 import fiona
@@ -133,6 +134,10 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             stat_hubs = ', '.join(list(start_hubs))
             start_times = ', '.join(list(start_times))
             overnight_hubs = ', '.join(list(overnight_hubs))
+            # test bounds of counter, because geopkg does "only" support 64-bit integers
+            count = endpoint['count']
+            if count > sys.maxsize:
+                count = sys.maxsize
 
             geo_data.append({'geometry': geom, 'properties': {
                 'id': my_id,
@@ -142,7 +147,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 'start_hubs': stat_hubs,
                 'start_times': start_times,
                 'overnight_hubs': overnight_hubs,
-                'variant_paths': endpoint['count'],
+                'variant_paths': count,
             }})
 
             ws.append([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
