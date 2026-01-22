@@ -235,6 +235,11 @@ class Simulation(BaseClass):
         while len(agents):
             agents = self._run_single_day(agents)
 
+            # # TODO: make this configurable
+            # if self.current_day > 30:
+            #     logger.info("Simulation finished after 30 days!")
+            #     break
+
         # end simulation - do some history and statistics
         self._end_simulation()
 
@@ -627,14 +632,13 @@ class Simulation(BaseClass):
                     if agent.route_key not in forced_routes_tries:
                         forced_routes_tries[agent.route_key] = 0
 
-                visited_hubs.union(agent.visited_hubs)
-
                 # retire agents by adding them to the results
                 if agent.is_cancelled or agent.is_finished:
                     if self.config.keep_agent_data_in_results:
                         self.results.add_agent(agent)
                 else:
                     has_agents_to_proceed = True
+                    visited_hubs = visited_hubs.union(agent.visited_hubs)
 
             # hub in end? no new agents!
             if hub in self.config.simulation_ends or not has_agents_to_proceed:
