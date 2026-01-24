@@ -425,8 +425,12 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             end_time = self.min_time + dt.timedelta(hours=agent.current_time)
 
             route = self._merge_route(agent.route_before_traceback, agent.route_reversed_before_traceback, context)
-            start_hub = agent.route_before_traceback[0]
-            end_hub = agent.route_before_traceback[-1]
+            if len(agent.route_before_traceback) > 0:
+                start_hub = agent.route_before_traceback[0]
+                end_hub = agent.route_before_traceback[-1]
+            else:
+                start_hub = agent.this_hub
+                end_hub = agent.this_hub
 
             failed_list.append({'geometry': route, 'properties': {
                 'id': agent.uid,
