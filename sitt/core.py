@@ -445,6 +445,10 @@ class Simulation(BaseClass):
             agent.is_cancelled = True
             agent.cancel_reason = f"Exceeded agent tries on this route"
             agent.cancel_details = f"tries: {self.config.break_simulation_after}, route via: " + ', '.join(agent.route[::2])
+        elif agent.this_hub == agent.last_overnight_hub:
+            # agent has not proceeded at all today - cancel it!
+            self.__set_agent_no_sleep(agent, agents_finished_for_today)
+            return
         else:
             # reset forced route data
             agent.forced_route = []
@@ -460,13 +464,7 @@ class Simulation(BaseClass):
                 # do not track back to the beginning - cancel such agents, because they give an interesting insight into
                 # routes that could not be tracked today
                 if last_overnight_hub_index == 0:
-                    agent.is_cancelled = True
-                    agent.cancel_reason = f"No sleep today"
-                    agent.cancel_details = "route via: " + ', '.join(agent.route[::2])
-                    agent.route = agent.route[:1]
-                    agent.route_reversed = []
-                    agent.route_times = {}
-                    agents_finished_for_today.append(agent)
+                    self.__set_agent_no_sleep(agent, agents_finished_for_today)
                     return
 
                 to_delete = agent.route[last_overnight_hub_index+1:]
@@ -503,6 +501,28 @@ class Simulation(BaseClass):
             agent.last_resting_place = agent.this_hub
 
         # add to list of agents that have finished for today
+        agents_finished_for_today.append(agent)
+
+    @staticmethod
+    def __set_agent_no_sleep(agent: Agent, agents_finished_for_today: list[Agent]):
+        """
+        Mark an agent as cancelled due to lack of sleep and add it to the finished agents list.
+
+        This method cancels an agent that could not find a suitable resting place for the day.
+        It sets the cancellation status and reason, resets the agent's route data to only include
+        the starting hub, and adds the agent to the list of agents that have finished for today.
+
+        :param agent: The agent to be marked as cancelled. This agent will be mutated by setting
+            its cancellation status, reason, and resetting its route information.
+        :param agents_finished_for_today: List of agents that have finished their activities for
+            the current day. The cancelled agent will be appended to this list.
+        """
+        agent.is_cancelled = True
+        agent.cancel_reason = f"No sleep today"
+        agent.cancel_details = "route via: " + ', '.join(agent.route[::2])
+        agent.route = agent.route[:1]
+        agent.route_reversed = []
+        agent.route_times = {}
         agents_finished_for_today.append(agent)
 
     def _get_possible_routes_for_agent_on_hub(self, agent: Agent) -> list[tuple[str, str]]:
