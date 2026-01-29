@@ -46,7 +46,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         self.min_time = dt.datetime.combine(config.start_date, dt.datetime.min.time())
 
         # create folder name
-        self.folder = f"simulation_{config.simulation_route}_{config.start_date}"
+        start_date = config.start_date.strftime('%Y-%m-%d')
+        self.folder = f"simulation_{config.simulation_route}_{start_date}"
 
         # remove old data if it exists
         if os.path.exists(self.folder):
