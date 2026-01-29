@@ -445,7 +445,7 @@ class Simulation(BaseClass):
             agent.is_cancelled = True
             agent.cancel_reason = f"Exceeded agent tries on this route"
             agent.cancel_details = f"tries: {self.config.break_simulation_after}, route via: " + ', '.join(agent.route[::2])
-        elif agent.this_hub == agent.last_overnight_hub:
+        elif agent.state.signal_stop_here and agent.this_hub == agent.last_resting_place:
             # agent has not proceeded at all today - cancel it!
             self.__set_agent_no_sleep(agent, agents_finished_for_today)
             return
