@@ -34,6 +34,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         super().__init__()
         self.only_unique: bool =  only_unique
         """Save unique routes only (never the same ones)."""
+        self.basename: str|None = None
         self.folder: str|None = None
         self.min_time: dt.datetime = dt.datetime.now()
         self.counters: dict[str, dict[str, int]] = {}
@@ -47,7 +48,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
         # create folder name
         start_date = config.start_date.strftime('%Y-%m-%d')
-        self.folder = f"simulation_{config.simulation_route}_{start_date}"
+        self.basename = f"{config.simulation_route}_{start_date}"
+        self.folder = f"simulation_{self.basename}"
 
         # remove old data if it exists
         if os.path.exists(self.folder):
@@ -79,8 +81,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         logger.info(f"Saved data to {self.folder}")
 
     def _save_routes(self, config: Configuration, context: Context):
-        filename = os.path.join(self.folder, "routes.gpkg")
-        excel_filename = os.path.join(self.folder, "routes.xlsx")
+        filename = os.path.join(self.folder, f"{self.basename}_routes.gpkg")
+        excel_filename = os.path.join(self.folder, f"{self.basename}_routes.xlsx")
         logger.info(f"Saving routes to {filename} and {excel_filename}")
 
         wb = Workbook()
@@ -230,7 +232,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
             ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['cancel_details'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
 
-        filename = os.path.join(self.folder, "routes_cancelled.gpkg")
+        filename = os.path.join(self.folder, f"{self.basename}_routes_cancelled.gpkg")
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                                                 'properties': {'id': 'str',
                                                                                                'length_hrs': 'float',
@@ -266,7 +268,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         return geom
 
     def _calculate_totals(self, context: Context):
-        filename = os.path.join(self.folder, "route_totals.gpkg")
+        filename = os.path.join(self.folder, f"{self.basename}_route_totals.gpkg")
 
         geo_data = []
         # create route entries for each route
@@ -312,8 +314,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
     def _persist_agents(self, agents: list[Agent], context: Context, current_day: int):
         day_with_zeroes = str(current_day).rjust(3, '0')
-        filename = os.path.join(self.folder, f"day_{day_with_zeroes}.gpkg")
-        filename_failed = os.path.join(self.folder, f"day_{day_with_zeroes}_failed.gpkg")
+        filename = os.path.join(self.folder, f"{self.basename}_day_{day_with_zeroes}.gpkg")
+        filename_failed = os.path.join(self.folder, f"{self.basename}_day_{day_with_zeroes}_failed.gpkg")
 
         if self.only_unique:
             self.agent_hashes = set()
