@@ -683,6 +683,7 @@ class Simulation(BaseClass):
                     new_agent.forced_route = route
                     new_agent.tries = forced_routes_tries[route[0]]
                     new_agent.parents = agent_ids
+                    new_agent.tries = 0
                     agents_proceeding_tomorrow.append(new_agent)
             else:
                 # TODO: this is probably never called anymore - check by logging
@@ -695,6 +696,7 @@ class Simulation(BaseClass):
                     new_agent = Agent(hub, route[1], route[0])
                     new_agent.visited_hubs = copy.deepcopy(visited_hubs)
                     new_agent.parents = agent_ids
+                    new_agent.tries = 0
                     agents_proceeding_tomorrow.append(new_agent)
 
         return agents_proceeding_tomorrow
