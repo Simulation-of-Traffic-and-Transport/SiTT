@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: MIT
 """Simulation Day Hook Classes"""
 
+from .create_means_of_transportation import CreateMeansOfTransportation
 from .persist_agents_after_day import PersistAgentsAfterDay
 from .persist_agents_to_geopackage import PersistAgentsToGeoPackage
 from .start_stop_time_preparation import StartStopTimePreparation
 
 __all__ = [
+    "CreateMeansOfTransportation",
     "PersistAgentsAfterDay",
     "PersistAgentsToGeoPackage",
     "StartStopTimePreparation",

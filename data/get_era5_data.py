@@ -25,10 +25,7 @@ variables = [
 ## TODO: maybe take mean values?
 
 years = [
-    '1990', '1991', '1992',
-    '1993', '1994', '1995',
-    '1996', '1997', '1998',
-    '1999',
+    '1990'
 ]
 
 client = cdsapi.Client()
@@ -47,10 +44,7 @@ for variable in variables:
                 year
             ],
             'month': [
-                '01', '02', '03',
-                '04', '05', '06',
-                '07', '08', '09',
-                '10', '11', '12',
+                '03',
             ],
             'day': [
                 '01', '02', '03',
@@ -83,4 +77,4 @@ for variable in variables:
             "download_format": "unarchived",
         }
 
-        client.retrieve(dataset, request, "era5_data_" + variable + "_" + year + ".nc")
+        client.retrieve(dataset, request, "era5_data_" + variable + "_" + year + "_test.nc")

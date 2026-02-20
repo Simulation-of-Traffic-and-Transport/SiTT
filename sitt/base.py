@@ -589,6 +589,7 @@ class SimulationStepInterface(abc.ABC):
         # runtime settings
         self.skip: bool = False
         self.conditions: dict[str, any] = {}
+        self.cancel: dict[str, any] = {}
 
     def check_conditions(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
         """Checks conditions for this step"""
@@ -596,20 +597,40 @@ class SimulationStepInterface(abc.ABC):
         if self.skip:
             return False
 
+        return self._check_conditions(self.conditions, config, context, agent, next_leg)
+
+    def check_cancel(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
+        """Checks cancel conditions for this step"""
+        return not self._check_conditions(self.cancel, config, context, agent, next_leg)
+
+    @staticmethod
+    def _check_conditions(conditions, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
+        """Internal method: Checks conditions for this step"""
         # no conditions?
-        if not self.conditions or len(self.conditions) == 0:
+        if not conditions or len(conditions) == 0:
             return True
 
         # check conditions
-        if 'types' in self.conditions and len(self.conditions['types']) > 0:
+        if 'types' in conditions and len(conditions['types']) > 0:
             # check type of route ahead
-            if next_leg['type'] not in self.conditions['types']:
+            if next_leg['type'] not in conditions['types']:
                 return False
 
-        if 'not_types' in self.conditions and len(self.conditions['not_types']) > 0:
+        if 'not_types' in conditions and len(conditions['not_types']) > 0:
             # check type of route ahead
-            if next_leg['type'] in self.conditions['not_types']:
+            if next_leg['type'] in conditions['not_types']:
                 return False
+
+        if 'additional_data' in conditions and len(conditions['additional_data']) > 0:
+            for key, values in conditions['additional_data'].items():
+                if key not in agent.additional_data or agent.additional_data[key] not in values:
+                    return False
+
+        if 'edge_data' in conditions and len(conditions['edge_data']) > 0:
+            attrs = next_leg.attributes()
+            for key, values in conditions['edge_data'].items():
+                if key in attrs and attrs[key] in values:
+                    return False
 
         return True
 

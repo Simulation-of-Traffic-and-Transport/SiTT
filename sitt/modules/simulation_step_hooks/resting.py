@@ -13,7 +13,9 @@ from sitt.base import SimulationStepHookInterface
 logger = logging.getLogger()
 
 class Resting(SimulationStepHookInterface):
-    def __init__(self, rest_times = [{'after_minutes': 160, 'pause_minutes': 20}, {'after_minutes': 55, 'pause_minutes': 5}], noon: bool = True, noon_start: float = 11., noon_end: float = 14., noon_pause_minutes: int = 60, noon_gap_to_last_rest: int = 60, noon_gap_max_pause: int = 20, noon_gap_min_gap: int = 30):
+    def __init__(self, rest_times = [{'after_minutes': 160, 'pause_minutes': 20}, {'after_minutes': 55, 'pause_minutes': 5}],
+                 noon: bool = True, noon_start: float = 11., noon_end: float = 14., noon_pause_minutes: int = 60,
+                 noon_gap_to_last_rest: int = 60, noon_gap_max_pause: int = 20, noon_gap_min_gap: int = 30, skip: dict = None):
         super().__init__()
         self.rest_times: list[dict] = rest_times
         """Resting rules for different time periods."""
@@ -31,9 +33,14 @@ class Resting(SimulationStepHookInterface):
         """Maximum rest time (in minutes) that can occur in the gap."""
         self.noon_gap_min_gap: int = noon_gap_min_gap
         """Minimum gap to the last rest during noon (in minutes)."""
+        self.skip: dict = skip
+        """Dictionary to skip resting times for specific agents."""
 
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple,
                  time_offset: float) -> tuple[float, bool]:
+        # check skip conditions
+        if self.do_skip(agent, next_leg):
+            return time_offset, False
 
         # Get current day time (in hours)
         now = agent.current_time + time_offset
@@ -81,3 +88,14 @@ class Resting(SimulationStepHookInterface):
 
     def is_noon(self, time_of_day: float) -> bool:
         return self.noon and self.noon_start <= time_of_day <= self.noon_end
+
+    def do_skip(self, agent: Agent, next_leg: ig.Edge):
+        # check skip conditions
+        if self.skip and len(self.skip) > 0:
+
+            # additional data check - e.g. agent has a specific additional data type set
+            if 'additional_data' in self.skip and len(self.skip['additional_data']) > 0:
+                for key, values in self.skip['additional_data'].items():
+                    if key not in agent.additional_data or agent.additional_data[key] in values:
+                        return True
+        return False

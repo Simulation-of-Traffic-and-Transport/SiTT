@@ -113,9 +113,9 @@ class SimpleDAVRiver(SimulationStepInterface):
                     m_asc_desc = -m_asc_desc  # reverse m_asc_desc for descending part
 
                 if m_asc_desc < 0:
-                    up_down_time = (m_asc_desc * -1) / self.descend_per_hour
+                    up_down_time = (m_asc_desc * -1) / self.descend_per_hour if self.descend_per_hour > 0 else 0.
                 else:
-                    up_down_time = m_asc_desc / self.ascend_per_hour
+                    up_down_time = m_asc_desc / self.ascend_per_hour if self.ascend_per_hour > 0 else 0.
 
                 # calculate time taken in units (hours) for this part
                 calculated_time = length / self.speed / 1000 + up_down_time

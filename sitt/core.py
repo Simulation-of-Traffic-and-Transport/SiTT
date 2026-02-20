@@ -349,8 +349,16 @@ class Simulation(BaseClass):
                     if agent.next_hub != next_leg['from']:
                         print(f"error - legs reversed {agent.uid} in {next_leg['name']} with {next_leg['from']} -> {next_leg['to']}, agent status is: {agent.this_hub} -> {agent.next_hub} via {agent.route_key}")
 
-                # run state update - step hooks have to be called in this method
-                agent.state = sim_step.update_state(self.config, self.context, agent, next_leg)
+                # is this step cancelled?
+                if sim_step.check_cancel(self.config, self.context, agent, next_leg):
+                    agent.state.signal_stop_here = True
+                    agent.is_cancelled = True
+                    agent.cancel_reason = 'cancelled due to step cancellation'
+                else:
+                    # run state update - step hooks have to be called in this method
+                    agent.state = sim_step.update_state(self.config, self.context, agent, next_leg)
+
+                break
 
         # calculate times
         start_time = agent.current_time
