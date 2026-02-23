@@ -65,7 +65,6 @@ def run():
 
     logger = logging.getLogger()
     logger.info(f"Si.T.T. command line - running core ({__version__}).")
-    logger.info(f"Configuration key: {config.config_key}")
 
     # Create and run a Si.T.T. core
     core = Core(config)

@@ -120,8 +120,6 @@ class Configuration:
         """Keep agent data in set of results (might use quite a lot of memory, but will enable analysis of agent routes)"""
         self.keep_leg_times: bool = True
         """Keep leg times in agent data (uses up memory and if you do not need them, set to false)"""
-        self.config_key: str = "default"
-        """Key for configuration - used to identify different configurations by name"""
         self.simulation_starts: list[str] | None = None
         """"Starting hubs for simulation"""
         self.simulation_ends: list[str] | None = None
