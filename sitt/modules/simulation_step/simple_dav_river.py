@@ -24,7 +24,8 @@ class SimpleDAVRiver(SimulationStepInterface):
     """
 
     def __init__(self, speed: float = 4.0, ascend_per_hour: float = 300, descend_per_hour: float = 400,
-                 min_speed_down: float = 4.0):
+                 min_speed_down: float = 4.0, consider_sailing: bool = False, sailing_speed_down: float = 3.71,
+                 sailing_speed_up: float = 3.71):
         super().__init__()
         self.speed: float = speed
         """kph of this agent"""
@@ -34,6 +35,12 @@ class SimpleDAVRiver(SimulationStepInterface):
         """m of height per hour while descending"""
         self.min_speed_down: float = min_speed_down
         """minimum speed per hour at which we do *not* tow downstream (instead we use the river flow)"""
+        self.consider_sailing: bool = consider_sailing
+        """whether to consider sailing speeds when calculating downstream speed"""
+        self.sailing_speed_down: float = sailing_speed_down
+        """kph of sailing speed while moving downstream (minimum, can be faster if river is faster)"""
+        self.sailing_speed_up: float = sailing_speed_up
+        """kph of sailing speed while moving upstream or on a slow-moving river"""
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
         """Updates the agent's state after traversing a river leg.
@@ -84,6 +91,9 @@ class SimpleDAVRiver(SimulationStepInterface):
             flows.reverse()  # also reverse flow
 
         used_flow = False
+        sailing = False
+        if self.consider_sailing and 'sailing' in next_leg.attribute_names() and next_leg['sailing']:
+            sailing = True
 
         for i in r:
             coords = next_leg['geom'].coords[i]
@@ -98,27 +108,34 @@ class SimpleDAVRiver(SimulationStepInterface):
 
             # now check if river runs downwards
             calculated_time = -1.
-            if 'direction' in next_leg.attribute_names() and next_leg['direction'] == 'downwards':
-                # river speed - we take this point's flow rate to calculate the speed
-                kph = flows[i] * 3.6
-                if kph >= self.min_speed_down:
-                    # calculate time taken in units (hours) for this part
-                    calculated_time = length / (kph * 1000)
-                    used_flow = True
+            is_downwards = 'direction' in next_leg.attribute_names() and next_leg['direction'] == 'downwards'
 
-            # all other cases -> so upriver, or downriver, if river is too slow
-            if calculated_time <= 0:
-                m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
-                if agent.state.is_reversed:
-                    m_asc_desc = -m_asc_desc  # reverse m_asc_desc for descending part
-
-                if m_asc_desc < 0:
-                    up_down_time = (m_asc_desc * -1) / self.descend_per_hour if self.descend_per_hour > 0 else 0.
+            # check sailing speed
+            if sailing:
+                if is_downwards:
+                    calculated_time, used_flow = self.calculate_with_flow(self.sailing_speed_down, flows[i], length)
                 else:
-                    up_down_time = m_asc_desc / self.ascend_per_hour if self.ascend_per_hour > 0 else 0.
+                    calculated_time = length / (self.sailing_speed_up * 1000)
+            else:
+                if is_downwards:
+                    calculated_time, used_flow = self.calculate_with_flow(self.min_speed_down, flows[i], length)
+                    # reset if flow was not used, so we can calculate time below
+                    if not used_flow:
+                        calculated_time = -1
 
-                # calculate time taken in units (hours) for this part
-                calculated_time = length / self.speed / 1000 + up_down_time
+                # all other cases -> so upriver, or downriver, if river is too slow
+                if calculated_time <= 0:
+                    m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
+                    if agent.state.is_reversed:
+                        m_asc_desc = -m_asc_desc  # reverse m_asc_desc for descending part
+
+                    if m_asc_desc < 0:
+                        up_down_time = (m_asc_desc * -1) / self.descend_per_hour if self.descend_per_hour > 0 else 0.
+                    else:
+                        up_down_time = m_asc_desc / self.ascend_per_hour if self.ascend_per_hour > 0 else 0.
+
+                    # calculate time taken in units (hours) for this part
+                    calculated_time = length / self.speed / 1000 + up_down_time
 
             time_for_legs.append(calculated_time)
             time_taken += calculated_time
@@ -141,6 +158,33 @@ class SimpleDAVRiver(SimulationStepInterface):
                 "via {agent.route_key}, time taken = {state.time_taken:.2f}, used flow = {used_flow}")
 
         return agent.state
+
+    @staticmethod
+    def calculate_with_flow(speed: float, flow_ms: float, length: float) -> tuple[float, bool]:
+        """Calculates travel time considering river flow and determines if flow was used.
+
+        This method computes the time required to traverse a river segment by comparing
+        the agent's base speed with the river's flow speed. It uses the faster of the
+        two speeds to calculate the travel time. The method also indicates whether the
+        river's flow speed exceeded the agent's base speed.
+
+        Args:
+            speed: The base speed of the agent in kilometers per hour (kph).
+            flow_ms: The river's flow rate in meters per second (m/s).
+            length: The length of the river segment to traverse in meters.
+
+        Returns:
+            A tuple containing:
+                - float: The time taken to traverse the segment in hours.
+                - bool: True if the river flow speed (in kph) was greater than or equal
+                  to the agent's base speed, False otherwise.
+        """
+        # river speed - we take this point's flow rate to calculate the speed
+        kph = flow_ms * 3.6
+        # take the maximum speed between given speed and river speed
+        actual_speed = max(speed, kph)
+        # calculate time taken in units (hours) for this part
+        return length / (actual_speed * 1000), kph >= speed
 
     def __repr__(self):
         return yaml.dump(self)
