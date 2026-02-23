@@ -94,6 +94,8 @@ class SimpleDAVRiver(SimulationStepInterface):
         sailing = False
         if self.consider_sailing and 'sailing' in next_leg.attribute_names() and next_leg['sailing']:
             sailing = True
+            # temporarily add propulsion to the agent's state
+            agent.additional_data['propulsion'] = 'sailing'
 
         for i in r:
             coords = next_leg['geom'].coords[i]
@@ -156,6 +158,10 @@ class SimpleDAVRiver(SimulationStepInterface):
             logger.debug(
                 f"SimulationInterface SimpleDAVRiver run, from {agent.this_hub} to {agent.next_hub} "
                 "via {agent.route_key}, time taken = {state.time_taken:.2f}, used flow = {used_flow}")
+
+        # delete temporary propulsion data
+        if sailing:
+            del agent.additional_data['propulsion']
 
         return agent.state
 
