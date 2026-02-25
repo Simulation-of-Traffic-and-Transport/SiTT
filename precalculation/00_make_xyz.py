@@ -198,8 +198,6 @@ if __name__ == "__main__":
         print("Updating " + table)
 
         geom_col_name = 'geom'
-        if table == 'recrivers':
-            geom_col_name = 'geom'
 
         # get hubs - create statement via sql alchemy
         idCol = Column('id')
