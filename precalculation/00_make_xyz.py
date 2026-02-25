@@ -93,9 +93,12 @@ def get_height_for_coordinate(coord: tuple[float, float]) -> float:
 
 # inspired by https://stackoverflow.com/questions/62283718/how-to-extract-a-profile-of-value-from-a-raster-along-a-given-line
 def create_segments(coords: list[tuple[float, float]]) -> list[tuple[float, float, float]]:
-    # min resolution to split - half of the hypotenuse of the resolution triangle will render a very good minimum
-    # resolution threshold
-    min_resolution = math.sqrt(math.pow(rds.res[0], 2) + math.pow(rds.res[1], 2)) / 2
+    if args.segment_use_hypotenuse:
+        # min resolution to split - half of the hypotenuse of the resolution triangle will render a very good minimum
+        # resolution threshold
+        min_resolution = math.sqrt(math.pow(rds.res[0], 2) + math.pow(rds.res[1], 2)) / 2
+    else:
+        min_resolution = min(rds.res[0], rds.res[1])
 
     ret_coords: list[tuple[float, float, float]] = []
     last_coord = None
@@ -134,10 +137,6 @@ def create_segments(coords: list[tuple[float, float]]) -> list[tuple[float, floa
 
         last_coord = coord
 
-    print(LineString(list(coords)))
-    print(LineString(ret_coords))
-    exit(0)
-
     return ret_coords
 
 
@@ -162,6 +161,8 @@ if __name__ == "__main__":
                         help='keep existing heights (overwrite otherwise)')
     parser.add_argument('-S', '--create-segments', dest='create_segments', default=True, type=bool,
                         help='create new input coordinates for roads (not rivers) by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
+    parser.add_argument('--segment-use-hypotenuse', dest='segment_use_hypotenuse', default=False, type=bool,
+                        help='to calculate heights for segments using the hypotenuse of the resolution triangle instead of the minimum resolution triangle side (default: false)')
     parser.add_argument('--google-api-key', dest='google_api_key', default='', type=str, help='Google API key for elevation data (if needed)')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
