@@ -287,7 +287,7 @@ if __name__ == "__main__":
                 'average_depth': average_depth,
                 'slope': slope,
                 'flow_mps': vm,
-                'flow_kph': vm * 1000.0 / 3600.0,  # convert to km/h
+                'flow_kph': vm * 3.6,  # convert to km/h
             }})
 
             # add to list of flows
