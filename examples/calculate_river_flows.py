@@ -6,12 +6,13 @@ Example of how to combine the data aggregated in calculate_river_depths.py, calc
 calculate_river_widths.py into flow data using the Gauckler-Manning-Strickler flow formula.
 """
 import argparse
+import os
 
+import fiona
 import numpy as np
 import psycopg2
-import shapefile
 from pyproj import Transformer
-from shapely import wkb, Point, LineString, force_3d
+from shapely import wkb, Point, LineString
 from shapely.ops import transform
 
 if __name__ == "__main__":
@@ -142,16 +143,9 @@ if __name__ == "__main__":
         conn.commit()
         print("Adding column for river flows...")
 
-    # create shapefile to check lines
-    w = shapefile.Writer(target='river_flows', shapeType=shapefile.POINT, autoBalance=True)
-    w.field("width", "N", decimal=10)
-    w.field("depth", "N", decimal=10)
-    w.field("slope", "N", decimal=10)
-    w.field("flow", "N", decimal=10)
-
-    # error file
-    we = shapefile.Writer(target='river_flows_errors', shapeType=shapefile.POINT, autoBalance=True)
-    we.field("reason", "C")
+    # create lists of flows for fiona
+    flow_points = []
+    flow_errors = []
 
     counter = 0
 
@@ -270,21 +264,31 @@ if __name__ == "__main__":
             # Gauckler-Manning-Strickler flow formula
             vm = args.kst * r ** (2 / 3) * slope ** (1 / 2) # flow rate is in m/s
             if np.isnan(vm):
-                we.point(coords[0], coords[1])
                 if np.isnan(slope):
-                    we.record("slope is NaN")
+                    reason = "slope is NaN"
                 elif np.isnan(average_width):
-                    we.record("width is NaN")
+                    reason = "width is NaN"
                 elif average_depth < 0:
-                    we.record("depth is negative")
+                    reason = "depth is negative"
                 else:
-                    we.record("vm is NaN")
+                    reason = "vm is NaN"
+                # add err
+                flow_errors.append({'geometry': Point(coords[0], coords[1]), 'properties': {
+                    'id': recroadid,
+                    'reason': reason,
+                }})
                 # fix for import
                 vm = 0.
 
-            # write to shapefile
-            w.point(coords[0], coords[1])
-            w.record(average_width, average_depth, slope, vm)
+            # add data
+            flow_points.append({'geometry': Point(coords[0], coords[1]), 'properties': {
+                'id': recroadid,
+                'average_width': average_width,
+                'average_depth': average_depth,
+                'slope': slope,
+                'flow_mps': vm,
+                'flow_kph': vm * 1000.0 / 3600.0,  # convert to km/h
+            }})
 
             # add to list of flows
             flows[i-1] = np.float64(vm)
@@ -297,7 +301,35 @@ if __name__ == "__main__":
         cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_flow_column} = '{flows_str}' WHERE {args.river_id_column} = '{recroadid}'")
         conn.commit()
 
-    w.close()
-    we.close()
-
     print(f"Created {counter} river flow points.")
+
+    if os.path.exists('river_flows.gpkg'):
+        os.remove('river_flows.gpkg')
+
+    out = fiona.open('river_flows.gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={
+        'geometry': 'Point',
+        'properties': {
+            'id': 'str',
+            'average_width': 'float',
+            'average_depth': 'float',
+            'slope': 'float',
+            'flow_mps': 'float',
+            'flow_kph': 'float',
+        }
+    })
+    out.writerecords(flow_points)
+    out.close()
+
+    if os.path.exists('river_flows_errors.gpkg'):
+        os.remove('river_flows_errors.gpkg')
+
+    if len(flow_errors):
+        out = fiona.open('river_flows_errors.gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={
+            'geometry': 'Point',
+            'properties': {
+                'id': 'str',
+                'reason': 'str',
+            }
+        })
+        out.writerecords(flow_errors)
+        out.close()
