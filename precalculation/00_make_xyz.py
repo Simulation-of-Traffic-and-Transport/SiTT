@@ -40,7 +40,7 @@ def work_coordinates(coords) -> tuple[list, bool]:
             changed = True
             # fetch height from raster
             if key not in height_map:
-                height = get_height_for_coordinate(key, height_map)
+                height = get_height_for_coordinate(key)
                 if height < -1000.:
                     missing_coords.add(key)
                 else:
@@ -79,7 +79,7 @@ def work_coordinates(coords) -> tuple[list, bool]:
     return geom, changed
 
 
-def get_height_for_coordinate(coord: tuple[float, float], height_map: dict[tuple[float, float], float]) -> float:
+def get_height_for_coordinate(coord: tuple[float, float]) -> float:
     # get height for coordinate
     xx, yy = transformer.transform(coord[0], coord[1])
     x, y = rds.index(xx, yy)
@@ -133,6 +133,10 @@ def create_segments(coords: list[tuple[float, float]]) -> list[tuple[float, floa
                 ret_coords.append((t_x, t_y, height))
 
         last_coord = coord
+
+    print(LineString(list(coords)))
+    print(LineString(ret_coords))
+    exit(0)
 
     return ret_coords
 
