@@ -156,8 +156,8 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--band', dest='band', default=1, type=int, help='band to use from GeoTIFF')
     parser.add_argument('-k', '--keep', dest='keep_existing', default=True, type=bool,
                         help='keep existing heights (overwrite otherwise)')
-    parser.add_argument('-S', '--create-segments', dest='create_segments', default=False, type=bool,
-                        help='create new input coordinates for roads by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
+    parser.add_argument('-S', '--create-segments', dest='create_segments', default=True, type=bool,
+                        help='create new input coordinates for roads (not rivers) by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
     parser.add_argument('--google-api-key', dest='google_api_key', default='', type=str, help='Google API key for elevation data (if needed)')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
@@ -241,7 +241,8 @@ if __name__ == "__main__":
 
                 # simple shapes, like Points, etc.
                 elif g and g.coords:
-                    if g.geom_type == 'LineString' and args.create_segments:
+                    if table == 'recroads' and args.create_segments:
+                        # segment line string of roads, and setting defined
                         new_coords = create_segments(g.coords)
                         changed_any = True
                     else:
