@@ -103,39 +103,48 @@ def create_segments(coords: list[tuple[float, float]]) -> list[tuple[float, floa
     ret_coords: list[tuple[float, float, float]] = []
     last_coord = None
 
-    for coord in coords:
-        if last_coord is not None:
-            # guess resolution
-            line = LineString([last_coord, coord])
-            leg = ops.transform(transformer.transform, line)
-            # too short for splitting? just add coordinate (and possibly the first one, too)
-            if leg.length < min_resolution:
-                if len(ret_coords) == 0:
-                    ret_coords.append((last_coord[0], last_coord[1], get_height_for_coordinate(last_coord),))
-                ret_coords.append((coord[0], coord[1], get_height_for_coordinate(coord),))
+
+    for i in range(1, len(coords)): # start from the second coordinate
+        last_coord = coords[i-1]
+        line = LineString([last_coord, coords[i]])
+        leg = ops.transform(transformer.transform, line)
+        leg_len = leg.length
+
+        # skip empty lines (double coordinates)
+        if leg_len == 0:
+            continue
+
+        # add last coordinate
+        ret_coords.append((last_coord[0], last_coord[1], get_height_for_coordinate(last_coord),))
+
+        # too short for splitting? just add coordinate
+        if leg_len < min_resolution * 1.5:
+            continue
+
+        # split line into segments
+        points_to_create = math.ceil(leg_len / min_resolution)
+
+        # create new intermediate coordinates with height
+        for j in range(points_to_create):
+            # calculate bounding box for current pixel - this is a square that covers the current pixel
+            point = leg.interpolate(j / points_to_create - 1., normalized=True)
+            # access the nearest pixel in the rds
+            x, y = rds.index(point.x, point.y)
+            # transform back to original coordinate system
+            t_x, t_y = transformer.transform(point.x, point.y, direction=TransformDirection.INVERSE)
+            # added already? might happen in some cases, if our resolution is too dense - in
+            # this case, we skip the point
+            if len(ret_coords) and t_x == ret_coords[-1][0] and t_y == ret_coords[-1][1]:
                 continue
 
-            # not too short: create segments
-            # how many points to create?
-            points_to_create = math.ceil(leg.length / min_resolution)
+            # get height
+            height = band[x, y]
+            # transform back and add point
+            ret_coords.append((t_x, t_y, height))
 
-            for i in range(points_to_create):
-                point = leg.interpolate(i / points_to_create - 1., normalized=True)
-                # access the nearest pixel in the rds
-                x, y = rds.index(point.x, point.y)
-                t_x, t_y = transformer.transform(point.x, point.y,
-                                                 direction=TransformDirection.INVERSE)
-                # added already? might happen in some cases, if our resolution is too dense - in
-                # this case, we skip the point
-                if len(ret_coords) and t_x == ret_coords[-1][0] and t_y == ret_coords[-1][1]:
-                    continue
-
-                # get height
-                height = band[x, y]
-                # transform back and add point
-                ret_coords.append((t_x, t_y, height))
-
-        last_coord = coord
+    # add last coordinate
+    last_coord = coords[-1]
+    ret_coords.append((last_coord[0], last_coord[1], get_height_for_coordinate(last_coord),))
 
     return ret_coords
 
@@ -202,12 +211,28 @@ if __name__ == "__main__":
     for table in tables:
         print("Updating " + table)
 
+        # source geometry column
         geom_col_name = 'geom'
+
+        # check if geom_original column exists in table, if not, create it
+        if args.create_segments:
+            result = conn.execute(text(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{args.schema}' AND column_name = 'geom_original')")).fetchone()
+            if not result[0]:
+                print("Creating geom_original column and copying data...")
+                conn.execute(text(f"ALTER TABLE {args.schema}.{table} ADD geom_original geometry"))
+                conn.execute(text(f"update {args.schema}.{table} SET geom_original = geom"))
+                conn.commit()
+
+            geom_col_name = 'geom_original'
 
         # get hubs - create statement via sql alchemy
         idCol = Column('id')
         geomCol = Column(geom_col_name)
-        t = Table(table, MetaData(), idCol, geomCol, schema=args.schema)
+        # define metadata, depending on whether we have segments or not
+        if args.create_segments:
+            t = Table(table, MetaData(), idCol, geomCol, Column('geom'), schema=args.schema)
+        else:
+            t = Table(table, MetaData(), idCol, geomCol, schema=args.schema)
         s = select(idCol, geomCol).select_from(t)
         data = gpd.GeoDataFrame.from_postgis(str(s.compile()), conn,
                                              geom_col=geom_col_name,
@@ -261,7 +286,7 @@ if __name__ == "__main__":
                     # create SQL statement
                     new_value = text(String().literal_processor(dialect=conn.dialect)(
                         value="SRID=" + str(args.crs_no) + ";" + str(new_shape)))
-                    stmt = update(t).where(idCol == row.name).values({geom_col_name: new_value})
+                    stmt = update(t).where(idCol == row.name).values({'geom': new_value})
                     conn.execute(stmt)
                     counter += 1
 
