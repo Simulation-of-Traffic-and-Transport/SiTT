@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('-rd', '--river-depths-column', dest='river_depths_column', default='depths', type=str, help='river depths column (will be created, if not existing)')
     parser.add_argument('-rs', '--river-slope-column', dest='river_slope_column', default='slope', type=str, help='river slope column')
     parser.add_argument('-rw', '--river-width-column', dest='river_width_column', default='width', type=str, help='river width column')
+    parser.add_argument('-rbc', '--river-bed-category-column', dest='river_bed_category_column', default='rivbedkat', type=str, help='river bed category column')
     parser.add_argument('-rf', '--river-flow-column', dest='river_flow_column', default='flow', type=str, help='river flow column')
 
     # chunk settings
@@ -42,7 +43,7 @@ if __name__ == "__main__":
 
     # flow settings
     # see: https://www.bauformeln.de/wasserbau/gerinnehydraulik/rauheitsbeiwerte-nach-strickler/ for more examples
-    parser.add_argument('-k', '--kst', dest='kst', default=30, type=float, help='Gauckler–Manning-Strickler coefficient')
+    parser.add_argument('-k', '--kst', dest='kst', default='1=40,2=20,3=10', type=str, help='Gauckler–Manning-Strickler coefficients for different river bed categories in the format 1=40,2=20,3=10')
     parser.add_argument('-t', '--trapezoid', dest='is_trapezoid', default=False, type=bool, help='Assume trapezoid river bed, rectangular otherwise.')
 
     # projection settings
@@ -57,6 +58,12 @@ if __name__ == "__main__":
     except:
         parser.print_help()
         parser.exit(1)
+
+    # parse river bed categories and coefficients
+    river_bed_categories = {}
+    for category in args.kst.split(','):
+        category_id, coefficient = category.split('=')
+        river_bed_categories[int(category_id)] = float(coefficient)
 
     project_forward = Transformer.from_crs(args.crs_source, args.crs_target, always_xy=True).transform
 
@@ -150,7 +157,7 @@ if __name__ == "__main__":
     counter = 0
 
     # load all river paths
-    cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column} from {args.river_table}")
+    cur.execute(f"select {args.river_id_column}, {args.river_geo_column}, {args.river_geo_segments_column}, {args.river_depths_column}, {args.river_slope_column}, {args.river_width_column}, {args.river_bed_category_column} from {args.river_table}")
     for data in cur:
         if data[2] is None or data[3] is None or data[4] is None or data[5] is None:
             print(f"Skipping {data[0]} (missing data)")
@@ -162,6 +169,14 @@ if __name__ == "__main__":
         depths: np.ndarray = np.array(data[3])
         slope: np.float64 = np.float64(data[4])
         widths: np.ndarray = np.array(data[5])
+        river_bed_category: int = data[6]
+
+        # get kst for this river bed category
+        if river_bed_category not in river_bed_categories:
+            print(f"Skipping {recroadid} (invalid river bed category)")
+            continue
+        kst = river_bed_categories[river_bed_category]
+
         # append first and last point to widths
         first_width = widths[0]
         last_width = widths[-1]
@@ -262,7 +277,7 @@ if __name__ == "__main__":
             else:
                 r = a / u
             # Gauckler-Manning-Strickler flow formula
-            vm = args.kst * r ** (2 / 3) * slope ** (1 / 2) # flow rate is in m/s
+            vm = kst * r ** (2 / 3) * slope ** (1 / 2) # flow rate is in m/s
             if np.isnan(vm):
                 if np.isnan(slope):
                     reason = "slope is NaN"
