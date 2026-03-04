@@ -91,64 +91,6 @@ def get_height_for_coordinate(coord: tuple[float, float]) -> float:
     return height
 
 
-# inspired by https://stackoverflow.com/questions/62283718/how-to-extract-a-profile-of-value-from-a-raster-along-a-given-line
-def create_segments(coords: list[tuple[float, float]]) -> list[tuple[float, float, float]]:
-    if args.segment_use_hypotenuse:
-        # min resolution to split - half of the hypotenuse of the resolution triangle will render a very good minimum
-        # resolution threshold
-        min_resolution = math.sqrt(math.pow(rds.res[0], 2) + math.pow(rds.res[1], 2)) / 2
-    else:
-        min_resolution = min(rds.res[0], rds.res[1])
-
-    ret_coords: list[tuple[float, float, float]] = []
-    last_coord = None
-
-
-    for i in range(1, len(coords)): # start from the second coordinate
-        last_coord = coords[i-1]
-        line = LineString([last_coord, coords[i]])
-        leg = ops.transform(transformer.transform, line)
-        leg_len = leg.length
-
-        # skip empty lines (double coordinates)
-        if leg_len == 0:
-            continue
-
-        # add last coordinate
-        ret_coords.append((last_coord[0], last_coord[1], get_height_for_coordinate(last_coord),))
-
-        # too short for splitting? just add coordinate
-        if leg_len < min_resolution * 1.5:
-            continue
-
-        # split line into segments
-        points_to_create = math.ceil(leg_len / min_resolution)
-
-        # create new intermediate coordinates with height
-        for j in range(points_to_create):
-            # calculate bounding box for current pixel - this is a square that covers the current pixel
-            point = leg.interpolate(j / points_to_create - 1., normalized=True)
-            # access the nearest pixel in the rds
-            x, y = rds.index(point.x, point.y)
-            # transform back to original coordinate system
-            t_x, t_y = transformer.transform(point.x, point.y, direction=TransformDirection.INVERSE)
-            # added already? might happen in some cases, if our resolution is too dense - in
-            # this case, we skip the point
-            if len(ret_coords) and t_x == ret_coords[-1][0] and t_y == ret_coords[-1][1]:
-                continue
-
-            # get height
-            height = band[x, y]
-            # transform back and add point
-            ret_coords.append((t_x, t_y, height))
-
-    # add last coordinate
-    last_coord = coords[-1]
-    ret_coords.append((last_coord[0], last_coord[1], get_height_for_coordinate(last_coord),))
-
-    return ret_coords
-
-
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
@@ -168,10 +110,6 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--band', dest='band', default=1, type=int, help='band to use from GeoTIFF')
     parser.add_argument('-k', '--keep', dest='keep_existing', default=True, type=bool,
                         help='keep existing heights (overwrite otherwise)')
-    parser.add_argument('-S', '--create-segments', dest='create_segments', default=True, type=bool,
-                        help='create new input coordinates for roads (not rivers) by splitting the line into segments based on height tiles; improves the heights a bit, probably not needed if your input data is pretty good anyway')
-    parser.add_argument('--segment-use-hypotenuse', dest='segment_use_hypotenuse', default=False, type=bool,
-                        help='to calculate heights for segments using the hypotenuse of the resolution triangle instead of the minimum resolution triangle side (default: false)')
     parser.add_argument('--google-api-key', dest='google_api_key', default='', type=str, help='Google API key for elevation data (if needed)')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
@@ -214,25 +152,11 @@ if __name__ == "__main__":
         # source geometry column
         geom_col_name = 'geom'
 
-        # check if geom_original column exists in table, if not, create it
-        if args.create_segments:
-            result = conn.execute(text(f"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '{table}' AND table_schema= '{args.schema}' AND column_name = 'geom_original')")).fetchone()
-            if not result[0]:
-                print("Creating geom_original column and copying data...")
-                conn.execute(text(f"ALTER TABLE {args.schema}.{table} ADD geom_original geometry"))
-                conn.execute(text(f"update {args.schema}.{table} SET geom_original = geom"))
-                conn.commit()
-
-            geom_col_name = 'geom_original'
-
         # get hubs - create statement via sql alchemy
         idCol = Column('id')
         geomCol = Column(geom_col_name)
-        # define metadata, depending on whether we have segments or not
-        if args.create_segments:
-            t = Table(table, MetaData(), idCol, geomCol, Column('geom'), schema=args.schema)
-        else:
-            t = Table(table, MetaData(), idCol, geomCol, schema=args.schema)
+        # define metadata
+        t = Table(table, MetaData(), idCol, geomCol, schema=args.schema)
         s = select(idCol, geomCol).select_from(t)
         data = gpd.GeoDataFrame.from_postgis(str(s.compile()), conn,
                                              geom_col=geom_col_name,
@@ -271,12 +195,7 @@ if __name__ == "__main__":
 
                 # simple shapes, like Points, etc.
                 elif g and g.coords:
-                    if table == 'recroads' and args.create_segments:
-                        # segment line string of roads, and setting defined
-                        new_coords = create_segments(g.coords)
-                        changed_any = True
-                    else:
-                        new_coords, changed_any = work_coordinates(g.coords)
+                    new_coords, changed_any = work_coordinates(g.coords)
                     if len(new_coords) <= 0:
                         continue
                     new_shape = shape({"type": row[geom_col_name].geom_type, "coordinates": new_coords})
