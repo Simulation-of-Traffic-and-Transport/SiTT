@@ -281,6 +281,7 @@ if __name__ == "__main__":
         widths_str = "{" + ','.join([str(element) for element in widths]) + "}"
         cur_upd.execute(f"UPDATE {args.river_table} SET {args.river_width_column} = '{widths_str}' WHERE {args.river_id_column} = '{recroadid}'")
         conn.commit()
+        print(recroadid)
 
     w.close()
     we.close()
