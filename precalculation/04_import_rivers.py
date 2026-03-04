@@ -114,6 +114,8 @@ if __name__ == "__main__":
                 if len(unique_values) <= 4 and vmin >= -1 and vmax <= 2:
                     args.directions.append(col_name)
 
+    fields = set(args.fields).union(set(args.boolean_fields))
+
     # transform hubs format
     for _, row in gdf.iterrows():
         myid = row[args.id_field]
@@ -157,8 +159,8 @@ if __name__ == "__main__":
         edge_type = "river"
         # add JSONB data
         data = {}
-        if args.fields and len(args.fields) > 0:
-            for field in args.fields:
+        if len(fields) > 0:
+            for field in fields:
                 if field in row:
                     if args.boolean_fields and field in args.boolean_fields:
                         # convert certain values to boolean
