@@ -11,12 +11,13 @@ import logging
 import igraph as ig
 import yaml
 
-from sitt import Configuration, Context, SimulationStepInterface, State, Agent
+from sitt import Configuration, Context, State, Agent
+from sitt.modules.simulation_step import SimpleDAV
 
 logger = logging.getLogger()
 
 
-class SimpleDAVRiver(SimulationStepInterface):
+class SimpleDAVRiver(SimpleDAV):
     """
     This is a variation if the SimpleDAV stepper including river flow for downstream movement. It works exactly the same
     as the SimpleDAV stepper, but if a river section downstream is faster than the minimum speed, we use the river's
@@ -26,13 +27,7 @@ class SimpleDAVRiver(SimulationStepInterface):
     def __init__(self, speed: float = 4.0, ascend_per_hour: float = 300, descend_per_hour: float = 400,
                  min_speed_down: float = 4.0, consider_sailing: bool = False, sailing_speed_down: float = 3.71,
                  sailing_speed_up: float = 3.71):
-        super().__init__()
-        self.speed: float = speed
-        """kph of this agent"""
-        self.ascend_per_hour: float = ascend_per_hour
-        """m of height per hour while ascending"""
-        self.descend_per_hour: float = descend_per_hour
-        """m of height per hour while descending"""
+        super().__init__(speed, ascend_per_hour, descend_per_hour)
         self.min_speed_down: float = min_speed_down
         """minimum speed per hour at which we do *not* tow downstream (instead we use the river flow)"""
         self.consider_sailing: bool = consider_sailing
@@ -97,6 +92,8 @@ class SimpleDAVRiver(SimulationStepInterface):
             # temporarily add propulsion to the agent's state
             agent.additional_data['propulsion'] = 'sailing'
 
+        attrs = next_leg.attribute_names()
+
         for i in r:
             coords = next_leg['geom'].coords[i]
             # run hooks
@@ -110,7 +107,7 @@ class SimpleDAVRiver(SimulationStepInterface):
 
             # now check if river runs downwards
             calculated_time = -1.
-            is_downwards = 'direction' in next_leg.attribute_names() and next_leg['direction'] == 'downwards'
+            is_downwards = 'direction' in attrs and next_leg['direction'] == 'downwards'
 
             # check sailing speed
             if sailing:
@@ -127,17 +124,8 @@ class SimpleDAVRiver(SimulationStepInterface):
 
                 # all other cases -> so upriver, or downriver, if river is too slow
                 if calculated_time <= 0:
-                    m_asc_desc = next_leg['slopes'][i] * length  # m asc/desc over this length
-                    if agent.state.is_reversed:
-                        m_asc_desc = -m_asc_desc  # reverse m_asc_desc for descending part
-
-                    if m_asc_desc < 0:
-                        up_down_time = (m_asc_desc * -1) / self.descend_per_hour if self.descend_per_hour > 0 else 0.
-                    else:
-                        up_down_time = m_asc_desc / self.ascend_per_hour if self.ascend_per_hour > 0 else 0.
-
-                    # calculate time taken in units (hours) for this part
-                    calculated_time = length / self.speed / 1000 + up_down_time
+                    # apply DAV formula
+                    calculated_time = self._calculate_time_for_step(agent, next_leg, i, attrs)
 
             time_for_legs.append(calculated_time)
             time_taken += calculated_time

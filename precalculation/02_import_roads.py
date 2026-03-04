@@ -295,7 +295,7 @@ if __name__ == "__main__":
             # here, we assume flat lengths only
             length = g_m.length
             base_length = g_m.length
-            leg_points = points
+            leg_points = [(pt.x, pt.y) for pt in points.geoms]
         else:
             last_coord = None
             for coord in geom.coords:
@@ -343,7 +343,7 @@ if __name__ == "__main__":
         data['down_m'] = down_abs
         data['flat_length_m'] = base_length
         if leg_points is not None:
-            data['leg_points'] = leg_points.wkt
+            data['leg_points'] = leg_points
 
         # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
