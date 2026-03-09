@@ -131,7 +131,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
             geom = self._create_route_from_edge_ids(context, routes)
 
-            difference = (endpoint['end_time'] - lowest_time).total_seconds() / 3600  # convert to hours
+            difference = int((endpoint['end_time'] - lowest_time).total_seconds() / 3600)  # convert to hours
             diff_padded = f'{difference:.2f}'.rjust(7, '0')
             my_id = f'{diff_padded}_{endpoint["end_hub"]}'
             stat_hubs = ', '.join(list(start_hubs))
@@ -155,7 +155,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
             ws.append([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
 
-        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'float', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
+        out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'int', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
         out.writerecords(geo_data)
         out.close()
 
@@ -209,7 +209,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
             geom = self._create_route_from_edge_ids(context, routes)
 
-            difference = (endpoint['end_time'] - lowest_time).total_seconds() / 3600  # convert to hours
+            difference = int((endpoint['end_time'] - lowest_time).total_seconds() / 3600)  # convert to hours
             diff_padded = f'{difference:.2f}'.rjust(7, '0')
             my_id = f'{diff_padded}_{endpoint["end_hub"]}'
             stat_hubs = ', '.join(list(start_hubs))
@@ -220,7 +220,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 geo_data.append({'geometry': geom, 'properties': {
                     'id': my_id,
                     'length_hrs': difference,
-                    'day': math.floor(difference / 24) + 1,
+                    'day': int(math.floor(difference / 24) + 1),
                     'end_hub': endpoint['end_hub'],
                     'end_time': endpoint['end_time'],
                     'start_hubs': stat_hubs,
@@ -235,7 +235,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         filename = os.path.join(self.folder, f"{self.basename}_routes_cancelled.gpkg")
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                                                 'properties': {'id': 'str',
-                                                                                               'length_hrs': 'float',
+                                                                                               'length_hrs': 'int',
                                                                                                'day': 'int',
                                                                                                'end_hub': 'str',
                                                                                                'end_time': 'datetime',
