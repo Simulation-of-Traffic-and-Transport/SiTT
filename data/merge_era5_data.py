@@ -7,7 +7,7 @@ import xarray as xr
 
 # Load all data files and merge them into one xarray dataset.
 # You need to install dask for this to work: pip install dask (already satisfied in requirements.txt)
-data = xr.open_mfdataset('original/*[0-9][0-9][0-9][0-9].nc')
+data = xr.open_mfdataset('original/*[0-9][0-9][0-9][0-9].nc', compat='no_conflicts')
 # We do not use xr.merge, because for some reason this will create huge files in the end.
 
 # # we also rename "valid_time" to "time" for consistency with other data sources - this has been changed in the ERA5 data
