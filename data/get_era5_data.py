@@ -14,18 +14,26 @@ import cdsapi
 variables = [
     '2m_temperature',
     'convective_rain_rate',
-    'convective_snowfall_rate_water_equivalent',
+    # 'convective_snowfall_rate_water_equivalent',
     'snow_depth',
-    'precipitation_type',  # type table of precipitation (rain, snow, etc.)
-    '10m_u_component_of_wind',  # to calculate wind speed
-    '10m_v_component_of_wind',  # to calculate wind speed
-    'k_index',  # probability of severe weather (thunderstorms)
+    # 'precipitation_type',  # type table of precipitation (rain, snow, etc.)
+    # '10m_u_component_of_wind',  # to calculate wind speed
+    # '10m_v_component_of_wind',  # to calculate wind speed
+    # 'k_index',  # probability of severe weather (thunderstorms)
+    'i10fg',  # Instantaneous 10 metre wind gust
 ]
 
-## TODO: maybe take mean values?
-
 years = [
-    '1990'
+    '1990',
+    '1991',
+    '1992',
+    '1993',
+    '1994',
+    '1995',
+    '1996',
+    '1997',
+    '1998',
+    '1999',
 ]
 
 client = cdsapi.Client()
@@ -77,4 +85,4 @@ for variable in variables:
             "download_format": "unarchived",
         }
 
-        client.retrieve(dataset, request, "era5_data_" + variable + "_" + year + "_test.nc")
+        client.retrieve(dataset, request, "original/era5_data_" + variable + "_" + year + ".nc")
