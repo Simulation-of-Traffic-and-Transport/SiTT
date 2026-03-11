@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Take a GeoTIFF and create heights for road coordinates in the database."""
+"""Take a GeoTIFF and create heights for river and hub coordinates in the database."""
 
 import argparse
 import math
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument('--google-api-key', dest='google_api_key', default='', type=str, help='Google API key for elevation data (if needed)')
 
     parser.add_argument('-t', '--tables', dest='tables', type=str, nargs='+', default='all', help='tables to update',
-                        choices=['all', 'rechubs', 'recroads'])
+                        choices=['all', 'rechubs'])
 
     # parse or help
     args: argparse.Namespace | None = None
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     # which tables should be updated
     tables = args.tables
     if tables == 'all' or 'all' in tables:
-        tables = ['rechubs', 'recroads', 'recrivers']
+        tables = ['rechubs', 'recrivers']
 
     # connect to database
     conn = create_engine('postgresql://' + args.user + ':' + parse.quote_plus(args.password) + '@' + args.server + ':' +
