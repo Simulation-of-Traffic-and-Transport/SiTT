@@ -114,6 +114,7 @@ if __name__ == "__main__":
                 if len(unique_values) <= 4 and vmin >= -1 and vmax <= 2:
                     args.directions.append(col_name)
 
+    # union of fields to import
     fields = set(args.fields).union(set(args.boolean_fields))
 
     # transform hubs format

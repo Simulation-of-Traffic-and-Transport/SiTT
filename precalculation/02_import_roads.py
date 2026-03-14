@@ -141,6 +141,9 @@ if __name__ == "__main__":
                 if len(unique_values) <= 4 and vmin >= -1 and vmax <= 2:
                     args.directions.append(col_name)
 
+    # union of fields to import
+    fields = set(args.fields).union(set(args.boolean_fields))
+
     # transform hubs format
     for _, row in gdf.iterrows():
         myid = row[args.id_field]
@@ -184,8 +187,8 @@ if __name__ == "__main__":
         edge_type = "road"
         # add JSONB data
         data = {}
-        if args.fields and len(args.fields) > 0:
-            for field in args.fields:
+        if len(fields) > 0:
+            for field in fields:
                 if field in row:
                     if args.boolean_fields and field in args.boolean_fields:
                         # convert certain values to boolean
@@ -305,18 +308,16 @@ if __name__ == "__main__":
         p = force_2d(Point(geom.coords[-1]))
         leg_points[-1] = [p.x, p.y]
 
-        data = {
-            'length_m': float(np.sum(lengths) if args.consider_heights else geom_m.length),
-            'legs': leg_lengths.tolist(),
-            'legs_up': leg_legs_up.tolist(),
-            'legs_down': leg_legs_down.tolist(),
-            'max_slope_up': float(max_slope),
-            'max_slope_down': float(min_slope),
-            'up_m': float(np.sum(diffs, where=diffs > 0)),
-            'down_m': float(np.abs(np.sum(diffs, where=diffs < 0))),
-            'flat_length_m': geom_m.length,
-            'leg_points': leg_points.tolist(),
-        }
+        data['length_m'] = float(np.sum(lengths) if args.consider_heights else geom_m.length)
+        data['legs'] = leg_lengths.tolist()
+        data['legs_up'] = leg_legs_up.tolist()
+        data['legs_down'] = leg_legs_down.tolist()
+        data['max_slope_up'] = float(max_slope)
+        data['max_slope_down'] = float(min_slope)
+        data['up_m'] = float(np.sum(diffs, where=diffs > 0))
+        data['down_m'] = float(np.abs(np.sum(diffs, where=diffs < 0)))
+        data['flat_length_m'] = float(geom_m.length)
+        data['leg_points'] = leg_points.tolist()
 
         # insert data into edges table
         stmt = insert(edges_table).values(id=myid, geom=WKTElement(geom.wkt), hub_id_a=hub_id_a, hub_id_b=hub_id_b, type=edge_type, data=data, directions=directions)
