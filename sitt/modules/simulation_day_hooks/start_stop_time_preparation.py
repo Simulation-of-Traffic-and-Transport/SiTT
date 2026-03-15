@@ -27,9 +27,9 @@ class StartStopTimePreparation(SimulationDayHookInterface):
     def __init__(self, day_start_padding: float = 0.5, day_end_padding: float = 1.):
         super().__init__()
         self.day_start_padding: float = day_start_padding
-        """add this amount of hours after sunrise"""
+        """add this number of hours after sunrise"""
         self.day_end_padding: float = day_end_padding
-        """add this amount of hours before sunset"""
+        """add this number of hours before sunset"""
         self.tf = TimezoneFinder()
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],

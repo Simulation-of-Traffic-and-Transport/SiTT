@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-SimpleLoadingState will add a fixed amount of time to the agent's current time when the route type changes, e.g. from
+SimpleLoadingState will add a fixed number of time to the agent's current time when the route type changes, e.g. from
 road to river.
 """
 import logging
@@ -13,13 +13,13 @@ logger = logging.getLogger()
 
 class SimpleLoadingState(SimulationDefineStateInterface):
     """
-    SimpleLoadingState will add a fixed amount of time to the agent's current time when the route type changes, e.g.
+    SimpleLoadingState will add a fixed number of time to the agent's current time when the route type changes, e.g.
     from road to river.
     """
     def __init__(self, add_time: float = 0.5):
         super().__init__()
         self.add_time: float = add_time
-        """add this amount of hours when route type changes"""
+        """add this number of hours when route type changes"""
 
     def define_state(self, config: Configuration, context: Context, agent: Agent) -> State:
         state = agent.state
