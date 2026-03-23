@@ -10,7 +10,7 @@ import xarray as xr
 from scipy import stats
 
 # Open the heights raster TIFF file and reproject it to EPSG:4326, so it is compatible with the ERA5 data
-raster = rioxarray.open_rasterio('DTM Austria 10m v2 by Sonny.tif', masked=True).squeeze()
+raster = rioxarray.open_rasterio('DTM_20m.tiff', masked=True).squeeze()
 raster_new = raster.rio.reproject(rasterio.CRS.from_string('EPSG:4326'))
 
 # Open the ERA5 data
@@ -48,6 +48,7 @@ for i in range(len(lats)):
             md = float(data.median().values)
             # calculate and store mode height for current pixel - we flatten the values, find the lowest common height band (100 m resolution) and find the most common one within this raster. We add 50 m to get the middle value.
             result = stats.mode(np.floor(data.values.flatten() / 100) * 100, nan_policy='omit').mode
+            # The line above will create SmallSampleWarning warnings for areas where we only have NaNs - do not worry about this.
             if not np.isnan(result):
                 mm = result + 50
             else:
