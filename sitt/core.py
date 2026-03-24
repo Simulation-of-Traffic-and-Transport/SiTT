@@ -275,7 +275,7 @@ class Simulation(BaseClass):
         agents_finished_for_today: list[Agent] = []
         """keeps finished agents for this day"""
 
-        # prepare agents for single day - run for each agent
+        # prepare agents for a single day - run for each agent
         for agent in agents:
             agent.prepare_for_new_day(current_day=self.current_day)
 
@@ -287,12 +287,12 @@ class Simulation(BaseClass):
             logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
 
         step = 1
-        # do single day loop - this is the inner loop for the simulation (per day)
+        # do a single day loop - this is the inner loop for the simulation (per day)
         while len(agents):
             agents_proceed: list[Agent] = []
             """keeps list of agents that proceed today"""
 
-            # do single step for each agent
+            # do a single step for each agent
             for agent in agents:
                 self._run_single_step(agent, agents_proceed, agents_finished_for_today)
 
@@ -321,7 +321,7 @@ class Simulation(BaseClass):
     def _run_single_step(self, agent: Agent, agents_proceed: list[Agent],
                          agents_finished_for_today: list[Agent]):
         """
-        Run single stop for a specific agent - all parameters will be mutated in this method!
+        Run a single step for a specific agent - all parameters will be mutated in this method!
 
         :param agent: agent to run results for (mutated)
         :param agents_proceed: list of agents that proceed today (mutated)
@@ -373,7 +373,7 @@ class Simulation(BaseClass):
         if agent.state.signal_stop_here or agent.state.time_taken < 0 or end_time >= agent.max_time:
             self._agent_end_day(agent, agents_finished_for_today)
         else:
-            # proceed agent to new hub
+            # proceed the agent to new hub
 
             # add hub and vertex history (this will add the vertex to the agent's history)
             agent.create_route_data(agent.this_hub, agent.next_hub, agent.route_key, start_time, agent.state.is_reversed)
@@ -408,7 +408,7 @@ class Simulation(BaseClass):
             # reached hub is an overnight hub?
             if reached_hub['overnight']:
                 agent.last_overnight_hub = reached_hub['name']
-                # save last possible resting place
+                # save the last possible resting place
             else:
                 # check neighbors if there is an overnight hub close by
                 if 'overnight_hub' in reached_hub.attribute_names() and reached_hub['overnight_hub']:
@@ -416,7 +416,7 @@ class Simulation(BaseClass):
                     # possible resting places
                     for n in reached_hub.neighbors():
                         if n['name'] == reached_hub['overnight_hub']:
-                            # mark hub as overnight hub
+                            # mark hub as the last overnight hub
                             agent.last_overnight_hub = reached_hub['name']
                             break
 
@@ -429,7 +429,7 @@ class Simulation(BaseClass):
         if len(agent.forced_route) > 0:
             agent.forced_route = agent.forced_route[1:]
 
-        # add to list of agents to proceed
+        # add to the list of agents to proceed
         agents_ok, agents_cancelled = self._split_agent_on_hub(agent)
         agents_proceed.extend(agents_ok)
         agents_finished_for_today.extend(agents_cancelled)
@@ -547,7 +547,7 @@ class Simulation(BaseClass):
         """
         possible_routes: list[tuple[str, str]] = []
 
-        # if we have a  forced route, only consider this
+        # if we have a forced route, only consider this
         if len(agent.forced_route) > 0:
             e = self.context.routes.es.find(name=agent.forced_route[0])
             if e.source_vertex['name'] != agent.this_hub:
