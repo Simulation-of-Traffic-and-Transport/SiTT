@@ -29,13 +29,17 @@ class CreateMeansOfTransportation(SimulationDayHookInterface):
         typed_agents = []
 
         for agent in agents:
-            for new_type in self.types:
-                new_agent = copy.deepcopy(agent)
-                new_agent.uid = generate_id()
-                #new_agent.additional_data['ttype'] = new_type
-                new_agent.type_signature = new_type
+            if agent.type_signature is None:
+                # pretty much only on the first day
+                for new_type in self.types:
+                    new_agent = copy.deepcopy(agent)
+                    new_agent.uid = generate_id()
+                    #new_agent.additional_data['ttype'] = new_type
+                    new_agent.type_signature = new_type
 
-                typed_agents.append(new_agent)
+                    typed_agents.append(new_agent)
+            else:
+                typed_agents.append(agent)
 
         return typed_agents
 
