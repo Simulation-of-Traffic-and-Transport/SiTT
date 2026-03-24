@@ -25,14 +25,15 @@ class CreateMeansOfTransportation(SimulationDayHookInterface):
             logger.warning("No types of means of transportation specified.")
             return agents
 
-        # multiply agents by means of transportation
+        # multiply agents by the means of transportation
         typed_agents = []
 
         for agent in agents:
             for new_type in self.types:
                 new_agent = copy.deepcopy(agent)
                 new_agent.uid = generate_id()
-                new_agent.additional_data['ttype'] = new_type
+                #new_agent.additional_data['ttype'] = new_type
+                new_agent.type_signature = new_type
 
                 typed_agents.append(new_agent)
 

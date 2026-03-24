@@ -312,8 +312,13 @@ class Agent(object):
         self.rest_history: list[tuple[float, float, str]] = []
         """History of rests, each entry is (time, length in hours)"""
 
+        # type signature
+        self.type_signature: str | None = None
+        """this is used in forced routes to differentiate between different types of agents, e.g. foot, cart_donkey, cart_oxen"""
+
         # keeps any additional data
         self.additional_data: dict[str, any] = {}
+        """additional data for the agent, keys are arbitrary strings, values are any type"""
 
     def prepare_for_new_day(self, current_day: int = 1, current_time: float = 8., max_time: float = 16.):
         """
@@ -336,11 +341,12 @@ class Agent(object):
         # self.route_data = {}
 
     def __repr__(self) -> str:
+        sig = '' if self.type_signature is None or self.type_signature == '' else f' ({self.type_signature})'
         if self.is_finished:
-            return f'Agent {self.uid} ({self.this_hub}) - [finished {self.is_finished}, {self.current_time:.2f}]'
+            return f'Agent {self.uid}{sig} ({self.this_hub}) - [finished {self.is_finished}, {self.current_time:.2f}]'
         if self.is_cancelled:
-            return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled {self.is_cancelled}, {self.current_time:.2f}]'
-        return f'Agent {self.uid} ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
+            return f'Agent {self.uid}{sig} ({self.this_hub}->{self.next_hub} [{self.route_key}]) - [cancelled {self.is_cancelled}, {self.current_time:.2f}]'
+        return f'Agent {self.uid}{sig} ({self.this_hub}->{self.next_hub} [{self.route_key}]) [{self.current_time:.2f}/{self.max_time:.2f}]'
 
     def __eq__(self, other) -> bool:
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
@@ -610,13 +616,23 @@ class SimulationStepInterface(abc.ABC):
 
         # check conditions
         if 'types' in conditions and len(conditions['types']) > 0:
-            # check type of route ahead
+            # check the type of route ahead
             if next_leg['type'] not in conditions['types']:
                 return False
 
         if 'not_types' in conditions and len(conditions['not_types']) > 0:
-            # check type of route ahead
+            # check the type of route ahead (not)
             if next_leg['type'] in conditions['not_types']:
+                return False
+
+        if 'type_signatures' in conditions and len(conditions['type_signatures']) > 0:
+            # check the type signature of the agent
+            if agent.type_signature not in conditions['type_signatures']:
+                return False
+
+        if 'not_type_signatures' in conditions and len(conditions['not_type_signatures']) > 0:
+            # check the type signature of the agent (not)
+            if agent.type_signature in conditions['not_type_signatures']:
                 return False
 
         if 'additional_data' in conditions and len(conditions['additional_data']) > 0:
