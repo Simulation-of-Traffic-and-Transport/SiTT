@@ -419,6 +419,9 @@ class Simulation(BaseClass):
                             # mark hub as the last overnight hub
                             agent.last_overnight_hub = reached_hub['name']
                             break
+                        elif n['name'] in agent.visited_hubs:
+                            # remove from visited hubs
+                            agent.visited_hubs.remove(n['name'])
 
         # add current hub to visited ones
         agent.visited_hubs.add(agent.next_hub)
