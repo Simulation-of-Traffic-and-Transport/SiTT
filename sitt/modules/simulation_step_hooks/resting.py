@@ -92,6 +92,9 @@ class Resting(SimulationStepHookInterface):
     def do_skip(self, agent: Agent, next_leg: ig.Edge):
         # check skip conditions
         if self.skip and len(self.skip) > 0:
+            if 'type_signatures' in self.skip and len(self.skip['type_signatures']) > 0:
+                 if agent.type_signature in self.skip['type_signatures']:
+                    return True
 
             # additional data check - e.g. agent has a specific additional data type set
             if 'additional_data' in self.skip and len(self.skip['additional_data']) > 0:
