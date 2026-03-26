@@ -5,6 +5,7 @@
 Persist agents' routes to a GeoPackage file/database. We will save each day separately, so it is easier to
 comprehend the data.
 """
+import csv
 import datetime as dt
 import logging
 import math
@@ -16,8 +17,6 @@ from typing import Iterable
 
 import fiona
 import igraph as ig
-from openpyxl import Workbook
-from openpyxl.styles import NamedStyle
 from shapely import LineString, force_2d, union_all, MultiLineString
 from shapely.geometry.base import EmptyGeometry
 
@@ -82,29 +81,13 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
     def _save_routes(self, config: Configuration, context: Context):
         filename = os.path.join(self.folder, f"{self.basename}_routes.gpkg")
-        excel_filename = os.path.join(self.folder, f"{self.basename}_routes.xlsx")
-        logger.info(f"Saving routes to {filename} and {excel_filename}")
+        csv_filename_routes = os.path.join(self.folder, f"{self.basename}_routes.csv")
+        csv_filename_fails = os.path.join(self.folder, f"{self.basename}_failed.csv")
+        logger.info(f"Saving routes to {filename} and {csv_filename_routes}")
 
-        wb = Workbook()
-        if 'header' not in wb.named_styles:
-            my_header = NamedStyle(name="header")
-            my_header.font.bold = True
-            wb.add_named_style(my_header)
-
-        ws = wb.active
-        ws.title = "Routes"
-        ws.append(['ID', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
-        for cell in ws['1:1']:
-            cell.style = 'header'
-        ws.column_dimensions['A'].width = 40
-        ws.column_dimensions['B'].width = 15
-        ws.column_dimensions['C'].width = 20
-        ws.column_dimensions['D'].width = 12
-        ws.column_dimensions['E'].width = 35
-        ws.column_dimensions['F'].width = 20
-        ws.column_dimensions['G'].width = 32
-        ws.column_dimensions['H'].width = 20
-        ws.column_dimensions['I'].width = 200
+        csv_file = open(csv_filename_routes, 'w', newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['ID', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
 
         geo_data = []
 
@@ -153,7 +136,9 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 'variant_paths': count,
             }})
 
-            ws.append([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+            csv_writer.writerow([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+
+        csv_file.close()
 
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString', 'properties': {'id': 'str', 'variant_paths': 'int', 'length_hrs': 'int', 'end_hub': 'str', 'end_time': 'datetime', 'start_hubs': 'str', 'start_times': 'str', 'overnight_hubs': 'str'}})
         out.writerecords(geo_data)
@@ -170,21 +155,9 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         con.close()
 
         # now do cancelled routes
-        wb.create_sheet(title="Cancelled")
-        ws = wb["Cancelled"]
-        ws.append(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'Cancel Details', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
-        for cell in ws['1:1']:
-            cell.style = 'header'
-        ws.column_dimensions['A'].width = 40
-        ws.column_dimensions['B'].width = 20
-        ws.column_dimensions['C'].width = 12
-        ws.column_dimensions['D'].width = 30
-        ws.column_dimensions['E'].width = 35
-        ws.column_dimensions['F'].width = 35
-        ws.column_dimensions['G'].width = 20
-        ws.column_dimensions['H'].width = 32
-        ws.column_dimensions['I'].width = 20
-        ws.column_dimensions['J'].width = 200
+        csv_file = open(csv_filename_fails, 'w', newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['ID', 'Length (hrs)', 'Arrival Day', 'Cancel Reason', 'Cancel Details', 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs'])
 
         geo_data = []
 
@@ -230,7 +203,9 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                     'cancel_details': endpoint['cancel_details'],
                 }})
 
-            ws.append([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['cancel_details'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+            csv_writer.writerow([my_id, difference, endpoint['day'], endpoint['cancel_reason'], endpoint['cancel_details'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+
+        csv_file.close()
 
         filename = os.path.join(self.folder, f"{self.basename}_routes_cancelled.gpkg")
         out = fiona.open(filename, 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
@@ -256,8 +231,6 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
         con.commit()
         con.close()
-
-        wb.save(excel_filename)
 
     def _create_route_from_edge_ids(self, context: Context, routes: Iterable[str]) -> MultiLineString | EmptyGeometry:
         # get geometries from edge IDs
