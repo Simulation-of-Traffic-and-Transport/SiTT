@@ -357,8 +357,21 @@ class Agent(object):
         return self.this_hub == other.this_hub and self.next_hub == other.next_hub and self.route_key == other.route_key
 
     def get_start_end(self) -> tuple[str, str, float, float]:
-        min_dt = None
-        max_dt = None
+        """
+        Get the start and end hubs along with their corresponding timestamps.
+
+        This method retrieves the first and last hubs from the agent's route, as well as
+        the departure time from the start hub and the arrival time at the end hub. If route
+        times are available, it uses the actual recorded times; otherwise, it falls back to
+        the agent's start time.
+
+        :return: A tuple containing:
+            - start_hub (str): The identifier of the starting hub, or None if no route exists
+            - end_hub (str): The identifier of the ending hub, or None if no route exists
+            - min_dt (float): The departure time from the start hub (in hours)
+            - max_dt (float): The arrival time at the end hub (in hours)
+        :rtype: tuple[str, str, float, float]
+        """
         start_hub = None
         end_hub = None
 

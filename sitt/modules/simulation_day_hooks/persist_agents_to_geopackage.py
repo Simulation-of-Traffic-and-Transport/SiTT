@@ -29,10 +29,12 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
     Persist agents' routes to a GeoPackage file/database. We will save each day separately, so it is easier to
     comprehend the data.
     """
-    def __init__(self, only_unique: bool = True):
+    def __init__(self, only_unique: bool = False, delete_existing_folder: bool = True):
         super().__init__()
         self.only_unique: bool =  only_unique
         """Save unique routes only (never the same ones)."""
+        self.delete_existing_folder: bool = delete_existing_folder
+        """Delete existing folder before running."""
         self.basename: str|None = None
         self.folder: str|None = None
         self.min_time: dt.datetime = dt.datetime.now()
@@ -51,13 +53,13 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         self.folder = f"simulation_{self.basename}"
 
         # remove old data if it exists
-        if os.path.exists(self.folder):
+        if self.delete_existing_folder and os.path.exists(self.folder):
             shutil.rmtree(self.folder)
 
         # create folder
         os.mkdir(self.folder)
 
-        logger.info(f"Saving data to folder {self.folder}")
+        logger.info(f"Saving GPKG data to folder {self.folder}")
 
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
@@ -136,7 +138,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
                 'variant_paths': count,
             }})
 
-            csv_writer.writerow([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'], overnight_hubs])
+            csv_writer.writerow([my_id, endpoint['count'], difference, endpoint['day'], stat_hubs, start_times, endpoint['end_hub'], endpoint['end_time'].strftime('%Y-%m-%d %H:%M'), overnight_hubs])
 
         csv_file.close()
 
