@@ -20,6 +20,6 @@ day, depending on requests on Copernicus.
 
 See: https://sonny.4lima.de/
 
-We have downloaded the file `DTM Austria 10m v2 by Sonny.tif`, available here:
+We have downloaded the file `DTM Austria 20m v2 by Sonny.tif`, available here:
 
 https://drive.google.com/file/d/1pVqioqPSxMdcYPYCUtWnQ_7vauIH3dDS/view?usp=share_link
