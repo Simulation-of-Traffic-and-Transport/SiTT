@@ -114,6 +114,11 @@ class Configuration:
         """
         Output step classes to execute
         """
+        self.means_of_transport: list[str] = []
+        """
+        Types of transport used in the simulation - multiplies the number of vehicles in the simulation and tags them
+        Can be used in the steps to define the types of vehicles. If empty, all agents will be of an empty type (None).
+        """
         self.overnight_trace_back: bool = True
         """Trace back to last hub with overnight stay"""
         self.keep_agent_data_in_results: bool = True

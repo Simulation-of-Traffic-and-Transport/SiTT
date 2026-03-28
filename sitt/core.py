@@ -260,8 +260,16 @@ class Simulation(BaseClass):
                 e = self.context.routes.es[edge]
                 target = e.target_vertex['name']
 
-                # create new agent for each outgoing edge and add it to the list
-                agents.append(Agent(hub, target, e['name']))
+                if len(self.config.means_of_transport) > 0:
+                    # multiple types of transport: create a new agent for each type and outgoing edge and add it to the
+                    # list
+                    for t_type in self.config.means_of_transport:
+                        agent = Agent(hub, target, e['name'])
+                        agent.type_signature = t_type
+                        agents.append(agent)
+                else:
+                    # only one type of transport: create a new agent for each outgoing edge and add it to the list
+                    agents.append(Agent(hub, target, e['name']))
 
         return agents
 
@@ -598,6 +606,7 @@ class Simulation(BaseClass):
               lack of possible routes from the current hub.
         """
         possible_routes = self._get_possible_routes_for_agent_on_hub(agent)
+        hub = self.context.graph.vs.find(name=agent.this_hub)
 
         # if no possible routes, we can't move forward'
         if len(possible_routes) == 0:
@@ -605,7 +614,7 @@ class Simulation(BaseClass):
             agent.is_cancelled = True
             agent.cancel_reason = "No possible routes left (dead end)"
             agent.cancel_details = "route via: " + ', '.join(agent.route[::2])
-            coords = self.context.graph.vs.find(name=agent.this_hub)['geom']
+            coords = hub['geom']
             agent.state.last_coordinate_after_stop = (coords.x, coords.y)
             return [], [agent]
 
@@ -625,7 +634,18 @@ class Simulation(BaseClass):
             new_agent.next_hub = target_hub
             new_agent.route_key = route_name
 
-            agents.append(new_agent)
+            if agent.last_overnight_hub == hub['name'] and len(self.config.means_of_transport) > 0:
+                for j, new_type in enumerate(self.config.means_of_transport):
+                    # first route - use the original agent
+                    if j > 0:
+                        # other routes - create new agent, copy it and create new uid
+                        new_agent = copy.deepcopy(new_agent)
+                        new_agent.generate_uid()
+                    new_agent.type_signature = new_type
+                    agents.append(new_agent)
+            else:
+                # no type signature - create only one new agent, append this agent
+                agents.append(new_agent)
 
         return agents, []
 

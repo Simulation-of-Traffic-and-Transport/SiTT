@@ -85,6 +85,9 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
         else:
             config.start_date = dt.datetime.fromisoformat(data['start_date'])
 
+    if 'means_of_transport' in data and type(data['means_of_transport']) == list and len(data['means_of_transport']) > 0:
+        config.means_of_transport = data['means_of_transport']
+
     # Other settings
     if 'overnight_trace_back' in data:
         config.overnight_trace_back = data['overnight_trace_back']
