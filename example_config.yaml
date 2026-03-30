@@ -56,6 +56,13 @@ start_date: &start_date 1990-08-01
 # Keep leg times in agent data (uses up memory and if you do not need them, set to false) - defaults to true
 # keep_leg_times: true
 
+# Types of transport used in the simulation - multiplies the number of vehicles in the simulation and tags them
+# Can be used in the steps to define the types of vehicles. If empty, all agents will be of an empty type (None).
+means_of_transport:
+  - foot
+  - cart_donkey
+  - cart_oxen
+
 ########################################################################################################################
 # variables to use below - variables are normal YAML variables prefixed with &node anchors and aliased using *
 # example:
