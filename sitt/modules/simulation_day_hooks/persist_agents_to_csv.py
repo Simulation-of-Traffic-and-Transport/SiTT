@@ -43,7 +43,8 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
             shutil.rmtree(self.folder)
 
         # create folder
-        os.mkdir(self.folder)
+        if not os.path.exists(self.folder):
+            os.mkdir(self.folder)
 
         csv_filename_routes = os.path.join(self.folder, f"{self.basename}_finished.csv")
         self.csv_file = open(csv_filename_routes, 'w', newline='')
