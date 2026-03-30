@@ -783,26 +783,26 @@ class Simulation(BaseClass):
                 forced_routes_tries[sig] = {}
                 visited_hubs[sig] = set()
 
-                # add forced routes to the set, so we can handle those later on
-                if len(agent.forced_route) > 0:
-                    all_forced_routes[sig].add(tuple(agent.forced_route))
-                    # remember the largest try number per start hub
-                    if agent.forced_route[0] not in forced_routes_tries[sig]:
-                        forced_routes_tries[sig][agent.forced_route[0]] = 0
-                    forced_routes_tries[sig][agent.forced_route[0]] = max(forced_routes_tries[sig][agent.forced_route[0]], agent.tries)
-                elif agent.this_hub != agent.next_hub:
-                    # agent has ended here to sleep, so we check the next hubs and routes to add this to forced routes
-                    all_forced_routes[sig].add((agent.route_key,))
-                    if agent.route_key not in forced_routes_tries[sig]:
-                        forced_routes_tries[sig][agent.route_key] = 0
+            # add forced routes to the set, so we can handle those later on
+            if len(agent.forced_route) > 0:
+                all_forced_routes[sig].add(tuple(agent.forced_route))
+                # remember the largest try number per start hub
+                if agent.forced_route[0] not in forced_routes_tries[sig]:
+                    forced_routes_tries[sig][agent.forced_route[0]] = 0
+                forced_routes_tries[sig][agent.forced_route[0]] = max(forced_routes_tries[sig][agent.forced_route[0]], agent.tries)
+            elif agent.this_hub != agent.next_hub:
+                # agent has ended here to sleep, so we check the next hubs and routes to add this to forced routes
+                all_forced_routes[sig].add((agent.route_key,))
+                if agent.route_key not in forced_routes_tries[sig]:
+                    forced_routes_tries[sig][agent.route_key] = 0
 
-                # retire agents by adding them to the results
-                if agent.is_cancelled or agent.is_finished:
-                    if self.config.keep_agent_data_in_results:
-                        self.results.add_agent(agent)
-                else:
-                    has_agents_to_proceed = True
-                    visited_hubs[sig] = visited_hubs[sig].union(agent.visited_hubs)
+            # retire agents by adding them to the results
+            if agent.is_cancelled or agent.is_finished:
+                if self.config.keep_agent_data_in_results:
+                    self.results.add_agent(agent)
+            else:
+                has_agents_to_proceed = True
+                visited_hubs[sig] = visited_hubs[sig].union(agent.visited_hubs)
 
         return has_agents_to_proceed, all_forced_routes, forced_routes_tries, visited_hubs
 
