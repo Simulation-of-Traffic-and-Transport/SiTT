@@ -773,15 +773,18 @@ class Simulation(BaseClass):
         # also aggregate visited hubs
         visited_hubs: dict[str, set[str]] = {}
 
+        # initialize all dictionaries with empty sets and zero for retry attempts
+        for sig in self.config.means_of_transport:
+            all_forced_routes[sig] = set()
+            forced_routes_tries[sig] = {}
+            visited_hubs[sig] = set()
+
         has_agents_to_proceed = False
 
+        # process agents to gather forced routes, retry attempts, and visited hubs per signature type
         for agent in agent_list:
             # now aggregate lists per signature type
             sig = agent.type_signature if agent.type_signature is not None else ''
-            if sig not in all_forced_routes:
-                all_forced_routes[sig] = set()
-                forced_routes_tries[sig] = {}
-                visited_hubs[sig] = set()
 
             # add forced routes to the set, so we can handle those later on
             if len(agent.forced_route) > 0:
