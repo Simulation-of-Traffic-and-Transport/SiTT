@@ -99,13 +99,15 @@ class StartStopTimePreparation(SimulationDayHookInterface):
         sun = Sun(current_position.y, current_position.x)
 
         # Create a date in your machine's local time zone
-        current_dt = dt.datetime(current_dt.year, current_dt.month, current_dt.day, 0, 0, 0, 0, time_zone)
-        sunrise = sun.get_sunrise_time(current_dt, time_zone)
-        sunset = sun.get_sunset_time(current_dt, time_zone)
+        start_dt = dt.datetime(current_dt.year, current_dt.month, current_dt.day, 12, 0, 0, 0, time_zone)
+        end_dt = start_dt + dt.timedelta(hours=24) # add a day; for some reason, sunset has to be defined like this...
+
+        sunrise = sun.get_sunrise_time(start_dt, time_zone)
+        sunset = sun.get_sunset_time(end_dt, time_zone)
 
         # remove dst offset to make statistics a bit more straightforward
-        sunrise -= dt.timedelta(seconds=sunrise.dst().seconds)
-        sunset -= dt.timedelta(seconds=sunset.dst().seconds)
+        sunrise -= dt.timedelta(seconds=start_dt.dst().seconds)
+        sunset -= dt.timedelta(seconds=end_dt.dst().seconds)
 
         # adjust with deltas for sunrise and sunset
         sunrise_adjusted = sunrise + dt.timedelta(hours=self.day_start_padding)
