@@ -109,6 +109,7 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
         for pid in agent.parents:
             parent = self.route_origins[pid]
             min_time = min(min_time, parent['min_time'])
+            start_delta = min(start_delta, parent['start_delta'])
             start_hubs.update(parent['start_hubs'])
             start_times.update(parent['start_times'])
             overnight_hubs.update(parent['overnight_hubs'])
@@ -122,6 +123,8 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
             count = 1
 
         node = {
+            'start_delta': start_delta,
+            'end_delta': end_delta,
             'start_time': start_time,
             'end_time': end_time,
             'start_hub': start_hub,
@@ -139,7 +142,7 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
 
     def _persist_agent(self, config: Configuration, agent: Agent, node: dict, current_day: int):
         last_means_of_transport = agent.type_signature if agent.type_signature is not None else ''
-        time_taken = int((node['end_time'] - node['min_time']).total_seconds() / 3600)  # convert to hours
+        time_taken = int(node['end_delta'] - node['start_delta'])  # convert to hours
         current_hour = math.floor(agent.current_time % 24)
 
         self.csv_writer.writerow([agent.uid, last_means_of_transport, node['count'], time_taken, current_day,
