@@ -99,6 +99,6 @@ class Resting(SimulationStepHookInterface):
             # additional data check - e.g. agent has a specific additional data type set
             if 'additional_data' in self.skip and len(self.skip['additional_data']) > 0:
                 for key, values in self.skip['additional_data'].items():
-                    if key not in agent.additional_data or agent.additional_data[key] in values:
+                    if key in agent.additional_data and agent.additional_data[key] in values:
                         return True
         return False
