@@ -164,7 +164,7 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
 
             # save to CSV, if finished
             if is_finished:
-                self._persist_agent(config, agent, node, current_day)
+                self._persist_agent(agent, node, current_day)
 
     def _save_route_origins(self, agent: Agent) -> dict:
         """
@@ -241,7 +241,7 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
 
         return node
 
-    def _persist_agent(self, config: Configuration, agent: Agent, node: dict, current_day: int):
+    def _persist_agent(self, agent: Agent, node: dict, current_day: int):
         """
         Write a single finished agent's route information to the CSV file.
 
@@ -251,8 +251,6 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
         variant information.
 
         Args:
-            config (Configuration): The simulation configuration object containing settings
-                and parameters for the current simulation run.
             agent (Agent): The agent whose information should be persisted. Must be a
                 finished agent with complete route information including uid, type_signature,
                 current_time, and this_hub attributes.
