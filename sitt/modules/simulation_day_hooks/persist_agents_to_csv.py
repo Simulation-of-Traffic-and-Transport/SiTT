@@ -160,7 +160,6 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
                     is_finished = True
 
             # persist to route graph
-            # node = self._save_to_route_graph(agent)
             node = self._save_route_origins(agent)
 
             # save to CSV, if finished
