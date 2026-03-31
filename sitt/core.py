@@ -674,14 +674,17 @@ class Simulation(BaseClass):
                 continue
 
             # flatten forced routes into simple lists and aggregate starting edges
-            forced_routes_by_signature = self._flatten_forced_routes(all_forced_routes)
+            all_forced_routes = self._flatten_forced_routes(all_forced_routes)
             # flag to see if any agent had a forced route
             has_any_forced_route = False
             # list of all agent ids that led to this hub
-            agent_ids = [a.uid for a in agent_list]
+            agent_ids = []
+            for agent in agent_list:
+                if not agent.is_cancelled:
+                    agent_ids.append(agent.uid)
 
             # now proceed per signature entry
-            for sig, forced_routes, forced_hubs_starts in forced_routes_by_signature:
+            for sig, forced_routes in all_forced_routes.items():
                 # only consider forced routes on retried hubs
                 if len(forced_routes) > 0:
                     has_any_forced_route = True
@@ -706,7 +709,7 @@ class Simulation(BaseClass):
 
                 # create new dummy agent to test possible routes
                 agent = Agent(hub, '', '', do_not_generate_uid=True)
-                for sig, _, _ in forced_routes_by_signature:
+                for sig in all_forced_routes.keys():
                     agent.visited_hubs.update(visited_hubs[sig])
 
                 # get all possible routes for this hub
@@ -809,106 +812,56 @@ class Simulation(BaseClass):
 
         return has_agents_to_proceed, all_forced_routes, forced_routes_tries, visited_hubs
 
-    def _flatten_forced_routes(self, routes_by_signature: dict[str, set[tuple]]) -> list[tuple[str, list[list[str]], set[str]]]:
-        """
-        Flatten and deduplicate forced routes grouped by agent type signature.
+    def _flatten_forced_routes(self, all_forced_routes: dict[str, set[tuple]]) -> dict[str, set[tuple]]:
+        for sig, forced_routes in all_forced_routes.items():
+            all_forced_routes[sig] = self._flatten_forced_route(forced_routes)
+        return all_forced_routes
 
-        This method processes a dictionary of forced routes organized by agent type signatures.
-        For each signature, it flattens the associated routes by identifying unique paths and
-        collecting starting edges. The method delegates the actual flattening logic to
-        `_flatten_forced_routes_single_signature` for each signature and aggregates the results.
-        Only signatures with non-empty forced routes are included in the final output.
-
-        :param routes_by_signature: A dictionary mapping agent type signatures (strings) to sets
-            of route tuples. Each tuple represents a sequence of hub names forming a forced route.
-            The key is the type signature identifier, and the value is a set of route tuples where
-            each tuple contains one or more hub identifiers as strings.
-        :return: A list of tuples, where each tuple contains:
-            - The agent type signature (string) identifying the agent type.
-            - A list of unique routes for that signature, where each route is represented as a
-              list of hub names (strings) in order from start to end.
-            - A set of starting edge names (strings) representing the first hub in each unique
-              route path for that signature.
-        """
-        forced_routes_by_type: list[tuple[str, list[list[str]], set[str]]] = []
-
-        for sig, routes in routes_by_signature.items():
-            forced_routes, forced_hubs_starts = self._flatten_forced_routes_single_signature(routes)
-            if len(forced_routes) > 0:
-                forced_routes_by_type.append((sig, forced_routes, forced_hubs_starts))
-
-        return forced_routes_by_type
-
-
-    @staticmethod
-    def _flatten_forced_routes_single_signature(forced_routes: set[tuple]) -> tuple[list[list[str]], set[str]]:
-        """
-        Flatten and deduplicate forced routes for a single agent type signature.
-
-        This method takes a set of forced route tuples and processes them to extract unique
-        routes by constructing a directed graph. It identifies all unique paths from a virtual
-        start node to leaf nodes (endpoints with no outgoing edges), effectively deduplicating
-        routes that share common segments. The method also collects all starting edges that
-        connect directly from the start node.
-
-        :param forced_routes: A set of tuples where each tuple represents a sequence of hub
-            names forming a forced route. Each tuple contains one or more hub identifiers
-            as strings.
-        :return: A tuple containing:
-            - A list of unique routes, where each route is represented as a list of hub names
-              (strings) in order from start to end.
-            - A set of starting edge names (strings) that represent the first hub in each
-              unique route path from the virtual start node.
-        """
-        start_edges: set[str] = set()
-
-        # simple cases
-        if len(forced_routes) == 0:
-            return [], start_edges
-        if len(forced_routes) == 1:
-            routes = list(list(forced_routes)[0])
-            start_edges.add(routes[0])
-            return [routes], start_edges
-
-        # create an igraph, so we can detect unique routes later
+    def _flatten_forced_route(self, routes: set[tuple]) -> set[tuple]:
         g = ig.Graph(directed=True)
-        g.add_vertex(name='_START')
-        for route in list(forced_routes):
-            for i, hub in enumerate(route):
-                # try to add vertex
-                try:
-                    g.vs.find(name=hub)
-                except:
-                    g.add_vertex(name=hub)
-                # try to add edge
-                start_hub = '_START' if i == 0 else route[i-1]
-                edge_name = f"{start_hub}_{hub}"
-                try:
-                    g.es.find(name=edge_name)
-                except:
-                    g.add_edge(start_hub, hub, name=edge_name)
 
-        unique_routes = []
+        # add all routes to the graph
+        for route in routes:
+            self._flatten_forced_routes_add_route(g, route)
 
-        # set degrees to find leaves of network
-        g.vs['degree_out'] = g.degree(mode='out')
-        for leaf in g.vs.select(degree_out_eq=0):
-            # get all routes to start - this will get all unique routes from the start to the leaf
-            for path in g.get_all_simple_paths(leaf, 0, mode='in'):
-                # correct order and cut off start
-                path = list(reversed(path))[1:]
-                # create route and add to list
-                unique_route = [''] * len(path)
-                for i, idx in enumerate(path):
-                    unique_route[i] = g.vs[idx]['name']
+        flattened_routes: set[tuple] = set()
 
-                unique_routes.append(unique_route)
+        # now let us check our roots if we can omit them due to being contained in all other paths
+        for route in routes:
+            last_node = g.es.find(name=route[-1]).target_vertex
+            outdegree = last_node.outdegree()
+            # only add if there are other paths to this route - also catch the case if the target node is the last node
+            # in the graph (meaning it is a target node for the simulation)
+            if outdegree == 0 or last_node['out'] > outdegree:
+                flattened_routes.add(route)
+            # elif last_node['out'] < outdegree:
+            #     # this does not really happen - just print here, so we keep it in mind
+            #     print(route, last_node)
 
-        # get all routes from start
-        for v in g.vs.find(name='_START').neighbors():
-            start_edges.add(v['name'])
+        return flattened_routes
 
-        return unique_routes, start_edges
+    def _flatten_forced_routes_add_route(self, g: ig.Graph, route: tuple):
+        # try to find route
+        for i, route_name in enumerate(route):
+            self._flatten_forced_routes_add_single_route(g, route_name)
+
+    def _flatten_forced_routes_add_single_route(self, g: ig.Graph, route_name: str) -> ig.Vertex:
+        try:
+            g.es.find(name=route_name)
+        except:
+            original_e: ig.Edge = self.context.routes.es.find(name=route_name)
+            source = self._flatten_forced_route_add_vertex(g, original_e.source_vertex['name'])
+            target = self._flatten_forced_route_add_vertex(g, original_e.target_vertex['name'])
+            g.add_edge(source, target, name=route_name)
+
+    def _flatten_forced_route_add_vertex(self, g: ig.Graph, vertex_name: str) -> ig.Vertex:
+        try:
+            return g.vs.find(name=vertex_name)
+        except:
+            # count outgoing edges
+            original_v: ig.Vertex = self.context.routes.vs.find(name=vertex_name)
+            return g.add_vertex(vertex_name, out=original_v.outdegree())
+
 
     def _end_simulation(self):
         """
