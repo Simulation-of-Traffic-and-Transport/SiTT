@@ -29,7 +29,7 @@ def prepare_test_data():
 def test_geotiff_height_for_paths_and_hubs_calculate_init():
     entity = GeoTIFFHeightForPathsAndHubs()
 
-    assert entity.file is None
+    assert entity.file_gpkg is None
     assert entity.crs_from ==  "EPSG:4326"
     assert entity.always_xy == True
     assert entity.overwrite == False

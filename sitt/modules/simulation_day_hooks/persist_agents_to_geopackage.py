@@ -110,7 +110,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
         return {'geometry': LineString(coordinates), 'properties': {
             'id': agent.uid,
-            'type': agent.type_signature,
+            'type': agent.transport_type,
             'start_hub': start_hub,
             'end_hub': end_hub,
             'day': current_day,

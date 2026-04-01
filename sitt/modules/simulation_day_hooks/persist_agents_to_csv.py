@@ -263,7 +263,7 @@ class PersistAgentsToCSV(SimulationDayHookInterface):
         Returns:
             None
         """
-        last_means_of_transport = agent.type_signature if agent.type_signature is not None else ''
+        last_means_of_transport = agent.transport_type if agent.transport_type is not None else ''
         time_taken = int(node['end_delta'] - node['start_delta'])  # convert to hours
         current_hour = math.floor(agent.current_time % 24)
 

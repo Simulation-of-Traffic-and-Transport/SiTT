@@ -65,7 +65,7 @@ class LogAgentsPerDay(SimulationDayHookInterface):
 
             self.csv_writer.writerow([
                 agent.uid,
-                agent.type_signature if agent.type_signature is not None else '',
+                agent.transport_type if agent.transport_type is not None else '',
                 current_day,
                 hour,
                 minute,

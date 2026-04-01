@@ -317,9 +317,11 @@ class Agent(object):
         self.rest_history: list[tuple[float, float, str]] = []
         """History of rests, each entry is (time, length in hours)"""
 
-        # type signature
-        self.type_signature: str | None = None
-        """this is used in forced routes to differentiate between different types of agents, e.g. foot, cart_donkey, cart_oxen"""
+        # transport type
+        self.transport_type: str | None = None
+        """this is used to differentiate between different types of agents, e.g. foot, cart_donkey, cart_oxen"""
+        self.transport_types: list[str] = []
+        """keeps track of transport types for each agent for each leg, e.g. foot, cart_donkey, cart_oxen"""
 
         # keeps any additional data
         self.additional_data: dict[str, any] = {}
@@ -346,7 +348,7 @@ class Agent(object):
         # self.route_data = {}
 
     def __repr__(self) -> str:
-        sig = '' if self.type_signature is None or self.type_signature == '' else f' ({self.type_signature})'
+        sig = '' if self.transport_type is None or self.transport_type == '' else f' ({self.transport_type})'
         if self.is_finished:
             return f'Agent {self.uid}{sig} ({self.this_hub}) - [finished {self.is_finished}, {self.current_time:.2f}]'
         if self.is_cancelled:
@@ -473,6 +475,11 @@ class Agent(object):
         self.route.append(to_hub)
         # remember reversed
         self.route_reversed.append(is_revered)
+        # remember the transport type
+        self.transport_types.append(self.transport_type)
+
+        # create route data entries
+        self.route_times[route_key] = [departure]
 
         # create list of time points in route
         t = departure
@@ -643,14 +650,14 @@ class SimulationStepInterface(abc.ABC):
             if next_leg['type'] in conditions['not_types']:
                 return False
 
-        if 'type_signatures' in conditions and len(conditions['type_signatures']) > 0:
-            # check the type signature of the agent
-            if agent.type_signature not in conditions['type_signatures']:
+        if 'transport_types' in conditions and len(conditions['transport_types']) > 0:
+            # check the transport type of the agent
+            if agent.transport_type not in conditions['transport_types']:
                 return False
 
-        if 'not_type_signatures' in conditions and len(conditions['not_type_signatures']) > 0:
-            # check the type signature of the agent (not)
-            if agent.type_signature in conditions['not_type_signatures']:
+        if 'not_transport_types' in conditions and len(conditions['not_transport_types']) > 0:
+            # check the transport type of the agent (not)
+            if agent.transport_type in conditions['not_transport_types']:
                 return False
 
         if 'additional_data' in conditions and len(conditions['additional_data']) > 0:

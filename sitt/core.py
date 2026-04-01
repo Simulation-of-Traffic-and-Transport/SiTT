@@ -265,7 +265,7 @@ class Simulation(BaseClass):
                     # list
                     for t_type in self.config.means_of_transport:
                         agent = Agent(hub, target, e['name'])
-                        agent.type_signature = t_type
+                        agent.transport_type = t_type
                         agents.append(agent)
                 else:
                     # only one type of transport: create a new agent for each outgoing edge and add it to the list
@@ -641,10 +641,10 @@ class Simulation(BaseClass):
                         # other routes - create new agent, copy it and create new uid
                         new_agent = copy.deepcopy(new_agent)
                         new_agent.generate_uid()
-                    new_agent.type_signature = new_type
+                    new_agent.transport_type = new_type
                     agents.append(new_agent)
             else:
-                # no type signature - create only one new agent, append this agent
+                # no transport type - create only one new agent, append this agent
                 agents.append(new_agent)
 
         return agents, []
@@ -666,7 +666,7 @@ class Simulation(BaseClass):
                 # continue - do not add agents to proceed tomorrow
                 continue
 
-            # group by type_signature
+            # group by transport_type
             has_agents_to_proceed, all_forced_routes, forced_routes_tries, visited_hubs = self._create_routes_and_visited_hubs(agent_list)
 
             # no new agents?
@@ -699,7 +699,7 @@ class Simulation(BaseClass):
                         new_agent.tries = 0
                         # copy signature if available
                         if sig != '':
-                            new_agent.type_signature = sig
+                            new_agent.transport_type = sig
                         agents_proceeding_tomorrow.append(new_agent)
 
             # if no forced routes, we add all agents to proceed tomorrow
@@ -751,26 +751,26 @@ class Simulation(BaseClass):
 
     def _create_routes_and_visited_hubs(self, agent_list: list[Agent]) -> tuple[bool, dict[str, set[tuple]], dict[str, dict[str, int]], dict[str, set[str]]]:
         """
-       Aggregate forced routes, retry attempts, and visited hubs from a list of agents grouped by type signature.
+       Aggregate forced routes, retry attempts, and visited hubs from a list of agents grouped by transport type.
 
        This method processes a list of agents to collect information about their forced routes,
        the number of retry attempts per route, and the hubs they have visited. The data is
-       organized by agent type signature to facilitate signature-specific processing. Agents
+       organized by agent transport type to facilitate signature-specific processing. Agents
        that are cancelled or finished are retired to the results if configured to do so.
 
        :param agent_list: A list of Agent objects to process. Each agent contains information
-           about its type signature, forced routes, visited hubs, and completion status.
+           about its transport type, forced routes, visited hubs, and completion status.
        :return: A tuple containing:
            - A boolean indicating whether there are any agents that can proceed to the next day
              (True if at least one agent is neither cancelled nor finished).
-           - A dictionary mapping type signatures (strings) to sets of forced route tuples.
+           - A dictionary mapping transport types (strings) to sets of forced route tuples.
              Each tuple represents a sequence of route keys that the agent must follow.
-           - A dictionary mapping type signatures (strings) to dictionaries that track the
+           - A dictionary mapping transport types (strings) to dictionaries that track the
              maximum number of retry attempts per route key (route key to int).
-           - A dictionary mapping type signatures (strings) to sets of hub names (strings)
+           - A dictionary mapping transport types (strings) to sets of hub names (strings)
              representing all hubs visited by agents of that signature type.
        """
-        # collect forced routes from this hub - create as a list of agents divided by type_signatures
+        # collect forced routes from this hub - create as a list of agents divided by transport types
         all_forced_routes: dict[str, set[tuple]] = {}
         forced_routes_tries: dict[str, dict[str, int]] = {}
         # also aggregate visited hubs
@@ -787,7 +787,7 @@ class Simulation(BaseClass):
         # process agents to gather forced routes, retry attempts, and visited hubs per signature type
         for agent in agent_list:
             # now aggregate lists per signature type
-            sig = agent.type_signature if agent.type_signature is not None else ''
+            sig = agent.transport_type if agent.transport_type is not None else ''
 
             # add forced routes to the set, so we can handle those later on
             if len(agent.forced_route) > 0:
