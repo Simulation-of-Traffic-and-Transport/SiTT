@@ -163,7 +163,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             'id': agent.uid,
             'last_transport_type': agent.transport_type,
             'variant_paths': node['count'],
-            'length_hrs': int(math.floor(end_delta - start_delta)),
+            'length_hrs': int(node['end_delta'] - node['start_delta']),
             'arrival_day': current_day,
             'arrival_hour': math.floor(agent.current_time % 24),
             'start_hubs': ', '.join(node['start_hubs']),
