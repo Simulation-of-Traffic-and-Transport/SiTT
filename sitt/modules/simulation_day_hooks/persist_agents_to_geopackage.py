@@ -50,9 +50,9 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         self.file = fiona.open(filename, 'w', driver='GPKG', layer='agents', crs='EPSG:4326',
                                 schema={'geometry': 'LineString',
                                         'properties': {'id': 'str', 'type': 'str', 'start_hub': 'str', 'end_hub': 'str',
-                                                       'day': 'int', 'start_time': 'datetime', 'end_time': 'datetime',
-                                                       'is_finished': 'bool', 'stops': 'str', 'hubs': 'str',
-                                                       'edges': 'str'}})
+                                                       'day': 'int', 'length_hrs': 'float', 'start_time': 'datetime',
+                                                       'end_time': 'datetime', 'is_finished': 'bool', 'stops': 'str',
+                                                       'hubs': 'str', 'edges': 'str'}})
 
         logger.info(f"Saving agent data to {filename}.")
 
@@ -114,6 +114,7 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
             'start_hub': start_hub,
             'end_hub': end_hub,
             'day': current_day,
+            'length_hrs': end_delta - start_delta,
             'start_time': start_time,
             'end_time': end_time,
             'is_finished': is_finished,
