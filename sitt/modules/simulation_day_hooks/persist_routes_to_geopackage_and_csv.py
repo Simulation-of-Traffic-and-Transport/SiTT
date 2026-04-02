@@ -138,7 +138,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.csv_writer_routes.writerow(
             ['ID', 'Last Transport Type', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Arrival Hour',
              'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs', 'Number of Hubs', 'Number of Edges',
-             'Count Foot', 'Count Donkey', 'Count Ox', 'Hubs', 'Edges'])
+             'Count Foot', 'Count Donkey', 'Count Ox', 'Hubs', 'Hub Coordinates', 'Edges'])
 
         filename_transport_types = os.path.join(self.folder, f"{self.basename}_transport_types.csv")
         self.file_transport_types_csv = open(filename_transport_types, 'w', newline='')
