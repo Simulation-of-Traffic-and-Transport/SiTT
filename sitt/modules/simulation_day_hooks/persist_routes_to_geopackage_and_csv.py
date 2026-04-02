@@ -56,7 +56,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.file_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                                                       'properties': {'id': 'str',
                                                                                                      'last_transport_type': 'str',
-                                                                                                     'variant_paths': 'int',
+                                                                                                     'variant_paths': 'str', # because some numbers are higher than C's int length
                                                                                                      'length_hrs': 'int',
                                                                                                      'arrival_day': 'int',
                                                                                                      'arrival_hour': 'int',
@@ -162,7 +162,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         return {'geometry': MultiLineString(lines), 'properties': {
             'id': agent.uid,
             'last_transport_type': agent.transport_type,
-            'variant_paths': node['count'],
+            'variant_paths': str(node['count']),
             'length_hrs': int(node['end_delta'] - node['start_delta']),
             'arrival_day': current_day,
             'arrival_hour': math.floor(agent.current_time % 24),
