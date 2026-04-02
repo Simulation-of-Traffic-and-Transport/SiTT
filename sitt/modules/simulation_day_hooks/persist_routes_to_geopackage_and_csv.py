@@ -130,6 +130,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                                                                                                      'count_donkey': 'int',
                                                                                                      'count_ox': 'int',
                                                                                                      'hubs': 'str',
+                                                                                                     'hub_coordinates': 'str',
                                                                                                      'edges': 'str'}})
 
         self.file_routes_csv = open(filename + 'csv', 'w', newline='')
@@ -322,6 +323,10 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             # also write data to transport types csv
             self.csv_writer_transport_types.writerow([agent.uid, edge_name, foot_flag, donkey_flag, ox_flag])
 
+        hub_coordinates = []
+        for hub in context.routes.vs.select(name_in=node['hubs']):
+            hub_coordinates.append(f"{hub['geom'].x},{hub['geom'].y}")
+
         return {'geometry': MultiLineString(lines), 'properties': {
             'id': agent.uid,
             'last_transport_type': agent.transport_type,
@@ -340,6 +345,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             'count_donkey': count_donkey,
             'count_ox': count_ox,
             'hubs': ','.join(list(node['hubs'])),
+            'hub_coordinates': ' '.join(hub_coordinates),
             'edges': ','.join(edges),
         }}
 
