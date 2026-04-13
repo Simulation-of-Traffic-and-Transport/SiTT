@@ -327,7 +327,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         for hub in context.routes.vs.select(name_in=node['hubs']):
             hub_coordinates.append(f"{hub['geom'].x},{hub['geom'].y}")
 
-        return {'geometry': MultiLineString(lines), 'properties': {
+        return {'geometry': force_2d(MultiLineString(lines)), 'properties': {
             'id': agent.uid,
             'last_transport_type': agent.transport_type,
             'variant_paths': str(node['count']),
