@@ -236,8 +236,8 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
     def _create_route_from_edge_ids(self, context: Context, routes: Iterable[str]) -> MultiLineString | EmptyGeometry:
         # get geometries from edge IDs
-        geoms = context.routes.es.select(name_in=routes)['geom']
-        geom = force_2d(union_all(geoms))
+        geoms = force_2d(context.routes.es.select(name_in=routes)['geom'])
+        geom = union_all(geoms)
         if geom.geom_type == 'LineString':
             return MultiLineString([geom.coords])
         return geom
