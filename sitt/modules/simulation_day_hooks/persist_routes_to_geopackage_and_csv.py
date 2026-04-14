@@ -5,6 +5,7 @@
 Persist agents' routes to a GeoPackage file/database. We will save each day separately, so it is easier to
 comprehend the data.
 """
+import copy
 import csv
 import datetime as dt
 import logging
@@ -13,7 +14,7 @@ import os
 import shutil
 
 import fiona
-from shapely import LineString, MultiLineString, force_2d
+from shapely import MultiLineString, force_2d
 
 from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetOfResults
 
@@ -68,10 +69,10 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.file_transport_types_csv = None
         self.csv_writer_transport_types = None
         self.min_time: dt.datetime = dt.datetime.now()
-        self.route_origins: dict = {}
-        """Keep track of routes of agents."""
-        self.route_ids_per_day: dict[int, set[str]] = {}
-        """Keep track of route ids per day, so we can delete older routes to save memory."""
+        self.hubs: dict = {}
+        """Keep track of hubs per day."""
+        self.hubs_yesterday: dict = {}
+        """Keep track of hubs of yesterday."""
 
     def _initialize(self, config: Configuration):
         """
@@ -112,38 +113,47 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             os.mkdir(self.folder)
 
         filename = os.path.join(self.folder, f"{self.basename}_routes.")
+        properties = {'id': 'str',
+                      'last_transport_type': 'str',
+                      'variant_paths': 'str',  # because some numbers are higher than C's int length
+                      'length_hrs': 'int',
+                      'arrival_day': 'int',
+                      'arrival_hour': 'int',
+                      'start_hubs': 'str',
+                      'start_times': 'str',
+                      'end_hub': 'str',
+                      'end_time': 'datetime',
+                      'overnight_hubs': 'str',
+                      'hubs': 'str',
+                      'hub_coordinates': 'str',
+                      'edges': 'str',
+                      'count_hubs': 'int',
+                      'count_edges': 'int'}
+        if len(config.means_of_transport) > 0:
+            for mean_of_transport in config.means_of_transport:
+                properties['count_' + mean_of_transport] = 'str' # because some numbers are higher than C's int length
+
         self.file_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
-                                                                                      'properties': {'id': 'str',
-                                                                                                     'last_transport_type': 'str',
-                                                                                                     'variant_paths': 'str', # because some numbers are higher than C's int length
-                                                                                                     'length_hrs': 'int',
-                                                                                                     'arrival_day': 'int',
-                                                                                                     'arrival_hour': 'int',
-                                                                                                     'start_hubs': 'str',
-                                                                                                     'start_times': 'str',
-                                                                                                     'end_hub': 'str',
-                                                                                                     'end_time': 'datetime',
-                                                                                                     'overnight_hubs': 'str',
-                                                                                                     'count_hubs': 'int',
-                                                                                                     'count_edges': 'int',
-                                                                                                     'count_foot': 'int',
-                                                                                                     'count_donkey': 'int',
-                                                                                                     'count_ox': 'int',
-                                                                                                     'hubs': 'str',
-                                                                                                     'hub_coordinates': 'str',
-                                                                                                     'edges': 'str'}})
+                                                                                      'properties': properties})
 
         self.file_routes_csv = open(filename + 'csv', 'w', newline='')
         self.csv_writer_routes = csv.writer(self.file_routes_csv)
-        self.csv_writer_routes.writerow(
-            ['ID', 'Last Transport Type', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Arrival Hour',
-             'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs', 'Number of Hubs', 'Number of Edges',
-             'Count Foot', 'Count Donkey', 'Count Ox', 'Hubs', 'Hub Coordinates', 'Edges'])
+        headers = ['ID', 'Last Transport Type', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Arrival Hour',
+             'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs', 'Hubs', 'Hub Coordinates', 'Edges',
+                   'Number of Hubs', 'Number of Edges']
+        if len(config.means_of_transport) > 0:
+            for mean_of_transport in config.means_of_transport:
+                headers.append('Count ' + mean_of_transport.replace('_', ' ').title())
+        self.csv_writer_routes.writerow(headers)
 
         filename_transport_types = os.path.join(self.folder, f"{self.basename}_transport_types.csv")
         self.file_transport_types_csv = open(filename_transport_types, 'w', newline='')
         self.csv_writer_transport_types = csv.writer(self.file_transport_types_csv)
-        self.csv_writer_transport_types.writerow(['ID', 'Edge', 'Foot', 'Donkey', 'Ox'])
+        headers = ['ID', 'Edge']
+        if len(config.means_of_transport) > 0:
+            for mean_of_transport in config.means_of_transport:
+                headers.append(mean_of_transport.replace('_', ' ').title())
+        self.csv_writer_transport_types.writerow(headers)
 
         logger.info(f"Saving route data to {filename}gpkg, {filename}csv, and {filename_transport_types}.")
 
@@ -218,238 +228,303 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         """
         Persist agent route data to GeoPackage and CSV files for the current simulation day.
 
-        This method processes a list of agents, aggregates their route information, and saves
-        completed routes to both GeoPackage and CSV output files. It tracks route IDs per day,
-        filters out cancelled agents, determines agent completion status, and writes route data
-        for finished agents. After processing, it cleans up old route data to manage memory usage.
+        This method processes a list of agents to save their route information. For agents that
+        have completed their journeys (finished or reached simulation end points), it extracts
+        their complete route data and writes it to both GeoPackage and CSV output files. For
+        agents still in transit, it updates their hub status for tracking across multiple days.
+        After processing all agents, it aggregates hub data from the previous day and prepares
+        for the next simulation day by rotating hub tracking dictionaries.
 
         Args:
-            agents (list[Agent]): List of agents to process and persist. Each agent should have
-                attributes including is_cancelled, is_finished, this_hub, uid, and route information.
+            agents (list[Agent]): List of agents to process for the current day. This includes
+                both agents that have finished their journeys and agents that are still traveling.
+                Cancelled agents in this list are ignored and not persisted.
             config (Configuration): Configuration object containing simulation settings, including
-                simulation_ends which defines terminal hubs where agents are considered finished.
-            context (Context): Context object providing access to the route network and other
-                simulation state information needed for data extraction.
-            current_day (int): The current simulation day number, used for tracking route IDs
-                per day and determining which old data to clean up.
+                simulation_ends (list of hub IDs where simulation can terminate) and means_of_transport
+                (list of transport types used in the simulation). These settings determine which
+                agents are considered finished and what data to track.
+            context (Context): Context object providing access to the route network graph, used
+                to retrieve geometric and coordinate information for constructing spatial data
+                representations of agent routes.
+            current_day (int): The current simulation day number, used for recording arrival
+                day information and tracking hub status across multiple days.
 
         Returns:
-            None: This method performs side effects by writing to files and updating internal
-                state (route_origins, route_ids_per_day) but does not return a value.
+            None: This method performs file I/O operations to persist agent data and updates
+                internal tracking dictionaries (self.hubs, self.hubs_yesterday), but does not
+                return a value.
         """
         # aggregate the agents and save their data into a GeoPackage file
         agent_data = []
 
-        # init set for the day
-        self.route_ids_per_day[current_day] = set()
-
         for agent in agents:
-            # ignore cancelled agents
+            # ignore canceled agents
             if agent.is_cancelled:
                 continue
-
-            # define finished status
-            is_finished = agent.is_finished
-            if not is_finished:
-                if config.simulation_ends and agent.this_hub in config.simulation_ends:
-                    is_finished = True
-
-            node = self._save_route_origins(agent)
-            self.route_ids_per_day[current_day].add(agent.uid)
-
-            # add to data, if finished
-            if is_finished:
-                data = self._get_agent_data(context, agent, node, current_day)
+            if agent.is_finished or (config.simulation_ends and agent.this_hub in config.simulation_ends):
+                data = self._get_agent_data(context, config, agent, current_day)
                 agent_data.append(data)
                 self.csv_writer_routes.writerow(data['properties'].values())
+            else:
+                # aggregate the agent's node status
+                self._update_hubs_status(config, agent, current_day)
 
-        # delete old routes to free RAM
-        self._delete_old_routes(current_day)
+        # update hubs with yesterday's data
+        self._update_hubs(config)
 
-        self.file_gpkg.writerecords(agent_data)
+        # move today's hubs to yesterday's hubs
+        self.hubs_yesterday = self.hubs
+        self.hubs = {}
 
-    def _get_agent_data(self, context: Context, agent: Agent, node: dict, current_day: int):
+        if len(agent_data) > 0:
+            self.file_gpkg.writerecords(agent_data)
+
+    def _get_agent_data(self, context: Context, config: Configuration, agent: Agent, current_day: int):
         """
-        Save and aggregate route origin information for an agent, including data from parent agents.
+        Extract and compile comprehensive route data for a finished agent.
 
-        This method collects comprehensive route information for an agent by combining its current
-        route data with historical data from its parent agents. It tracks all hubs visited, edges
-        traversed, transport types used, and timing information across the agent's lineage. The
-        aggregated data is stored in the route_origins dictionary for future reference and returned
-        for immediate use.
+        This method aggregates all route information for an agent that has completed its journey,
+        including both the current day's travel and any accumulated data from previous days. It
+        constructs a complete picture of the agent's multi-day journey by merging historical hub
+        data with the current route, calculates statistics about transport types and route variants,
+        extracts geometric data for spatial representation, and writes transport type information
+        to CSV. The compiled data is formatted for output to both GeoPackage and CSV files.
 
         Args:
-            agent (Agent): The agent whose route origin information should be saved. The agent
-                must have route, transport_types, parents, and uid attributes. The method uses
-                agent.get_start_end() to retrieve start/end hub and time delta information.
+            context (Context): Context object providing access to the route network graph,
+                used to retrieve geometric data (LineStrings) for edges and coordinate
+                information for hubs visited during the agent's journey.
+            config (Configuration): Configuration object containing simulation settings,
+                particularly the means_of_transport list which determines which transport
+                type counters need to be calculated and included in the output data.
+            agent (Agent): The agent whose route data is being extracted. Must be a finished
+                agent with a complete route. The agent's uid, route, transport_types,
+                current_time, and start/end information are used to compile the output data.
+            current_day (int): The current simulation day number when the agent finished,
+                used to record the arrival day in the output properties.
 
         Returns:
-            dict: A dictionary containing aggregated route information with the following keys:
-                - start_delta (float): The earliest start time delta in hours from min_time
-                - end_delta (float): The end time delta in hours from min_time
-                - end_time (datetime): The actual end datetime of the route
-                - overnight_hubs (set): Set of all hubs where overnight stays occurred
-                - min_time (datetime): The earliest start time across all parent routes
-                - start_hubs (set): Set of all starting hub names in the agent's lineage
-                - start_times (set): Set of formatted start times ('%Y-%m-%d %H:%M')
-                - count (int): Total count of variant paths (sum of parent counts plus 1)
-                - hubs (set): Set of all hub names visited along the route
-                - edges (dict): Dictionary mapping edge names to sets of transport types used
+            dict: A dictionary containing two keys:
+                - 'geometry': A MultiLineString geometry object (forced to 2D) representing
+                  the complete spatial path of the agent's journey, composed of all edges
+                  traversed across all days.
+                - 'properties': A dictionary of route attributes including agent ID, transport
+                  types, timing information, hub and edge lists, coordinates, counts, and
+                  statistics suitable for writing to GeoPackage and CSV files.
+        """
+        start_hub, end_hub, start_delta, _ = agent.get_start_end()
+
+        hubs = set()
+        edges = set()
+        route_count = 1
+        overnight_hubs = set()
+        start_hubs = set()
+        start_times = set()
+        means_of_transport = {}
+        edge_transport_types = {}
+
+        if start_hub in self.hubs_yesterday:
+            hub = self.hubs_yesterday[start_hub]
+            route_count = len(hub['routes']) * hub['number_incoming_routes']
+
+            hubs.update(hub['hubs'])
+            edges.update(hub['edges'])
+
+            overnight_hubs = hub['overnight_hubs']
+            start_hubs = hub['start_hubs']
+            start_times = hub['start_times']
+
+            start_delta = hub['min_delta']
+
+            if len(config.means_of_transport) > 0:
+                for mean_of_transport in config.means_of_transport:
+                    means_of_transport[mean_of_transport] = hub['count_' + mean_of_transport]
+
+            edge_transport_types = hub['edge_transport_types']
+        else:
+            # case when route is one day only
+            overnight_hubs.add(start_hub)
+            start_hubs.add(start_hub)
+
+            start_time = self.min_time + dt.timedelta(hours=start_delta)
+            start_times.add(start_time.strftime('%Y-%m-%d %H:%M'))
+
+            if len(config.means_of_transport) > 0:
+                for mean_of_transport in config.means_of_transport:
+                    means_of_transport[mean_of_transport] = 0
+
+        hubs.update(agent.route[::2])
+        edges.update(agent.route[1::2])
+
+        end_time = self.min_time + dt.timedelta(hours=agent.current_time)
+
+        # add rest of transport types
+        if len(config.means_of_transport) > 0:
+            for i, edge in enumerate(agent.route[1::2]):
+                t_type = agent.transport_types[i]
+                means_of_transport[t_type] += 1
+
+                if edge in edge_transport_types:
+                    edge_transport_types[edge][t_type] += 1
+                else:
+                    edge_transport_types[edge] = {}
+                    for mean_of_transport in config.means_of_transport:
+                        edge_transport_types[edge][mean_of_transport] = 1 if t_type == mean_of_transport else 0
+
+        lines: list[MultiLineString] = []
+        for edge in edges:
+            lines.append(context.routes.es.find(name=edge)['geom'])
+            data = [agent.uid, edge]
+            for value in edge_transport_types[edge].values():
+                data.append(value)
+
+            # also write data to transport types csv
+            self.csv_writer_transport_types.writerow(data)
+
+        hub_coordinates = []
+        for hub in context.routes.vs.select(name_in=hubs):
+            hub_coordinates.append(f"{hub['geom'].x},{hub['geom'].y}")
+
+        properties = {
+            'id': agent.uid,
+            'last_transport_type': agent.transport_type,
+            'variant_paths': str(route_count),
+            'length_hrs': int(agent.current_time - start_delta),
+            'arrival_day': current_day,
+            'arrival_hour': math.floor(agent.current_time % 24),
+            'start_hubs': ', '.join(start_hubs),
+            'start_times': ', '.join(start_times),
+            'end_hub': end_hub,
+            'end_time': str(end_time.strftime('%Y-%m-%d %H:%M')),
+            'overnight_hubs': ','.join(overnight_hubs),
+            'hubs': ','.join(list(hubs)),
+            'hub_coordinates': ' '.join(hub_coordinates),
+            'edges': ','.join(list(edges)),
+            'count_hubs': len(hubs),
+            'count_edges': len(edges),
+        }
+
+        for key, value in means_of_transport.items():
+            properties['count_' + key] = str(value)
+
+        return {'geometry': force_2d(MultiLineString(lines)), 'properties': properties}
+
+    def _update_hubs_status(self, config: Configuration, agent: Agent, current_day: int):
+        """
+        Update the status of hubs for the current day based on an agent's route information.
+
+        This method tracks and aggregates route data for agents that have not yet completed
+        their journeys. It maintains a dictionary of hub states, recording information about
+        routes passing through each hub, including the hubs and edges visited, transport types
+        used, and timing information. For agents on the first day of simulation, it also
+        records their starting locations and times. This data is later used to reconstruct
+        complete multi-day routes when agents finish their journeys.
+
+        Args:
+            config (Configuration): Configuration object containing simulation settings,
+                particularly the means_of_transport list which determines which transport
+                type counters need to be initialized and updated for each hub.
+            agent (Agent): The agent whose route information is being processed. The agent's
+                route, transport_types, and start/end information are extracted to update
+                the hub status. The agent should be one that has not yet finished its journey.
+            current_day (int): The current simulation day number. When current_day is 1,
+                additional initialization is performed to record the agent's starting hub,
+                start time, and initial time delta for first-day tracking.
+
+        Returns:
+            None: This method updates the self.hubs dictionary in place and does not
+                return a value.
         """
         start_hub, end_hub, start_delta, end_delta = agent.get_start_end()
 
-        edges = node['edges'].keys()
+        # find hub
+        if end_hub not in self.hubs:
+            self.hubs[end_hub] = {
+                'routes': set(),
+                'hubs': set(),
+                'edges': set(),
+                'number_incoming_routes': 0,
+                'start_hubs': set(),
+                'start_times': set(),
+                'min_delta': start_delta,
+                'overnight_hubs': set(),
+                'edge_transport_types': {},
+            }
 
-        lines: list[MultiLineString] = []
-        count_foot = 0
-        count_donkey = 0
-        count_ox = 0
-        for edge_name in edges:
-            foot_flag = 0
-            donkey_flag = 0
-            ox_flag = 0
+            # init means of transport
+            if len(config.means_of_transport) > 0:
+                for mean_of_transport in config.means_of_transport:
+                    self.hubs[end_hub]['count_' + mean_of_transport] = 0
 
-            lines.append(context.routes.es.find(name=edge_name)['geom'])
-            if 'foot' in node['edges'][edge_name]:
-                count_foot += 1
-                foot_flag = 1
-            if 'cart_donkey' in node['edges'][edge_name]:
-                count_donkey += 1
-                donkey_flag = 1
-            if 'cart_oxen' in node['edges'][edge_name]:
-                count_ox += 1
-                ox_flag = 1
+        # update hub data
+        edges = agent.route[1::2]
 
-            # also write data to transport types csv
-            self.csv_writer_transport_types.writerow([agent.uid, edge_name, foot_flag, donkey_flag, ox_flag])
-
-        hub_coordinates = []
-        for hub in context.routes.vs.select(name_in=node['hubs']):
-            hub_coordinates.append(f"{hub['geom'].x},{hub['geom'].y}")
-
-        return {'geometry': force_2d(MultiLineString(lines)), 'properties': {
-            'id': agent.uid,
-            'last_transport_type': agent.transport_type,
-            'variant_paths': str(node['count']),
-            'length_hrs': int(node['end_delta'] - node['start_delta']),
-            'arrival_day': current_day,
-            'arrival_hour': math.floor(agent.current_time % 24),
-            'start_hubs': ', '.join(node['start_hubs']),
-            'start_times': ', '.join(node['start_times']),
-            'end_hub': end_hub,
-            'end_time': str(node['end_time'].strftime('%Y-%m-%d %H:%M')),
-            'overnight_hubs': ','.join(node['overnight_hubs']),
-            'count_hubs': len(node['hubs']),
-            'count_edges': len(edges),
-            'count_foot': count_foot,
-            'count_donkey': count_donkey,
-            'count_ox': count_ox,
-            'hubs': ','.join(list(node['hubs'])),
-            'hub_coordinates': ' '.join(hub_coordinates),
-            'edges': ','.join(edges),
-        }}
-
-    def _save_route_origins(self, agent: Agent) -> dict:
-        """
-        Save and aggregate route origin information for an agent, including data from parent agents.
-
-        This method collects comprehensive route information for an agent by combining its current
-        route data with historical data from its parent agents. It tracks all hubs visited, edges
-        traversed, transport types used, and timing information across the agent's lineage. The
-        aggregated data is stored in the route_origins dictionary for future reference and returned
-        for immediate use.
-
-        Args:
-            agent (Agent): The agent whose route origin information should be saved. The agent
-                must have route, transport_types, parents, and uid attributes. The method uses
-                agent.get_start_end() to retrieve start/end hub and time delta information.
-
-        Returns:
-            dict: A dictionary containing aggregated route information with the following keys:
-                - start_delta (float): The earliest start time delta in hours from min_time
-                - end_delta (float): The end time delta in hours from min_time
-                - end_time (datetime): The actual end datetime of the route
-                - overnight_hubs (set): Set of all hubs where overnight stays occurred
-                - min_time (datetime): The earliest start time across all parent routes
-                - start_hubs (set): Set of all starting hub names in the agent's lineage
-                - start_times (set): Set of formatted start times ('%Y-%m-%d %H:%M')
-                - count (int): Total count of variant paths (sum of parent counts plus 1)
-                - hubs (set): Set of all hub names visited along the route
-                - edges (dict): Dictionary mapping edge names to sets of transport types used
-        """
-        start_hub, _, start_delta, end_delta = agent.get_start_end()
+        self.hubs[end_hub]['routes'].add(tuple(agent.route))
+        self.hubs[end_hub]['hubs'].update(agent.route[::2])
+        self.hubs[end_hub]['edges'].update(edges)
+        self.hubs[end_hub]['overnight_hubs'].add(agent.route[0])
 
         start_time = self.min_time + dt.timedelta(hours=start_delta)
-        end_time = self.min_time + dt.timedelta(hours=end_delta)
 
-        start_hubs = set()
-        overnight_hubs = set()
-        overnight_hubs.add(agent.route[0])
-        start_times = set()
-        min_time = start_time
-        count = 0
-        hubs = set()
-        hubs.update(agent.route[::2])
-        edges = {}
-        for i, route in enumerate(agent.route[1::2]):
-            edges[route] = {agent.transport_types[i]}
-
-        for pid in agent.parents:
-            parent = self.route_origins[pid]
-            min_time = min(min_time, parent['min_time'])
-            start_delta = min(start_delta, parent['start_delta'])
-            start_hubs.update(parent['start_hubs'])
-            start_times.update(parent['start_times'])
-            overnight_hubs.update(parent['overnight_hubs'])
-            count += parent['count']
-            hubs.update(parent['hubs'])
-            for route, transport_types in parent['edges'].items():
-                if route in edges:
-                    edges[route].update(transport_types)
+        if len(config.means_of_transport) > 0:
+            for i, edge in enumerate(edges):
+                t_type = agent.transport_types[i]
+                self.hubs[end_hub]['count_' + t_type] += 1
+                if edge in self.hubs[end_hub]['edge_transport_types']:
+                    self.hubs[end_hub]['edge_transport_types'][edge][t_type] += 1
                 else:
-                    edges[route] = transport_types.copy()
+                    self.hubs[end_hub]['edge_transport_types'][edge] = {}
+                    for mean_of_transport in config.means_of_transport:
+                        self.hubs[end_hub]['edge_transport_types'][edge][mean_of_transport] = 1 if mean_of_transport == t_type else 0
 
-        # start?
-        if len(start_hubs) == 0:
-            start_hubs.add(start_hub)
-            start_times.add(start_time.strftime('%Y-%m-%d %H:%M'))
-        if count == 0:
-            count = 1
+        # start of simulation?
+        if current_day == 1:
+            self.hubs[end_hub]['start_hubs'].add(start_hub)
+            self.hubs[end_hub]['start_times'].add(start_time.strftime('%Y-%m-%d %H:%M'))
+            self.hubs[end_hub]['min_delta'] = start_delta
 
-        node = {
-            'start_delta': start_delta,
-            'end_delta': end_delta,
-            'end_time': end_time,
-            'overnight_hubs': overnight_hubs,
-            'min_time': min_time,
-            'start_hubs': start_hubs,
-            'start_times': start_times,
-            'count': count,
-            'hubs': hubs,
-            'edges': edges,
-        }
-
-
-        self.route_origins[agent.uid] = node
-
-        return node
-
-    def _delete_old_routes(self, current_day: int):
+    def _update_hubs(self, config: Configuration):
         """
-        Delete route data from two days prior to free up memory.
+        Update current day's hub data by aggregating information from previous day's hubs.
 
-        This method removes route origin information and route ID tracking for routes
-        that are at least two days old. This helps manage memory usage during long
-        simulations by removing data that is no longer needed for tracking agent lineage.
+        This method traverses all routes in today's hubs and merges historical data from
+        yesterday's hubs where routes connect. For each route starting at a hub that existed
+        yesterday, it accumulates route counts, visited hubs, traversed edges, overnight
+        locations, start points, timing information, and transport type statistics. This
+        creates a cumulative view of multi-day journeys as agents progress through the network.
 
         Args:
-            current_day (int): The current simulation day number. Routes from day
-                (current_day - 2) will be deleted if current_day > 2.
+            config (Configuration): Configuration object containing simulation settings,
+                particularly the means_of_transport list which determines which transport
+                type counters need to be updated during the aggregation process.
 
         Returns:
-            None
+            None: This method updates the self.hubs dictionary in place and does not
+                return a value.
         """
-        if current_day > 2:
-            for pid in self.route_ids_per_day[current_day - 2]:
-                del self.route_origins[pid]
-            del self.route_ids_per_day[current_day - 2]
+        for key, hub in self.hubs.items():
+            # traverse routes and compare to yesterday's routes'
+            for route in hub['routes']:
+                start_hub = route[0]
+                if start_hub in self.hubs_yesterday:
+                    hub_yesterday = self.hubs_yesterday[start_hub]
+                    self.hubs[key]['number_incoming_routes'] += hub_yesterday['number_incoming_routes']
+                    self.hubs[key]['hubs'].update(hub_yesterday['hubs'])
+                    self.hubs[key]['edges'].update(hub_yesterday['edges'])
+                    self.hubs[key]['overnight_hubs'].update(hub_yesterday['overnight_hubs'])
+                    self.hubs[key]['start_hubs'].update(hub_yesterday['start_hubs'])
+                    self.hubs[key]['start_times'].update(hub_yesterday['start_times'])
+                    self.hubs[key]['min_delta'] = min(hub_yesterday['min_delta'], self.hubs[key]['min_delta'])
+
+                    if len(config.means_of_transport) > 0:
+                        for mean_of_transport in config.means_of_transport:
+                            self.hubs[key]['count_' + mean_of_transport] += hub_yesterday['count_' + mean_of_transport]
+
+                    for edge in hub_yesterday['edge_transport_types']:
+                        if edge in self.hubs[key]['edge_transport_types']:
+                            for t_type in hub_yesterday['edge_transport_types'][edge]:
+                                self.hubs[key]['edge_transport_types'][edge][t_type] += hub_yesterday['edge_transport_types'][edge][t_type]
+                        else:
+                            self.hubs[key]['edge_transport_types'][edge] = copy.deepcopy(hub_yesterday['edge_transport_types'][edge])
+                else:
+                    self.hubs[key]['number_incoming_routes'] += 1
