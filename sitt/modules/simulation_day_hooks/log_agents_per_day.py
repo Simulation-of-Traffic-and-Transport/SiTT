@@ -46,7 +46,7 @@ class LogAgentsPerDay(SimulationDayHookInterface):
         self.csv_file = open(csv_filename_routes, 'w', newline='')
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow(
-            ['ID', 'Transport Type', 'Day', 'Start Hour', 'Start Minute', 'Hub', 'via', 'To', 'Forced Route'])
+            ['ID', 'Transport Type', 'Day', 'Start Hour', 'Start Minute', 'Hub', 'via', 'To'])
 
         logger.info(f"Saving CSV data to {csv_filename_routes}")
 
@@ -72,7 +72,6 @@ class LogAgentsPerDay(SimulationDayHookInterface):
                 agent.this_hub,
                 agent.route_key,
                 agent.next_hub,
-                ", ".join(agent.forced_route),
             ])
 
         return agents

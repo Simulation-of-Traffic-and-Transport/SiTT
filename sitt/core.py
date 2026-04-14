@@ -300,15 +300,6 @@ class Simulation(BaseClass):
             agents_proceed: list[Agent] = []
             """keeps list of agents that proceed today"""
 
-            # prune agents - remove duplicates before processing
-            len_before = len(agents)
-            agents = self._prune_agent_list(agents)
-            len_after = len(agents)
-
-            if len_before - len_after > 0 and logger.level <= logging.INFO:
-                logger.info(
-                    f"   - Pruned {len_before - len_after} duplicate agents from the list, leaving {len_after} agents.")
-
             # do a single step for each agent
             for agent in agents:
                 self._run_single_step(agent, agents_proceed, agents_finished_for_today)
@@ -407,37 +398,6 @@ class Simulation(BaseClass):
                 self._agent_proceed(agent, agents_proceed, agents_finished_for_today)
 
     @staticmethod
-    def _prune_agent_list(agents: list[Agent]) -> list[Agent]:
-        """
-        Remove duplicate agents from a list while preserving finished agents.
-
-        This method creates a deduplicated list of agents by identifying unique agents based on their
-        route key, current hub, next hub, transport type, and current time. Agents that are marked as
-        finished are always included in the result, regardless of whether they appear to be duplicates.
-        For agents that are not finished, only the first occurrence of each unique combination is kept.
-
-        :param agents: A list of Agent objects to be pruned. Each agent contains information about
-            its current state, including route, hub locations, transport type, and completion status.
-        :return: A deduplicated list of Agent objects. All finished agents are preserved, and for
-            non-finished agents, only unique combinations based on (route_key, this_hub, next_hub,
-            transport_type, current_time) are retained. The order of agents in the original list
-            is preserved for the first occurrence of each unique agent.
-        """
-        # prune agents to create only unique ones
-        agent_list = []
-        unique_agents = set()
-
-        for agent in agents:
-            if not agent.is_finished and len(agent.forced_route) == 0:
-                key = (agent.route_key, agent.this_hub, agent.next_hub, agent.transport_type, agent.current_time)
-                if key in unique_agents:
-                    continue
-                unique_agents.add(key)
-            agent_list.append(agent)
-
-        return agent_list
-
-    @staticmethod
     def _agent_finish(agent: Agent, agents_finished_for_today: list[Agent]):
         agent.visited_hubs.add(agent.next_hub)
         agent.this_hub = agent.next_hub
@@ -476,10 +436,6 @@ class Simulation(BaseClass):
         # update current hub
         agent.this_hub = agent.next_hub
 
-        # shorten forced routes
-        if len(agent.forced_route) > 0:
-            agent.forced_route = agent.forced_route[1:]
-
         # add to the list of agents to proceed
         agents_ok, agents_cancelled = self._split_agent_on_hub(agent)
         agents_proceed.extend(agents_ok)
@@ -509,9 +465,6 @@ class Simulation(BaseClass):
             self.__set_agent_no_sleep(agent, agents_finished_for_today)
             return
         else:
-            # reset forced route data
-            agent.forced_route = []
-
             # traceback to last possible resting place, if needed
             if self.config.overnight_trace_back and self.context.graph.vs.find(name=agent.this_hub)['overnight'] is not True:
                 # copy route to history
@@ -543,7 +496,6 @@ class Simulation(BaseClass):
                 agent.this_hub = agent.last_overnight_hub
                 agent.route = agent.route[:last_overnight_hub_index + 1]
                 agent.route_reversed = agent.route_reversed[:int((len(agent.route)-1)/2)]
-                agent.forced_route = routes
                 # reduced to none?
                 if len(agent.route) < 2:
                     agent.current_time = last_known_departure
@@ -598,30 +550,21 @@ class Simulation(BaseClass):
         """
         possible_routes: list[tuple[str, str]] = []
 
-        # if we have a forced route, only consider this
-        if len(agent.forced_route) > 0:
-            e = self.context.routes.es.find(name=agent.forced_route[0])
-            if e.source_vertex['name'] != agent.this_hub:
-                raise Exception("Agent has a forced route, but it does not start from the current hub.")
+        for edge in self.context.routes.incident(agent.this_hub, mode='out'):
+            e = self.context.routes.es[edge]
+            route_name = e['name']
+            target_hub = e.target_vertex
+
+            # is target hub a no-go? if yes, skip
+            if 'no_go' in target_hub.attributes() and target_hub['no_go'] is True:
+                continue
+
+            # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
+            if target_hub['name'] in agent.visited_hubs:
+                continue
 
             # add target hub and route name to possible routes
-            possible_routes.append((agent.forced_route[0], e.target_vertex['name'],))
-        else:
-            for edge in self.context.routes.incident(agent.this_hub, mode='out'):
-                e = self.context.routes.es[edge]
-                route_name = e['name']
-                target_hub = e.target_vertex
-
-                # is target hub a no-go? if yes, skip
-                if 'no_go' in target_hub.attributes() and target_hub['no_go'] is True:
-                    continue
-
-                # Does the target exist in our route data? If yes, skip, we will not visit the same place twice!
-                if target_hub['name'] in agent.visited_hubs:
-                    continue
-
-                # add target hub and route name to possible routes
-                possible_routes.append((route_name, target_hub['name'],))
+            possible_routes.append((route_name, target_hub['name'],))
 
         return possible_routes
 

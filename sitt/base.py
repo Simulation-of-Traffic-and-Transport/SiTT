@@ -297,8 +297,6 @@ class Agent(object):
 
         self.visited_hubs: set[str] = set()
         """keeps visited hubs"""
-        self.forced_route: list[str] = []
-        """keeps history of agent"""
         self.last_overnight_hub: str = this_hub
         """keeps last overnight hub (for overnight travel)"""
         self.route: list[str] = []
