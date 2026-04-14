@@ -674,18 +674,7 @@ class Simulation(BaseClass):
             new_agent.next_hub = target_hub
             new_agent.route_key = route_name
 
-            if agent.last_overnight_hub == hub['name'] and len(self.config.means_of_transport) > 0:
-                for j, new_type in enumerate(self.config.means_of_transport):
-                    # first route - use the original agent
-                    if j > 0:
-                        # other routes - create new agent, copy it and create new uid
-                        new_agent = copy.deepcopy(new_agent)
-                        new_agent.generate_uid()
-                    new_agent.transport_type = new_type
-                    agents.append(new_agent)
-            else:
-                # no transport type - create only one new agent, append this agent
-                agents.append(new_agent)
+            agents.append(new_agent)
 
         return agents, []
 
@@ -706,60 +695,92 @@ class Simulation(BaseClass):
                 # continue - do not add agents to proceed tomorrow
                 continue
 
-            # group by transport_type
-            has_agents_to_proceed, all_forced_routes, forced_routes_tries, visited_hubs = self._create_routes_and_visited_hubs(agent_list)
-
-            # no new agents?
-            if not has_agents_to_proceed:
-                continue
-
-            # flatten forced routes into simple lists and aggregate starting edges
-            all_forced_routes = self._flatten_forced_routes(all_forced_routes)
-            # flag to see if any agent had a forced route
-            has_any_forced_route = False
             # list of all agent ids that led to this hub
             agent_ids = []
             for agent in agent_list:
                 if not agent.is_cancelled:
                     agent_ids.append(agent.uid)
+            agent = Agent(hub, '', '', do_not_generate_uid=True)
+            has_agents_to_proceed = False
 
-            # now proceed per signature entry
-            for sig, forced_routes in all_forced_routes.items():
-                # only consider forced routes on retried hubs
-                if len(forced_routes) > 0:
-                    has_any_forced_route = True
-                    for route in forced_routes:
-                        # create an agent for each forced route
-                        e = self.context.routes.es.find(name=route[0])
-                        new_agent = Agent(hub, e.target_vertex['name'], e['name'])
-                        new_agent.visited_hubs = copy.deepcopy(visited_hubs[sig])
-                        new_agent.forced_route = route
-                        new_agent.tries = forced_routes_tries[sig][route[0]]
-                        new_agent.parents = agent_ids
-                        new_agent.tries = 0
-                        # copy signature if available
-                        if sig != '':
-                            new_agent.transport_type = sig
-                        agents_proceeding_tomorrow.append(new_agent)
+            for agent in agent_list:
+                if agent.is_cancelled or agent.is_finished:
+                    if self.config.keep_agent_data_in_results:
+                        self.results.add_agent(agent)
+                else:
+                    has_agents_to_proceed = True
 
-            # if no forced routes, we add all agents to proceed tomorrow
-            if not has_any_forced_route:
-                # TODO: this should never be called anymore - check by logging
-                logging.warning(f"No forced routes for agent {agent_ids} on hub {hub}")
+                    agent.visited_hubs.update(agent.visited_hubs)
+                    agent_ids.append(agent.uid)
 
-                # create new dummy agent to test possible routes
-                agent = Agent(hub, '', '', do_not_generate_uid=True)
-                for sig in all_forced_routes.keys():
-                    agent.visited_hubs.update(visited_hubs[sig])
+            if has_agents_to_proceed:
+                means_of_transport = self.config.means_of_transport if len(self.config.means_of_transport) > 0 else [None]
 
                 # get all possible routes for this hub
                 for route in self._get_possible_routes_for_agent_on_hub(agent):
-                    new_agent = Agent(hub, route[1], route[0])
-                    new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
-                    new_agent.parents = agent_ids
-                    new_agent.tries = 0
-                    agents_proceeding_tomorrow.append(new_agent)
-                    # do *not* set signatures here
+                    for mean_of_transport in means_of_transport:
+                        new_agent = Agent(hub, route[1], route[0])
+                        new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
+                        new_agent.parents = copy.deepcopy(agent_ids)
+                        new_agent.tries = 0
+                        new_agent.transport_type = mean_of_transport
+                        agents_proceeding_tomorrow.append(new_agent)
+                        # do *not* set signatures here
+
+            # # group by transport_type
+            # has_agents_to_proceed, all_forced_routes, forced_routes_tries, visited_hubs = self._create_routes_and_visited_hubs(agent_list)
+            #
+            # # no new agents?
+            # if not has_agents_to_proceed:
+            #     continue
+            #
+            # # flatten forced routes into simple lists and aggregate starting edges
+            # all_forced_routes = self._flatten_forced_routes(all_forced_routes)
+            # # flag to see if any agent had a forced route
+            # has_any_forced_route = False
+            # # list of all agent ids that led to this hub
+            # agent_ids = []
+            # for agent in agent_list:
+            #     if not agent.is_cancelled:
+            #         agent_ids.append(agent.uid)
+            #
+            # # now proceed per signature entry
+            # for sig, forced_routes in all_forced_routes.items():
+            #     # only consider forced routes on retried hubs
+            #     if len(forced_routes) > 0:
+            #         has_any_forced_route = True
+            #         for route in forced_routes:
+            #             # create an agent for each forced route
+            #             e = self.context.routes.es.find(name=route[0])
+            #             new_agent = Agent(hub, e.target_vertex['name'], e['name'])
+            #             new_agent.visited_hubs = copy.deepcopy(visited_hubs[sig])
+            #             new_agent.forced_route = route
+            #             new_agent.tries = forced_routes_tries[sig][route[0]]
+            #             new_agent.parents = agent_ids
+            #             new_agent.tries = 0
+            #             # copy signature if available
+            #             if sig != '':
+            #                 new_agent.transport_type = sig
+            #             agents_proceeding_tomorrow.append(new_agent)
+            #
+            # # if no forced routes, we add all agents to proceed tomorrow
+            # if not has_any_forced_route:
+            #     # TODO: this should never be called anymore - check by logging
+            #     logging.warning(f"No forced routes for agent {agent_ids} on hub {hub}")
+            #
+            #     # create new dummy agent to test possible routes
+            #     agent = Agent(hub, '', '', do_not_generate_uid=True)
+            #     for sig in all_forced_routes.keys():
+            #         agent.visited_hubs.update(visited_hubs[sig])
+            #
+            #     # get all possible routes for this hub
+            #     for route in self._get_possible_routes_for_agent_on_hub(agent):
+            #         new_agent = Agent(hub, route[1], route[0])
+            #         new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
+            #         new_agent.parents = agent_ids
+            #         new_agent.tries = 0
+            #         agents_proceeding_tomorrow.append(new_agent)
+            #         # do *not* set signatures here
 
         return agents_proceeding_tomorrow
 
