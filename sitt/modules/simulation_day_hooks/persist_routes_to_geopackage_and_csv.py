@@ -68,6 +68,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.csv_writer_routes = None
         self.file_transport_types_csv = None
         self.csv_writer_transport_types = None
+        self.file_overnight_hubs_csv = None
+        self.csv_writer_overnight_hubs = None
         self.min_time: dt.datetime = dt.datetime.now()
         self.hubs: dict = {}
         """Keep track of hubs per day."""
@@ -155,6 +157,11 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 headers.append(mean_of_transport.replace('_', ' ').title())
         self.csv_writer_transport_types.writerow(headers)
 
+        filename_overnight_hubs = os.path.join(self.folder, f"{self.basename}_overnight_hubs.csv")
+        self.file_overnight_hubs_csv = open(filename_overnight_hubs, 'w', newline='')
+        self.csv_writer_overnight_hubs = csv.writer(self.file_overnight_hubs_csv)
+        self.csv_writer_transport_types.writerow(['Day', 'Hub', 'Incoming', 'Variant Number', 'Origins'])
+
         logger.info(f"Saving route data to {filename}gpkg, {filename}csv, and {filename_transport_types}.")
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
@@ -223,6 +230,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.file_gpkg.close()
         self.file_routes_csv.close()
         self.file_transport_types_csv.close()
+        self.file_overnight_hubs_csv.close()
 
     def _persist_agents(self, agents: list[Agent], config: Configuration, context: Context, current_day: int):
         """
@@ -270,7 +278,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 self._update_hubs_status(config, agent, current_day)
 
         # update hubs with yesterday's data
-        self._update_hubs(config)
+        self._update_hubs(config, current_day)
 
         # move today's hubs to yesterday's hubs
         self.hubs_yesterday = self.hubs
@@ -483,7 +491,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             self.hubs[end_hub]['start_times'].add(start_time.strftime('%Y-%m-%d %H:%M'))
             self.hubs[end_hub]['min_delta'] = start_delta
 
-    def _update_hubs(self, config: Configuration):
+    def _update_hubs(self, config: Configuration, current_day: int):
         """
         Update current day's hub data by aggregating information from previous day's hubs.
 
@@ -503,28 +511,41 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 return a value.
         """
         for key, hub in self.hubs.items():
+            origins = {}
+            origins_numbers = {}
             # traverse routes and compare to yesterday's routes'
             for route in hub['routes']:
                 start_hub = route[0]
+                if start_hub in origins:
+                    origins[start_hub] += 1
+                else:
+                    origins[start_hub] = 1
                 if start_hub in self.hubs_yesterday:
                     hub_yesterday = self.hubs_yesterday[start_hub]
-                    self.hubs[key]['number_incoming_routes'] += hub_yesterday['number_incoming_routes']
-                    self.hubs[key]['hubs'].update(hub_yesterday['hubs'])
-                    self.hubs[key]['edges'].update(hub_yesterday['edges'])
-                    self.hubs[key]['overnight_hubs'].update(hub_yesterday['overnight_hubs'])
-                    self.hubs[key]['start_hubs'].update(hub_yesterday['start_hubs'])
-                    self.hubs[key]['start_times'].update(hub_yesterday['start_times'])
-                    self.hubs[key]['min_delta'] = min(hub_yesterday['min_delta'], self.hubs[key]['min_delta'])
+                    hub['number_incoming_routes'] += hub_yesterday['number_incoming_routes']
+                    hub['hubs'].update(hub_yesterday['hubs'])
+                    hub['edges'].update(hub_yesterday['edges'])
+                    hub['overnight_hubs'].update(hub_yesterday['overnight_hubs'])
+                    hub['start_hubs'].update(hub_yesterday['start_hubs'])
+                    hub['start_times'].update(hub_yesterday['start_times'])
+                    hub['min_delta'] = min(hub_yesterday['min_delta'], hub['min_delta'])
+                    origins_numbers[start_hub] = hub_yesterday['number_incoming_routes']
 
                     if len(config.means_of_transport) > 0:
                         for mean_of_transport in config.means_of_transport:
-                            self.hubs[key]['count_' + mean_of_transport] += hub_yesterday['count_' + mean_of_transport]
+                            hub['count_' + mean_of_transport] += hub_yesterday['count_' + mean_of_transport]
 
                     for edge in hub_yesterday['edge_transport_types']:
-                        if edge in self.hubs[key]['edge_transport_types']:
+                        if edge in hub['edge_transport_types']:
                             for t_type in hub_yesterday['edge_transport_types'][edge]:
-                                self.hubs[key]['edge_transport_types'][edge][t_type] += hub_yesterday['edge_transport_types'][edge][t_type]
+                                hub['edge_transport_types'][edge][t_type] += hub_yesterday['edge_transport_types'][edge][t_type]
                         else:
-                            self.hubs[key]['edge_transport_types'][edge] = copy.deepcopy(hub_yesterday['edge_transport_types'][edge])
+                            hub['edge_transport_types'][edge] = copy.deepcopy(hub_yesterday['edge_transport_types'][edge])
                 else:
-                    self.hubs[key]['number_incoming_routes'] += 1
+                    hub['number_incoming_routes'] += 1
+                    origins_numbers[start_hub] = 1
+
+            origins_txt = []
+            for o_key in sorted(origins):
+                origins_txt.append(f"{origins[o_key]} × {o_key} ({origins_numbers[o_key]})")
+            self.csv_writer_overnight_hubs.writerow([current_day, key, len(hub['routes']), hub['number_incoming_routes'], ' '.join(origins_txt)])
