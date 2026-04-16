@@ -292,7 +292,12 @@ class Simulation(BaseClass):
             agents = day_hook_pre.run(self.config, self.context, agents, agents_finished_for_today, self.results, self.current_day)
 
         if logger.level <= logging.INFO:
-            logger.info("Running day " + str(self.current_day) + " with " + str(len(agents)) + " active agent(s).")
+            hubs = set()
+            for agent in agents:
+                hubs.add(agent.this_hub)
+
+            logger.info(f"Running day {self.current_day} with {len(agents)} active agent(s) from {len(hubs)} hub(s).")
+            logger.info("Hubs: " + ", ".join(hubs))
 
         step = 1
         # do a single day loop - this is the inner loop for the simulation (per day)
