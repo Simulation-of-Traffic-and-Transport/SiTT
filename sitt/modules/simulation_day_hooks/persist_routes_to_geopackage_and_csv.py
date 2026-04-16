@@ -325,7 +325,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
 
         if start_hub in self.hubs_yesterday:
             hub = self.hubs_yesterday[start_hub]
-            route_count = len(hub['routes']) * hub['number_incoming_routes']
+            route_count = hub['number_incoming_routes']
 
             hubs.update(hub['hubs'])
             edges.update(hub['edges'])
