@@ -21,53 +21,22 @@ from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetO
 logger = logging.getLogger()
 
 class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
-    """
-    A simulation day hook that persists agent routes to GeoPackage and CSV files.
-
-    This class implements the SimulationDayHookInterface to save agent route data at the end
-    of each simulation day. It creates output files in GeoPackage format for spatial data and
-    CSV format for tabular data, tracking route information including hubs visited, edges
-    traversed, transport types used, and timing information.
-
-    Attributes:
-        delete_existing_folder (bool): Flag to delete existing output folder before running.
-        basename (str | None): Base name for output files, derived from simulation configuration.
-        folder (str | None): Path to the output folder where files are saved.
-        file_gpkg (fiona.Collection | None): File handle for the GeoPackage output file.
-        file_routes_csv: File handle for the routes CSV output file.
-        csv_writer_routes: CSV writer object for writing route data.
-        file_transport_types_csv: File handle for the transport types CSV output file.
-        csv_writer_transport_types: CSV writer object for writing transport type data.
-        min_time (dt.datetime): Minimum time reference point for the simulation.
-        route_origins (dict): Dictionary tracking route information for all agents.
-        route_ids_per_day (dict[int, set[str]]): Dictionary mapping simulation days to sets
-            of route IDs, used for memory management.
-    """
-    def __init__(self, delete_existing_folder: bool = True):
-        """
-        Initialize the PersistRoutesToGeoPackageAndCSV hook.
-
-        Sets up the initial state for the hook, including file handles and tracking dictionaries.
-        The hook will be ready to create output files and persist route data when the simulation runs.
-
-        Args:
-            delete_existing_folder (bool, optional): If True, any existing output folder with the
-                same name will be deleted before creating new output files. If False, existing
-                folders are preserved, which may cause errors if files already exist. Defaults to True.
-
-        Returns:
-            None
-        """
+    def __init__(self, delete_existing_folder: bool = True, export_gpkg: bool = True, export_routes_csv: bool = True,
+                 export_transport_types_csv: bool = True, export_overnight_hubs_csv: bool = True):
         super().__init__()
         self.delete_existing_folder: bool = delete_existing_folder
         """Delete existing folder before running."""
         self.basename: str | None = None
         self.folder: str | None = None
+        self.export_gpkg: bool = export_gpkg
         self.file_gpkg: fiona.Collection | None = None
+        self.export_routes_csv: bool = export_routes_csv
         self.file_routes_csv = None
         self.csv_writer_routes = None
+        self.export_transport_types_csv: bool = export_transport_types_csv
         self.file_transport_types_csv = None
         self.csv_writer_transport_types = None
+        self.export_overnight_hubs_csv: bool = export_overnight_hubs_csv
         self.file_overnight_hubs_csv = None
         self.csv_writer_overnight_hubs = None
         self.min_time: dt.datetime = dt.datetime.now()
@@ -114,53 +83,57 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         if not os.path.exists(self.folder):
             os.mkdir(self.folder)
 
-        filename = os.path.join(self.folder, f"{self.basename}_routes.")
-        properties = {'id': 'str',
-                      'last_transport_type': 'str',
-                      'variant_paths': 'str',  # because some numbers are higher than C's int length
-                      'length_hrs': 'int',
-                      'arrival_day': 'int',
-                      'arrival_hour': 'int',
-                      'start_hubs': 'str',
-                      'start_times': 'str',
-                      'end_hub': 'str',
-                      'end_time': 'datetime',
-                      'overnight_hubs': 'str',
-                      'hubs': 'str',
-                      'hub_coordinates': 'str',
-                      'edges': 'str',
-                      'count_hubs': 'int',
-                      'count_edges': 'int'}
-        if len(config.means_of_transport) > 0:
-            for mean_of_transport in config.means_of_transport:
-                properties['count_' + mean_of_transport] = 'str' # because some numbers are higher than C's int length
+        if self.export_gpkg:
+            filename = os.path.join(self.folder, f"{self.basename}_routes.")
+            properties = {'id': 'str',
+                          'last_transport_type': 'str',
+                          'variant_paths': 'str',  # because some numbers are higher than C's int length
+                          'length_hrs': 'int',
+                          'arrival_day': 'int',
+                          'arrival_hour': 'int',
+                          'start_hubs': 'str',
+                          'start_times': 'str',
+                          'end_hub': 'str',
+                          'end_time': 'datetime',
+                          'overnight_hubs': 'str',
+                          'hubs': 'str',
+                          'hub_coordinates': 'str',
+                          'edges': 'str',
+                          'count_hubs': 'int',
+                          'count_edges': 'int'}
+            if len(config.means_of_transport) > 0:
+                for mean_of_transport in config.means_of_transport:
+                    properties['count_' + mean_of_transport] = 'str' # because some numbers are higher than C's int length
 
-        self.file_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
+            self.file_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                                                       'properties': properties})
 
-        self.file_routes_csv = open(filename + 'csv', 'w', newline='')
-        self.csv_writer_routes = csv.writer(self.file_routes_csv)
-        headers = ['ID', 'Last Transport Type', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Arrival Hour',
-             'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs', 'Hubs', 'Hub Coordinates', 'Edges',
-                   'Number of Hubs', 'Number of Edges']
-        if len(config.means_of_transport) > 0:
-            for mean_of_transport in config.means_of_transport:
-                headers.append('Count ' + mean_of_transport.replace('_', ' ').title())
-        self.csv_writer_routes.writerow(headers)
+        if self.export_routes_csv:
+            self.file_routes_csv = open(filename + 'csv', 'w', newline='')
+            self.csv_writer_routes = csv.writer(self.file_routes_csv)
+            headers = ['ID', 'Last Transport Type', 'Variant Paths', 'Length (hrs)', 'Arrival Day', 'Arrival Hour',
+                 'Start Hubs', 'Start Times', 'End Hub', 'End Time', 'Overnight Hubs', 'Hubs', 'Hub Coordinates', 'Edges',
+                       'Number of Hubs', 'Number of Edges']
+            if len(config.means_of_transport) > 0:
+                for mean_of_transport in config.means_of_transport:
+                    headers.append('Count ' + mean_of_transport.replace('_', ' ').title())
+            self.csv_writer_routes.writerow(headers)
 
-        filename_transport_types = os.path.join(self.folder, f"{self.basename}_transport_types.csv")
-        self.file_transport_types_csv = open(filename_transport_types, 'w', newline='')
-        self.csv_writer_transport_types = csv.writer(self.file_transport_types_csv)
-        headers = ['ID', 'Edge']
-        if len(config.means_of_transport) > 0:
-            for mean_of_transport in config.means_of_transport:
-                headers.append(mean_of_transport.replace('_', ' ').title())
-        self.csv_writer_transport_types.writerow(headers)
+        if self.export_transport_types_csv:
+            filename_transport_types = os.path.join(self.folder, f"{self.basename}_transport_types.csv")
+            self.file_transport_types_csv = open(filename_transport_types, 'w', newline='')
+            self.csv_writer_transport_types = csv.writer(self.file_transport_types_csv)
+            headers = ['ID', 'Edge']
+            if len(config.means_of_transport) > 0:
+                for mean_of_transport in config.means_of_transport:
+                    headers.append(mean_of_transport.replace('_', ' ').title())
+            self.csv_writer_transport_types.writerow(headers)
 
-        filename_overnight_hubs = os.path.join(self.folder, f"{self.basename}_overnight_hubs.csv")
-        self.file_overnight_hubs_csv = open(filename_overnight_hubs, 'w', newline='')
-        self.csv_writer_overnight_hubs = csv.writer(self.file_overnight_hubs_csv)
-        self.csv_writer_transport_types.writerow(['Day', 'Hub', 'Incoming', 'Variant Number', 'Origins'])
+        if self.export_overnight_hubs_csv:
+            filename_overnight_hubs = os.path.join(self.folder, f"{self.basename}_overnight_hubs.csv")
+            self.file_overnight_hubs_csv = open(filename_overnight_hubs, 'w', newline='')
+            self.csv_writer_overnight_hubs = csv.writer(self.file_overnight_hubs_csv)
+            self.csv_writer_overnight_hubs.writerow(['Day', 'Hub', 'Incoming', 'Variant Number', 'Origins'])
 
         logger.info(f"Saving route data to {filename}gpkg, {filename}csv, and {filename_transport_types}.")
 
@@ -227,10 +200,14 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         Returns:
             None: This method performs cleanup operations and does not return a value.
         """
-        self.file_gpkg.close()
-        self.file_routes_csv.close()
-        self.file_transport_types_csv.close()
-        self.file_overnight_hubs_csv.close()
+        if self.export_gpkg:
+            self.file_gpkg.close()
+        if self.export_routes_csv:
+            self.file_routes_csv.close()
+        if self.export_transport_types_csv:
+            self.file_transport_types_csv.close()
+        if self.export_overnight_hubs_csv:
+            self.file_overnight_hubs_csv.close()
 
     def _persist_agents(self, agents: list[Agent], config: Configuration, context: Context, current_day: int):
         """
@@ -272,7 +249,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             if agent.is_finished or (config.simulation_ends and agent.this_hub in config.simulation_ends):
                 data = self._get_agent_data(context, config, agent, current_day)
                 agent_data.append(data)
-                self.csv_writer_routes.writerow(data['properties'].values())
+                if self.export_routes_csv:
+                    self.csv_writer_routes.writerow(data['properties'].values())
             else:
                 # aggregate the agent's node status
                 self._update_hubs_status(config, agent, current_day)
@@ -284,7 +262,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.hubs_yesterday = self.hubs
         self.hubs = {}
 
-        if len(agent_data) > 0:
+        if self.export_gpkg and len(agent_data) > 0:
             self.file_gpkg.writerecords(agent_data)
 
     def _get_agent_data(self, context: Context, config: Configuration, agent: Agent, current_day: int):
@@ -387,7 +365,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 data.append(value)
 
             # also write data to transport types csv
-            self.csv_writer_transport_types.writerow(data)
+            if self.export_transport_types_csv:
+                self.csv_writer_transport_types.writerow(data)
 
         hub_coordinates = []
         for hub in context.routes.vs.select(name_in=hubs):
@@ -548,4 +527,5 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             origins_txt = []
             for o_key in sorted(origins):
                 origins_txt.append(f"{origins[o_key]} × {o_key} ({origins_numbers[o_key]})")
-            self.csv_writer_overnight_hubs.writerow([current_day, key, len(hub['routes']), hub['number_incoming_routes'], ' '.join(origins_txt)])
+            if self.export_overnight_hubs_csv:
+                self.csv_writer_overnight_hubs.writerow([current_day, key, len(hub['routes']), hub['number_incoming_routes'], ' '.join(origins_txt)])
