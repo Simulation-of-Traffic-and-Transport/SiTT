@@ -24,6 +24,38 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
     def __init__(self, delete_existing_folder: bool = True, export_all_routes_gpkg: bool = True,
                  export_daily_routes_gpkg: bool = True, export_routes_csv: bool = True,
                  export_transport_types_csv: bool = True, export_overnight_hubs_csv: bool = True):
+        """
+        Initialize the PersistRoutesToGeoPackageAndCSV hook with export configuration options.
+
+        This constructor sets up the hook for persisting agent route data to various output formats
+        including GeoPackage files and CSV files. It configures which types of data should be exported
+        and whether existing output folders should be deleted before running. All file handles and
+        writers are initialized to None and will be created during the first run of the hook.
+
+        Args:
+            delete_existing_folder (bool, optional): If True, removes any existing output folder
+                with the same name before creating a new one. This prevents data from previous
+                simulation runs from mixing with current results. Defaults to True.
+            export_all_routes_gpkg (bool, optional): If True, exports complete route data for all
+                finished agents to a GeoPackage file containing geometry and comprehensive route
+                properties. Defaults to True.
+            export_daily_routes_gpkg (bool, optional): If True, exports daily aggregated route data
+                to a separate GeoPackage file, showing routes grouped by destination hub for each
+                simulation day. Defaults to True.
+            export_routes_csv (bool, optional): If True, exports complete route data for all finished
+                agents to a CSV file with the same information as the all_routes GeoPackage but in
+                tabular format. Defaults to True.
+            export_transport_types_csv (bool, optional): If True, exports detailed transport type
+                usage statistics per edge to a CSV file, showing how many times each transport mode
+                was used on each edge. Defaults to True.
+            export_overnight_hubs_csv (bool, optional): If True, exports information about hubs where
+                agents stayed overnight to a CSV file, including the number of agents, incoming routes,
+                and origin information. Defaults to True.
+
+        Returns:
+            None: This is a constructor method that initializes instance variables but does not
+                return a value.
+        """
         super().__init__()
         self.delete_existing_folder: bool = delete_existing_folder
         """Delete existing folder before running."""
@@ -51,24 +83,32 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
     def _initialize(self, config: Configuration):
         """
         Initialize output files and directories for persisting route data.
-
+    
         This method sets up the necessary file structure and opens output files (GeoPackage
         and CSV) for storing agent route information. It creates a timestamped folder based
         on the simulation configuration, optionally removes existing data, and initializes
         file handles with appropriate schemas and headers. The method also sets the minimum
         time reference point for the simulation based on the start date.
-
+    
+        The method creates up to five different output files based on the export configuration:
+        1. All routes GeoPackage: Complete route geometries and properties for finished agents
+        2. Daily routes GeoPackage: Aggregated daily route data grouped by destination hub
+        3. Routes CSV: Tabular version of all routes data
+        4. Transport types CSV: Edge-level transport type usage statistics
+        5. Overnight hubs CSV: Information about hubs where agents stayed overnight
+    
         Args:
             config (Configuration): Configuration object containing simulation settings,
                 including start_date (used to set min_time and create folder names),
-                simulation_route (used in folder naming), and other parameters that define
-                the simulation behavior. The start_date must be a valid date object.
-
+                simulation_route (used in folder naming), and means_of_transport (list of
+                transport types to track). The start_date must be a valid date object.
+    
         Returns:
             None: This method performs initialization by setting instance variables
-                (min_time, basename, folder, file_all_routes_gpkg, file_routes_csv, csv_writer_routes,
-                file_transport_types_csv, csv_writer_transport_types) and creating output
-                files, but does not return a value.
+                (min_time, basename, folder, file_all_routes_gpkg, file_daily_routes_gpkg,
+                file_routes_csv, csv_writer_routes, file_transport_types_csv,
+                csv_writer_transport_types, file_overnight_hubs_csv, csv_writer_overnight_hubs)
+                and creating output files, but does not return a value.
         """
         # set min time
         self.min_time = dt.datetime.combine(config.start_date, dt.datetime.min.time())
@@ -154,35 +194,41 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         logger.info(f"Saving route data to {filename}gpkg, {filename}csv, and {filename_transport_types}.")
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
-            results: SetOfResults, current_day: int) -> list[Agent]:
+        results: SetOfResults, current_day: int) -> list[Agent]:
         """
         Execute the daily hook to persist agent routes to GeoPackage and CSV files.
 
         This method is called at the end of each simulation day to save route data for agents
         that have finished their journeys for the day. It initializes output files on first run
-        and delegates the actual persistence logic to helper methods.
+        and delegates the actual persistence logic to helper methods. If the hook is configured
+        to skip execution (self.skip is True), it returns immediately without processing.
 
         Args:
             config (Configuration): Configuration object containing simulation settings and parameters,
-                used for initialization of output files and determining simulation behavior.
+                used for initialization of output files and determining simulation behavior. Required
+                for first-time initialization of output directories and file schemas.
             context (Context): Context object providing access to the route network and other
-                simulation state information needed for extracting and persisting route data.
+                simulation state information needed for extracting and persisting route data. Used
+                to retrieve geometric and coordinate information from the network graph.
             agents (list[Agent]): List of all active agents in the simulation. This parameter is
                 provided by the hook interface but not directly used in this implementation.
             agents_finished_for_today (list[Agent]): List of agents that have completed their
-                travel for the current simulation day. These agents' route data will be persisted.
+                travel for the current simulation day. These agents' route data will be persisted
+                to the configured output files (GeoPackage and/or CSV).
             results (SetOfResults): Container for simulation results and metrics. This parameter
                 is provided by the hook interface but not directly used in this implementation.
             current_day (int): The current simulation day number, used for tracking routes per day
-                and organizing output data.
+                and organizing output data. This value is passed to helper methods for recording
+                arrival day information and aggregating daily hub statistics.
 
         Returns:
             list[Agent]: The same list of agents_finished_for_today that was passed in, allowing
-                the simulation to continue processing these agents through other hooks.
+                the simulation to continue processing these agents through other hooks in the
+                simulation pipeline.
         """
         if self.skip:
             return agents_finished_for_today
-
+    
         # initialize output
         if self.folder is None:
             self._initialize(config)
@@ -192,14 +238,15 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         return agents_finished_for_today
 
     def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context,
-                          current_day: int) -> None:
+                      current_day: int) -> None:
         """
         Clean up and close all open file handles at the end of the simulation.
 
         This method is called when the simulation completes to ensure all output files
         (GeoPackage and CSV files) are properly closed and their data is flushed to disk.
         It should be called as part of the simulation teardown process to prevent data
-        loss and resource leaks.
+        loss and resource leaks. The method checks each export flag and closes the
+        corresponding file handle if it was opened during initialization.
 
         Args:
             results (SetOfResults): Container for simulation results and metrics. This
