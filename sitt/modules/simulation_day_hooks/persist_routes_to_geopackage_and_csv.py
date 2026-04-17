@@ -159,7 +159,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                                                                'day': 'int',
                                                                'hub': 'str',
                                                                'incoming_routes': 'str',
-                                                               'variant_number': 'int',
+                                                               'variant_number': 'str', # because some numbers are higher than C's int length
                                                                'agents': 'int',
                                                                'origins': 'str'
                                                            }})
@@ -614,7 +614,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                     'day': current_day,
                     'hub': key,
                     'incoming_routes': len(hub['routes']),
-                    'variant_number': hub['number_incoming_routes'],
+                    'variant_number': str(hub['number_incoming_routes']),
                     'agents': hub['agents'],
                     'origins': '\n'.join(origins_txt),
                 }})
