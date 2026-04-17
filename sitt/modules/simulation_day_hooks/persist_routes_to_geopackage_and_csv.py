@@ -21,15 +21,16 @@ from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetO
 logger = logging.getLogger()
 
 class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
-    def __init__(self, delete_existing_folder: bool = True, export_gpkg: bool = True, export_routes_csv: bool = True,
-                 export_transport_types_csv: bool = True, export_overnight_hubs_csv: bool = True):
+    def __init__(self, delete_existing_folder: bool = True, export_all_routes_gpkg: bool = True,
+                 export_routes_csv: bool = True, export_transport_types_csv: bool = True,
+                 export_overnight_hubs_csv: bool = True):
         super().__init__()
         self.delete_existing_folder: bool = delete_existing_folder
         """Delete existing folder before running."""
         self.basename: str | None = None
         self.folder: str | None = None
-        self.export_gpkg: bool = export_gpkg
-        self.file_gpkg: fiona.Collection | None = None
+        self.export_all_routes_gpkg: bool = export_all_routes_gpkg
+        self.file_all_routes_gpkg: fiona.Collection | None = None
         self.export_routes_csv: bool = export_routes_csv
         self.file_routes_csv = None
         self.csv_writer_routes = None
@@ -63,7 +64,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
 
         Returns:
             None: This method performs initialization by setting instance variables
-                (min_time, basename, folder, file_gpkg, file_routes_csv, csv_writer_routes,
+                (min_time, basename, folder, file_all_routes_gpkg, file_routes_csv, csv_writer_routes,
                 file_transport_types_csv, csv_writer_transport_types) and creating output
                 files, but does not return a value.
         """
@@ -83,7 +84,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         if not os.path.exists(self.folder):
             os.mkdir(self.folder)
 
-        if self.export_gpkg:
+        if self.export_all_routes_gpkg:
             filename = os.path.join(self.folder, f"{self.basename}_routes.")
             properties = {'id': 'str',
                           'last_transport_type': 'str',
@@ -105,7 +106,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 for mean_of_transport in config.means_of_transport:
                     properties['count_' + mean_of_transport] = 'str' # because some numbers are higher than C's int length
 
-            self.file_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
+            self.file_all_routes_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                                                       'properties': properties})
 
         if self.export_routes_csv:
@@ -200,8 +201,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         Returns:
             None: This method performs cleanup operations and does not return a value.
         """
-        if self.export_gpkg:
-            self.file_gpkg.close()
+        if self.export_all_routes_gpkg:
+            self.file_all_routes_gpkg.close()
         if self.export_routes_csv:
             self.file_routes_csv.close()
         if self.export_transport_types_csv:
@@ -262,8 +263,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.hubs_yesterday = self.hubs
         self.hubs = {}
 
-        if self.export_gpkg and len(agent_data) > 0:
-            self.file_gpkg.writerecords(agent_data)
+        if self.export_all_routes_gpkg and len(agent_data) > 0:
+            self.file_all_routes_gpkg.writerecords(agent_data)
 
     def _get_agent_data(self, context: Context, config: Configuration, agent: Agent, current_day: int):
         """
