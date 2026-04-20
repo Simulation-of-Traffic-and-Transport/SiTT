@@ -65,6 +65,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.file_all_routes_gpkg: fiona.Collection | None = None
         self.export_daily_routes_gpkg: bool = export_daily_routes_gpkg
         self.file_daily_routes_gpkg: fiona.Collection | None = None
+        self.file_daily_hubs_gpkg: fiona.Collection | None = None
         self.export_routes_csv: bool = export_routes_csv
         self.file_routes_csv = None
         self.csv_writer_routes = None
@@ -153,8 +154,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
 
         if self.export_daily_routes_gpkg:
             filename = os.path.join(self.folder, f"{self.basename}_daily_routes.")
-            self.file_daily_routes_gpkg = fiona.open(filename + 'gpkg', 'w', driver='GPKG', crs='EPSG:4326',
-                                                   schema={'geometry': 'MultiLineString',
+            self.file_daily_routes_gpkg = fiona.open(filename + 'gpkg', 'w', layer='routes', driver='GPKG',
+                                                   crs='EPSG:4326', schema={'geometry': 'MultiLineString',
                                                            'properties': {
                                                                'day': 'int',
                                                                'hub': 'str',
@@ -163,6 +164,16 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                                                                'agents': 'int',
                                                                'origins': 'str'
                                                            }})
+
+            self.file_daily_hubs_gpkg = fiona.open(filename + 'gpkg', 'w', layer='hubs', driver='GPKG',
+                                                     crs='EPSG:4326', schema={'geometry': 'Point',
+                                                          'properties': {
+                                                              'day': 'int',
+                                                              'hub': 'str',
+                                                              'is_start': 'bool',
+                                                              'is_end': 'bool',
+                                                              'is_both': 'bool',
+                                                          }})
 
         if self.export_routes_csv:
             self.file_routes_csv = open(filename + 'csv', 'w', newline='')
@@ -267,6 +278,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             self.file_all_routes_gpkg.close()
         if self.export_daily_routes_gpkg:
             self.file_daily_routes_gpkg.close()
+            self.file_daily_hubs_gpkg.close()
         if self.export_routes_csv:
             self.file_routes_csv.close()
         if self.export_transport_types_csv:
@@ -561,6 +573,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 return a value.
         """
         daily_route_records = []
+        start_hubs = set()
+        end_hubs = set()
 
         for key, hub in self.hubs.items():
             origins = {}
@@ -609,6 +623,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 edges_today = set()
                 for route in hub['routes']:
                     edges_today.update(route[1::2])
+                    start_hubs.add(route[0])
+                    end_hubs.add(route[-1])
 
                 lines: list[MultiLineString] = []
                 for edge in edges_today:
@@ -625,3 +641,21 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
 
         if self.export_daily_routes_gpkg and len(daily_route_records) > 0:
             self.file_daily_routes_gpkg.writerecords(daily_route_records)
+
+            # write hubs layer
+            daily_hub_records = []
+
+            for hub in start_hubs.union(end_hubs):
+                geom = force_2d(context.routes.vs.find(name=hub)['geom'])
+                is_start = hub in start_hubs
+                is_end = hub in end_hubs
+                is_both = is_start and is_end
+                daily_hub_records.append({'geometry': geom, 'properties': {
+                    'day': current_day,
+                    'hub': hub,
+                    'is_start': is_start,
+                    'is_end': is_end,
+                    'is_both': is_both,
+                }})
+
+            self.file_daily_hubs_gpkg.writerecords(daily_hub_records)
