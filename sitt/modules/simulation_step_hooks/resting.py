@@ -47,7 +47,7 @@ class Resting(SimulationStepHookInterface):
         time_of_day = now % 24.
 
         # reset at time_offset
-        if agent.current_time == agent.start_time:
+        if now == agent.start_time:
             agent.additional_data['noon_rest'] = False
             return time_offset, False
 
