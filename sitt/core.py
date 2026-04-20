@@ -644,10 +644,10 @@ class Simulation(BaseClass):
                 continue
 
             # list of all agent ids that led to this hub
-            agent_ids = []
+            agent_ids = set()
             for agent in agent_list:
                 if not agent.is_cancelled:
-                    agent_ids.append(agent.uid)
+                    agent_ids.add(agent.uid)
             agent = Agent(hub, '', '', do_not_generate_uid=True)
             has_agents_to_proceed = False
 
@@ -659,7 +659,7 @@ class Simulation(BaseClass):
                     has_agents_to_proceed = True
 
                     agent.visited_hubs.update(agent.visited_hubs)
-                    agent_ids.append(agent.uid)
+                    agent_ids.add(agent.uid)
 
             if has_agents_to_proceed:
                 means_of_transport = self.config.means_of_transport if len(self.config.means_of_transport) > 0 else [None]
@@ -669,7 +669,7 @@ class Simulation(BaseClass):
                     for mean_of_transport in means_of_transport:
                         new_agent = Agent(hub, route[1], route[0])
                         new_agent.visited_hubs = copy.deepcopy(agent.visited_hubs)
-                        new_agent.parents = copy.deepcopy(agent_ids)
+                        new_agent.parents = copy.deepcopy(list(agent_ids))
                         new_agent.tries = 0
                         new_agent.transport_type = mean_of_transport
                         agents_proceeding_tomorrow.append(new_agent)
