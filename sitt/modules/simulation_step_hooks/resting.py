@@ -42,11 +42,11 @@ class Resting(SimulationStepHookInterface):
         if self.do_skip(agent, next_leg):
             return time_offset, False
 
-        # Get current day time (in hours)
+        # Get current time data
         now = agent.current_time + time_offset
         time_of_day = now % 24.
 
-        # reset at time_offset
+        # reset at start of day
         if now == agent.start_time:
             agent.additional_data['noon_rest'] = False
             return time_offset, False
@@ -83,6 +83,7 @@ class Resting(SimulationStepHookInterface):
                 # no rest found, add one
                 agent.add_rest(pause, time=now, reason=f"{rest_time['pause_minutes']}mins")
                 time_offset += pause
+                break
 
         return time_offset, False
 
