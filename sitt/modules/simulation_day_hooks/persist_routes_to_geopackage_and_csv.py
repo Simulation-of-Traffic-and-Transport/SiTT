@@ -311,17 +311,18 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             # ignore canceled agents
             if agent.is_cancelled:
                 continue
+            # aggregate the agent's node status
+            self._update_hubs_status(config, agent, current_day)
+
+        # update hubs with yesterday's data
+        self._update_hubs(config, context, current_day)
+
+        for agent in agents:
             if agent.is_finished or (config.simulation_ends and agent.this_hub in config.simulation_ends):
                 data = self._get_agent_data(context, config, agent, current_day)
                 agent_data.append(data)
                 if self.export_routes_csv:
                     self.csv_writer_routes.writerow(data['properties'].values())
-            else:
-                # aggregate the agent's node status
-                self._update_hubs_status(config, agent, current_day)
-
-        # update hubs with yesterday's data
-        self._update_hubs(config, context, current_day)
 
         # move today's hubs to yesterday's hubs
         self.hubs_yesterday = self.hubs
