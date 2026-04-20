@@ -18,6 +18,17 @@ from sitt import Configuration, SkipStep, PreparationInterface, OutputInterface,
 
 
 def load_configuration_from_yaml(yaml_stream: Any) -> Configuration:
+    """
+    Load and parse a YAML configuration file into a Configuration object.
+
+    This function creates a YAML loader with custom constructors (including support for
+    environment variable substitution via the !Env tag), parses the YAML stream, and
+    converts the resulting dictionary into a Configuration object.
+
+    :param yaml_stream: A YAML stream (file object, string, or any object accepted by yaml.load)
+                        containing the configuration data to be loaded.
+    :return: A Configuration object populated with the settings from the YAML stream.
+    """
     # loader for yaml
     loader = yaml.SafeLoader
     loader.add_constructor("!Env", _env_constructor)
@@ -27,7 +38,22 @@ def load_configuration_from_yaml(yaml_stream: Any) -> Configuration:
 
 
 def _env_constructor(loader: yaml.loader.SafeLoader, node: Any) -> str:
-    """Load !Env tag"""
+    """
+    Custom YAML constructor for the !Env tag that substitutes environment variables.
+
+    This constructor processes YAML nodes tagged with !Env and replaces placeholders
+    in the format ${VAR_NAME} with their corresponding environment variable values.
+    If an environment variable is not found, the placeholder remains unchanged.
+
+    :param loader: The YAML SafeLoader instance used to construct scalar values from
+                   the YAML node.
+    :param node: The YAML node containing the scalar value to be processed. This node
+                 should contain a string with environment variable placeholders in the
+                 format ${VAR_NAME}.
+    :return: A string with environment variable placeholders replaced by their actual
+             values from os.environ. If a variable is not found in the environment,
+             its placeholder remains in the string.
+    """
     value = str(loader.construct_scalar(node))  # get the string value next to !Env
     match = re.compile(".*?\\${(\\w+)}.*?").findall(value)
     if match:
@@ -85,8 +111,14 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
         else:
             config.start_date = dt.datetime.fromisoformat(data['start_date'])
 
-    if 'means_of_transport' in data and type(data['means_of_transport']) == list and len(data['means_of_transport']) > 0:
-        config.means_of_transport = data['means_of_transport']
+    if 'means_of_transport' in data:
+        # split string into list and strip whitespace (e.g. taken from !Env)
+        if type(data['means_of_transport']) == str:
+            elements = [x.strip() for x in data['means_of_transport'].split(',')]
+            if len(elements) > 0 and elements[0] != '':
+                config.means_of_transport = elements
+        elif type(data['means_of_transport']) == list and len(data['means_of_transport']) > 0:
+            config.means_of_transport = data['means_of_transport']
 
     # Other settings
     if 'overnight_trace_back' in data:
