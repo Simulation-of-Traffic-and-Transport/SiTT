@@ -394,7 +394,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
             edge_transport_types = hub['edge_transport_types']
         else:
             # case when route is one day only
-            overnight_hubs.add(start_hub)
+            overnight_hubs.add(start_hub + ':' + str(current_day))
             start_hubs.add(start_hub)
 
             start_time = self.min_time + dt.timedelta(hours=start_delta)
@@ -515,7 +515,7 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.hubs[end_hub]['routes'].add(tuple(agent.route))
         self.hubs[end_hub]['hubs'].update(agent.route[::2])
         self.hubs[end_hub]['edges'].update(edges)
-        self.hubs[end_hub]['overnight_hubs'].add(agent.route[0])
+        self.hubs[end_hub]['overnight_hubs'].add(agent.route[0] + ':' + str(current_day))
         self.hubs[end_hub]['agents'] += 1
 
         start_time = self.min_time + dt.timedelta(hours=start_delta)
