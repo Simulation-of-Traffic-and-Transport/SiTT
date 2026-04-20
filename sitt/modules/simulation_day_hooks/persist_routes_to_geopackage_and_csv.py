@@ -404,7 +404,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
                 for mean_of_transport in config.means_of_transport:
                     means_of_transport[mean_of_transport] = 0
 
-        overnight_hubs.add(start_hub + ':' + str(current_day))
+        if current_day > 1:
+            overnight_hubs.add(start_hub + ':' + str(current_day-1))
 
         hubs.update(agent.route[::2])
         edges.update(agent.route[1::2])
@@ -517,7 +518,8 @@ class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
         self.hubs[end_hub]['routes'].add(tuple(agent.route))
         self.hubs[end_hub]['hubs'].update(agent.route[::2])
         self.hubs[end_hub]['edges'].update(edges)
-        self.hubs[end_hub]['overnight_hubs'].add(agent.route[0] + ':' + str(current_day))
+        if current_day > 1:
+            self.hubs[end_hub]['overnight_hubs'].add(agent.route[0] + ':' + str(current_day-1))
         self.hubs[end_hub]['agents'] += 1
 
         start_time = self.min_time + dt.timedelta(hours=start_delta)
