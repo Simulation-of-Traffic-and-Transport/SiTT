@@ -1,4 +1,4 @@
-# Si.T.T. Example Data
+# SiTT Example Data
 
 In this folder, there are some scripts and explanations on hot to get example data from different sources on the web.
 

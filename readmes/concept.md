@@ -1,23 +1,23 @@
-# Si.T.T. Application Concept
+# SiTT Application Concept
 
-Si.T.T. is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
+SiTT is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
 approach to model the simulation. An agent can be thought of as a batch of cargo transported through the network
 (rather than an individual person travelling it). A transport can be conducted on land (e.g. roads), on rivers, and
-lakes. Si.T.T. has a very modular design, so elements can be exchanged in order to test out different scientific
+lakes. SiTT has a very modular design, so elements can be exchanged in order to test out different scientific
 methods.
 
-The following sections explain the basic concepts of the Si.T.T. application. The content is subject to change.
+The following sections explain the basic concepts of the SiTT application. The content is subject to change.
 
 ## Modularity
 
-Most components of Si.T.T. are modular. This means that they can be exchanged thus modifying the behavior of the
+Most components of SiTT are modular. This means that they can be exchanged thus modifying the behavior of the
 simulation. For example, the Preparation Component can handle different data sources such as databases, files,
 or web sources. Modules are plain Python classes, and it is easy to create new classes.
 
-## Si.T.T. Core
+## SiTT Core
 
-The main simulation program code is called *Si.T.T. Core*. The core takes arguments defined by some *configuration*.
-After running, it returns data in a format that can be read and presented by other applications. Si.T.T. Core is designed
+The main simulation program code is called *SiTT Core*. The core takes arguments defined by some *configuration*.
+After running, it returns data in a format that can be read and presented by other applications. SiTT Core is designed
 to be run as part of other applications, e.g. as part of a website (e.g. in a Django application), as a command line
 programm or within one that presents a nice GUI (graphical user interface). Presently, only the command line version
 has been implemented.
@@ -26,15 +26,15 @@ has been implemented.
 flowchart TB
 
 subgraph Web Application
-    C1[Si.T.T. Core]
+    C1[SiTT Core]
 end
 
 subgraph Command Line
-    C2[Si.T.T. Core]
+    C2[SiTT Core]
 end
 
 subgraph GUI
-    C3[Si.T.T. Core]
+    C3[SiTT Core]
 end
 ```
 
@@ -96,7 +96,7 @@ OUTPUT[Output]
 
 PRE --> SRC
 
-subgraph CORE [Si.T.T. Core]
+subgraph CORE [SiTT Core]
     IN["Preparation Component"]
     subgraph SIM["Simulation Component"]
         subgraph AGENT["any number of Agents"]

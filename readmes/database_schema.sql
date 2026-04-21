@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 -- schema creation
 CREATE SCHEMA sitt;
 
-COMMENT ON SCHEMA sitt IS 'Schema for Si.T.T. simulation';
+COMMENT ON SCHEMA sitt IS 'Schema for SiTT simulation';
 
 -- tables
 create table sitt.hubs

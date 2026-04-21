@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sitt"
-description = "Si.T.T. (Simulation of Traffic and Transport) is an agent-based simulation for pre-industrial trade routes."
+description = "SiTT (Simulation of Traffic and Transport) is an agent-based simulation for pre-industrial trade routes."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "MIT"

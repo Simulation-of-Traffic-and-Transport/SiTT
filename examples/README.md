@@ -1,6 +1,6 @@
 # Examples
 
-Here, you can find some basic examples on how to use Si.T.T.
+Here, you can find some basic examples on how to use SiTT
 
 To facilitate usage, the example were created as Jupyter notebooks. These are:
 

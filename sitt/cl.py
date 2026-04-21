@@ -18,7 +18,7 @@ def parse_params() -> Namespace:
     :return:
     """
     # see: https://docs.python.org/3/library/argparse.html
-    parser = ArgumentParser(description='Si.T.T. (Simulation of Traffic and Transport)')
+    parser = ArgumentParser(description='SiTT (Simulation of Traffic and Transport)')
 
     parser.add_argument("-c", "--config", help="Configuration filename", type=str, default="config.yaml")
 
@@ -64,9 +64,9 @@ def run():
     config = create_config_from_command_line()
 
     logger = logging.getLogger()
-    logger.info(f"Si.T.T. command line - running core ({__version__}).")
+    logger.info(f"SiTT command line - running core ({__version__}).")
 
-    # Create and run a Si.T.T. core
+    # Create and run a SiTT core
     core = Core(config)
     core.run()
 

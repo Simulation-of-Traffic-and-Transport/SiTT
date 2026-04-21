@@ -1,4 +1,4 @@
-# This is an example configuration file for Si.T.T.
+# This is an example configuration file for SiTT
 # It demonstrates how to set all the existing variables to make your simulation work.
 
 # Note that command line arguments override the values set in the configuration file. This makes it easier to change the

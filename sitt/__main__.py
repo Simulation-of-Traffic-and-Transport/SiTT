@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Si.T.T. main module, will run the command line"""
+"""SiTT main module, will run the command line"""
 
 import sitt.cl
 

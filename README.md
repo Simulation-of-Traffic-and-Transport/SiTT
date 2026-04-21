@@ -1,6 +1,6 @@
-# Si.T.T. (Simulation of Traffic and Transport)
+# SiTT (Simulation of Traffic and Transport)
 
-Si.T.T. is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
+SiTT is a program suite to simulate the traffic and transport of pre-industrial societies. It uses an agent-based
 approach to model the simulation. An agent can be thought of as a batch of cargo transported through the network
 (rather than an individual person travelling it).
 
@@ -24,28 +24,28 @@ Public mirror: https://github.com/Simulation-of-Traffic-and-Transport/SiTT
 
 ## Installation
 
-You need Python 3.10 or later to run Si.T.T. Moreover, the principal components of the simulation are contained in a
+You need Python 3.10 or later to run SiTT Moreover, the principal components of the simulation are contained in a
 PostgreSQL database, more specifically one with the [PostGIS](https://www.postgis.net/) extension. PostGis should
 be pretty recent and should have Geos >= 3.11.0 included, otherwise we will have to implement certain things in Python
-which will be pretty slow. Si.T.T. also makes use of JSONB in PostgreSQL, but since this has been introduced in
+which will be pretty slow. SiTT also makes use of JSONB in PostgreSQL, but since this has been introduced in
 version 9.4, it is likely, your database server will support this feature anyway.
 
 ```console
 pip install sitt
 ```
 
-After installation, you can run Si.T.T. using it as a module:
+After installation, you can run SiTT using it as a module:
 
 ```console
 python -m sitt
 ```
 
-This will activate the command line interface and print a help message. For other ways to run Si.T.T., check out the
+This will activate the command line interface and print a help message. For other ways to run SiTT, check out the
 examples below.
 
 ## Dependencies
 
-Installing Si.T.T. as package should install all dependent packages, too. You might want to install them by hand and/or
+Installing SiTT as package should install all dependent packages, too. You might want to install them by hand and/or
 install the extra dependencies for certain use cases:
 
 ```console
@@ -69,7 +69,7 @@ pytest -v .
 
 You can read some documentation on the following pages:
 
-* [Si.T.T.'S General Concept](readmes/concept.md) (with figures)
+* [SiTT'S General Concept](readmes/concept.md) (with figures)
 * [Database Reference](readmes/database.md)
 
 ## Examples
