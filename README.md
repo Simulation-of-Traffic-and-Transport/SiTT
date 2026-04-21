@@ -7,7 +7,8 @@ approach to model the simulation. An agent can be thought of as a batch of cargo
 [![PyPI - Version](https://img.shields.io/pypi/v/sitt.svg)](https://pypi.org/project/sitt)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/sitt.svg)](https://pypi.org/project/sitt)
 
-*Note:* This project is WIP at the moment and in pre-alpha status. Please come back later to test the full capabilities.
+*Note:* This suite was developed as part of the [STRADA](https://strada.uni-trier.de/) project at the University of
+Trier.
 
 Main repository: https://codeberg.org/SiTT/SiTT  
 Public mirror: https://github.com/Simulation-of-Traffic-and-Transport/SiTT
