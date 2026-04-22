@@ -27,6 +27,30 @@ class SimpleDAVRiver(SimpleDAV):
     def __init__(self, speed: float = 4.0, ascend_per_hour: float = 300, descend_per_hour: float = 400,
                  min_speed_down: float = 4.0, consider_sailing: bool = False, sailing_speed_down: float = 3.71,
                  sailing_speed_up: float = 3.71):
+        """Initializes a SimpleDAVRiver simulation stepper with river flow and optional sailing parameters.
+
+        This constructor extends the SimpleDAV stepper by adding river flow considerations
+        for downstream movement. When moving downstream, if the river's flow speed exceeds
+        the minimum speed threshold, the agent uses the river's current instead of towing.
+        Optionally, sailing speeds can be considered for both upstream and downstream movement.
+
+        Args:
+            speed: The base walking/towing speed of the agent in kilometers per hour (kph).
+                Defaults to 4.0 kph.
+            ascend_per_hour: The maximum vertical ascent rate in meters per hour when moving
+                uphill. Defaults to 300 meters/hour.
+            descend_per_hour: The maximum vertical descent rate in meters per hour when moving
+                downhill. Defaults to 400 meters/hour.
+            min_speed_down: The minimum speed threshold in kph below which the agent will not
+                tow downstream and will instead use the river's flow. Defaults to 4.0 kph.
+            consider_sailing: Whether to use sailing speeds instead of base speeds when
+                calculating travel times. Defaults to False.
+            sailing_speed_down: The sailing speed in kph when moving downstream. The actual
+                speed used will be the maximum of this value and the river's flow speed.
+                Defaults to 3.71 kph.
+            sailing_speed_up: The sailing speed in kph when moving upstream or on slow-moving
+                rivers. Defaults to 3.71 kph.
+        """
         super().__init__(speed, ascend_per_hour, descend_per_hour)
         self.min_speed_down: float = min_speed_down
         """minimum speed per hour at which we do *not* tow downstream (instead we use the river flow)"""
@@ -47,18 +71,33 @@ class SimpleDAVRiver(SimpleDAV):
         calculated based on a fixed speed, adjusted for ascent or descent, similar
         to hiking.
 
+        The method handles both sailing and non-sailing scenarios. When sailing is
+        enabled and the river leg supports it, sailing speeds are used instead of
+        base speeds. The method also processes each segment of the river leg
+        individually, running hooks at each coordinate and accumulating travel time.
+
         The method updates the agent's state with the total time taken for the
         leg and handles stopping the agent if the daily maximum travel time is
-        exceeded.
+        exceeded. If the agent needs to stop mid-leg, the last coordinate before
+        stopping is recorded.
 
         Args:
-            config: The simulation configuration.
-            context: The simulation context, containing shared data like the graph.
-            agent: The agent that is moving.
+            config: The simulation configuration object containing settings such as
+                whether to keep individual leg times.
+            context: The simulation context, containing shared data like the graph
+                and other global simulation state.
+            agent: The agent that is moving along the river. Contains the agent's
+                current state, route information, and timing constraints.
             next_leg: The graph edge representing the river leg to be traversed.
+                Must have type 'river' and contain attributes such as 'legs' (segment
+                lengths), 'flow' (flow rates), 'geom' (coordinates), and optionally
+                'direction' and 'sailing'.
 
         Returns:
-            The updated state of the agent after the simulation step.
+            State: The updated state of the agent after the simulation step. The state
+                includes the total time taken, optionally the time for each individual
+                leg segment, and signals if the agent should stop (e.g., if maximum
+                daily travel time is exceeded or if the path is invalid).
         """
         # precalculate next hub
         path_id = agent.route_key

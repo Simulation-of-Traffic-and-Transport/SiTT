@@ -25,6 +25,25 @@ class Simple(SimulationStepInterface):
 
     def __init__(self, speed: float = 5.0, ascend_slowdown_factor: float = 0.05,
                  descend_slowdown_factor: float = 0.025):
+        """
+        Initialize the Simple simulation stepper with movement parameters.
+
+        This constructor sets up a simple movement model that uses constant speed with
+        slope-based adjustments for ascending and descending terrain.
+
+        Args:
+            speed (float, optional): The base movement speed of the agent in kilometers per hour (kph).
+                Defaults to 5.0.
+            ascend_slowdown_factor (float, optional): The factor by which travel time is increased
+                when ascending slopes. The actual slowdown is calculated as slope percentage multiplied
+                by this factor. Defaults to 0.05.
+            descend_slowdown_factor (float, optional): The factor by which travel time is increased
+                when descending slopes. The actual slowdown is calculated as slope percentage multiplied
+                by this factor. Defaults to 0.025.
+
+        Returns:
+            None
+        """
         super().__init__()
         self.speed: float = speed
         """kph of this agent"""
@@ -34,6 +53,29 @@ class Simple(SimulationStepInterface):
         """time taken is modified by slope in percents multiplied by this number when descending"""
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+        """
+        Update the agent's state by calculating travel time for the next leg of the journey.
+
+        This method calculates the time required to traverse the next leg of the agent's route,
+        taking into account the base speed, terrain slopes, and direction of travel. The calculation
+        applies different slowdown factors for ascending and descending slopes. If configured, it
+        also stores individual leg times for detailed analysis.
+
+        Args:
+            config (Configuration): The simulation configuration object containing settings such as
+                whether to keep individual leg times (keep_leg_times flag).
+            context (Context): The simulation context providing environmental and global state
+                information (currently unused in this implementation).
+            agent (Agent): The agent whose state is being updated. Contains the current state,
+                route information, and hub identifiers.
+            next_leg (ig.Edge): An igraph Edge object representing the next segment of the route.
+                Expected to contain 'legs' (list of segment lengths) and 'slopes' (list of slope
+                percentages) attributes. If None, an error is logged and the current state is returned.
+
+        Returns:
+            State: The updated state object with calculated time_taken and optionally time_for_legs.
+                If next_leg is None, returns the unmodified current state.
+        """
         state = agent.state
 
         # precalculate next hub

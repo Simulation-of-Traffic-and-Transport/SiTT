@@ -20,6 +20,28 @@ class SimpleLake(SimulationStepInterface):
         self.speed: float = speed
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+        """Update the agent's state for traversing a lake segment at a fixed rowing speed.
+
+        This method simulates lake travel by calculating the time required to traverse
+        a lake segment at a constant speed (representing rowing). It processes each leg
+        of the journey, runs hooks at each coordinate, and handles time constraints.
+        The method temporarily sets the agent's propulsion to 'sailing' during calculation.
+
+        Args:
+            config (Configuration): The simulation configuration containing settings such as
+                whether to keep individual leg times.
+            context (Context): The current simulation context providing environmental and
+                state information.
+            agent (Agent): The agent traversing the lake, containing current position, time,
+                route information, and state data.
+            next_leg (ig.Edge): The graph edge representing the lake segment to traverse,
+                must have type 'lake' and contain geometry and leg length information.
+
+        Returns:
+            State: The updated state of the agent after processing the lake traversal,
+                including time taken, coordinates, and any stop signals. Returns the
+                unmodified state if the step is skipped or if the leg type is invalid.
+        """
         # skipped?
         if self.skip:
             return agent.state

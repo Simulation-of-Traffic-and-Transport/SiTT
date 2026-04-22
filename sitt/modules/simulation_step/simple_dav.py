@@ -44,6 +44,25 @@ class SimpleDAV(SimulationStepInterface):
     """
 
     def __init__(self, speed: float = 4.0, ascend_per_hour: float = 300, descend_per_hour: float = 400):
+        """
+        Initialize a SimpleDAV simulation stepper with DAV formula parameters.
+
+        This constructor sets up the parameters used in the DAV (Deutscher Alpenverein) formula
+        for calculating travel times based on horizontal distance, elevation gain, and elevation loss.
+        The default values reflect the standard DAV formula: 4 km/h horizontal speed, 300 m/h ascending
+        rate, and 400 m/h descending rate.
+
+        Args:
+            speed (float, optional): The horizontal travel speed in kilometers per hour (km/h).
+                Defaults to 4.0 km/h, which is the standard DAV formula value for flat terrain.
+            ascend_per_hour (float, optional): The rate of elevation gain in meters per hour (m/h)
+                when ascending. Defaults to 300 m/h, the standard DAV formula value.
+            descend_per_hour (float, optional): The rate of elevation loss in meters per hour (m/h)
+                when descending. Defaults to 400 m/h, the standard DAV formula value.
+
+        Returns:
+            None: This is a constructor method that initializes the instance.
+        """
         super().__init__()
         self.speed: float = speed
         """kph of this agent"""
@@ -171,6 +190,30 @@ class SimpleDAV(SimulationStepInterface):
 
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+        """
+        Update the agent's state by calculating travel time for the next leg of their journey.
+
+        This method serves as the main entry point for updating an agent's state during simulation.
+        It validates that a valid leg exists for the agent's current route, then delegates to the
+        time calculation method to determine how long the leg will take using the DAV formula.
+        If no valid leg is found, an error is logged but the agent's state is still returned.
+
+        Args:
+            config (Configuration): The simulation configuration object containing settings such as
+                whether to keep individual leg times and other simulation parameters.
+            context (Context): The current simulation context providing environmental and state
+                information for the simulation run.
+            agent (Agent): The agent whose state is being updated. Contains the current position,
+                route information, and state that will be modified with timing calculations.
+            next_leg (ig.Edge): The graph edge representing the next leg of the journey to traverse.
+                Should contain 'legs', elevation data ('legs_up'/'legs_down' or 'slopes'), and
+                coordinate information ('leg_points' or 'geom'). May be None if no valid path exists.
+
+        Returns:
+            State: The updated state of the agent after calculating travel time for the leg.
+                The state will contain timing information if a valid leg was processed, or remain
+                unchanged if no valid leg was found.
+        """
         # precalculate next hub
         path_id = agent.route_key
         if not next_leg:

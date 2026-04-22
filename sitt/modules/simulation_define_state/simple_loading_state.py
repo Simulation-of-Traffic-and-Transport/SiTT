@@ -17,11 +17,44 @@ class SimpleLoadingState(SimulationDefineStateInterface):
     from road to river.
     """
     def __init__(self, add_time: float = 0.5):
+        """
+        Initialize the SimpleLoadingState module.
+
+        This constructor sets up the loading state handler that adds a fixed time penalty
+        when an agent transitions between different route types (e.g., from road to river).
+
+        Args:
+            add_time (float, optional): The number of hours to add to the agent's current time
+                when the route type changes. Defaults to 0.5 hours.
+
+        Returns:
+            None
+        """
         super().__init__()
         self.add_time: float = add_time
         """add this number of hours when route type changes"""
 
     def define_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+        """
+        Define the state for an agent, adding loading/unloading time when route types change.
+
+        This method checks if the agent is transitioning between different route types (e.g., from
+        road to river) and adds a fixed time penalty to account for loading and unloading goods
+        when switching between vehicle types. If no route type change occurs, the agent's state
+        is returned unchanged.
+
+        Args:
+            config (Configuration): The simulation configuration object containing global settings
+                and parameters for the simulation run.
+            context (Context): The simulation context providing access to route and path information,
+                including route types and other contextual data.
+            agent (Agent): The agent whose state is being defined. The agent contains information
+                about current and previous routes, timing, and travel state.
+
+        Returns:
+            State: The agent's state, either unchanged if no route type transition occurred, or
+                after applying the loading/unloading time penalty if the route type changed.
+        """
         state = agent.state
 
         # ignore, if there is no last route
