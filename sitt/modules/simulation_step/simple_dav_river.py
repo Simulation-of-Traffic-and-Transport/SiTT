@@ -126,6 +126,7 @@ class SimpleDAVRiver(SimpleDAV):
 
         used_flow = False
         sailing = False
+        towing = False
         if self.consider_sailing and 'sailing' in next_leg.attribute_names() and next_leg['sailing']:
             sailing = True
             # temporarily add propulsion to the agent's state
@@ -160,6 +161,8 @@ class SimpleDAVRiver(SimpleDAV):
                     # reset if flow was not used, so we can calculate time below
                     if not used_flow:
                         calculated_time = -1
+                else:
+                    agent.additional_data['towing'] = True
 
                 # all other cases -> so upriver, or downriver, if river is too slow
                 if calculated_time <= 0:
@@ -189,6 +192,8 @@ class SimpleDAVRiver(SimpleDAV):
         # delete temporary propulsion data
         if sailing:
             del agent.additional_data['propulsion']
+        if towing:
+            del agent.additional_data['towing']
 
         return agent.state
 

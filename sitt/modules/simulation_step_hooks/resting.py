@@ -33,8 +33,6 @@ class Resting(SimulationStepHookInterface):
         """Maximum rest time (in minutes) that can occur in the gap."""
         self.noon_gap_min_gap: int = noon_gap_min_gap
         """Minimum gap to the last rest during noon (in minutes)."""
-        self.skip: dict = skip
-        """Dictionary to skip resting times for specific agents."""
 
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
                  time_offset: float) -> tuple[float, bool]:
@@ -89,17 +87,3 @@ class Resting(SimulationStepHookInterface):
 
     def is_noon(self, time_of_day: float) -> bool:
         return self.noon and self.noon_start <= time_of_day <= self.noon_end
-
-    def do_skip(self, agent: Agent, next_leg: ig.Edge):
-        # check skip conditions
-        if self.skip and len(self.skip) > 0:
-            if 'transport_types' in self.skip and len(self.skip['transport_types']) > 0:
-                 if agent.transport_type in self.skip['transport_types']:
-                    return True
-
-            # additional data check - e.g. agent has a specific additional data type set
-            if 'additional_data' in self.skip and len(self.skip['additional_data']) > 0:
-                for key, values in self.skip['additional_data'].items():
-                    if key in agent.additional_data and agent.additional_data[key] in values:
-                        return True
-        return False

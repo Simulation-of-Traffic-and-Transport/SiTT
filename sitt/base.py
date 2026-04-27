@@ -719,33 +719,9 @@ class SimulationStepHookInterface(abc.ABC):
     """
     Simulation step hook module interface - used for hooks called by simulation steps
     """
-    # def __init__(self):
-    #     # runtime settings
-    #     self.skip: bool = False
-    #     self.conditions: dict[str, any] = {}
-    #
-    # def check_conditions(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
-    #     """Checks conditions for this step"""
-    #     # skip set to true?
-    #     if self.skip:
-    #         return False
-    #
-    #     # no conditions?
-    #     if not self.conditions or len(self.conditions) == 0:
-    #         return True
-    #
-    #     # check conditions
-    #     if 'types' in self.conditions and len(self.conditions['types']) > 0:
-    #         # check type of route ahead
-    #         if next_leg['type'] not in self.conditions['types']:
-    #             return False
-    #
-    #     if 'not_types' in self.conditions and len(self.conditions['not_types']) > 0:
-    #         # check type of route ahead
-    #         if next_leg['type'] in self.conditions['not_types']:
-    #             return False
-    #
-    #     return True
+    def __init__(self):
+        # runtime settings
+        self.skip: dict | None = None
 
     @abc.abstractmethod
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple, time_offset: float) -> tuple[float, bool]:
@@ -763,6 +739,32 @@ class SimulationStepHookInterface(abc.ABC):
         """
         pass
 
+    def do_skip(self, agent: Agent, next_leg: ig.Edge):
+        """
+        Checks if the current hook should be skipped based on agent properties.
+
+        This method evaluates the `self.skip` conditions, which can be configured
+        to bypass the hook for certain agent transport types or additional data attributes.
+
+        Args:
+            agent (Agent): The agent currently being processed.
+            next_leg (ig.Edge): The next leg of the journey.
+
+        Returns:
+            bool: True if the hook should be skipped, False otherwise.
+        """
+        # check skip conditions
+        if self.skip and len(self.skip) > 0:
+            if 'transport_types' in self.skip and len(self.skip['transport_types']) > 0:
+                 if agent.transport_type in self.skip['transport_types']:
+                    return True
+
+            # additional data check - e.g. agent has a specific additional data type set
+            if 'additional_data' in self.skip and len(self.skip['additional_data']) > 0:
+                for key, values in self.skip['additional_data'].items():
+                    if key in agent.additional_data and agent.additional_data[key] in values:
+                        return True
+        return False
 
 class OutputInterface(abc.ABC):
     """
