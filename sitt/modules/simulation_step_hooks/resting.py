@@ -36,7 +36,7 @@ class Resting(SimulationStepHookInterface):
         self.skip: dict = skip
         """Dictionary to skip resting times for specific agents."""
 
-    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple,
+    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
                  time_offset: float) -> tuple[float, bool]:
         # check skip conditions
         if self.do_skip(agent, next_leg):

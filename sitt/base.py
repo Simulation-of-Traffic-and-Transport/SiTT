@@ -21,7 +21,7 @@ import nanoid
 import yaml
 
 # import directly and export to __init__.py
-from .spatio_temporal_data import SpatioTemporalInterface, SpaceTimeData, SpaceData
+from .spatio_temporal_data import SpatioTemporalInterface, XArrayNetCDFData
 
 __all__ = [
     "SkipStep",
@@ -29,8 +29,7 @@ __all__ = [
     "Context",
     "State",
     "SpatioTemporalInterface",
-    "SpaceTimeData",
-    "SpaceData",
+    "XArrayNetCDFData",
     "Agent",
     "SetOfResults",
     "PreparationInterface",
@@ -209,6 +208,13 @@ class Context(object):
         """Get hub by id"""
         if self.graph:
             return self.routes.vs.find(name=hub_id)
+        return None
+
+    def find_space_time_data(self, lat: float, lon: float, date: dt.datetime, field: str):
+        for data in self.space_time_data.values():
+            values = data.get(lat, lon, date)
+            if field in values:
+                return values[field]
         return None
 
 
@@ -686,21 +692,22 @@ class SimulationStepInterface(abc.ABC):
         pass
 
     @staticmethod
-    def run_hooks(config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple,
+    def run_hooks(config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
                   time_offset: float) -> tuple[float, bool]:
         """
         Call hooks for a simulation step - this method has to be called in update_state in an appropriate position.
 
-        :param config:
-        :param context:
-        :param agent:
-        :param next_leg:
-        :param coords:
-        :param time_offset:
+        :param config: configuration data
+        :param context: context data
+        :param agent: current agent data
+        :param next_leg: next leg data
+        :param i: current simulation step number (coordinate in leg)
+        :param coords: current coordinate in leg
+        :param time_offset: current time offset
         :return: tuple of new time offset and whether the simulation was cancelled
         """
         for hook in config.simulation_step_hook:
-            (time_offset, cancelled) = hook.run_hook(config, context, agent, next_leg, coords, time_offset)
+            (time_offset, cancelled) = hook.run_hook(config, context, agent, next_leg, i, coords, time_offset)
             if cancelled:
                 # update agent state
                 agent.state.signal_stop_here = True
@@ -741,16 +748,17 @@ class SimulationStepHookInterface(abc.ABC):
     #     return True
 
     @abc.abstractmethod
-    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, coords: tuple, time_offset: float) -> tuple[float, bool]:
+    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple, time_offset: float) -> tuple[float, bool]:
         """
         Run the hook - to be implemented by specific classes
 
-        :param config:
-        :param context:
-        :param agent:
-        :param next_leg:
-        :param coords:
-        :param time_offset:
+        :param config: configuration data
+        :param context: context data
+        :param agent: current agent data
+        :param next_leg: next leg data
+        :param i: current simulation step number (coordinate in leg)
+        :param coords: current coordinate in leg
+        :param time_offset: current time offset
         :return: tuple of new time offset and a boolean indicating if the day was cancelled
         """
         pass
