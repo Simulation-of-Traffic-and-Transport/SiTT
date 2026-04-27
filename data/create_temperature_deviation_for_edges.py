@@ -79,24 +79,24 @@ if __name__ == "__main__":
             deviation_height = lake_height - ref_height
 
             # create a numpy array with this height deviation
-            height_deviations = np.full(len(geom.coords), deviation_height)
+            temperature_deviations = np.full(len(geom.coords), deviation_height)
 
         elif result.type == 'road':
-            height_deviations = np.zeros(len(result.data['leg_points']))
+            temperature_deviations = np.zeros(len(result.data['leg_points']))
 
             for i, leg_point in enumerate(result.data['leg_points']):
-                height_deviations[i] = get_height(leg_point[0], leg_point[1]) - ds.sel(longitude=leg_point[0], latitude=leg_point[1], method="nearest").values
+                temperature_deviations[i] = get_height(leg_point[0], leg_point[1]) - ds.sel(longitude=leg_point[0], latitude=leg_point[1], method="nearest").values
 
         elif result.type == 'river':
-            height_deviations = np.zeros(len(geom.coords))
+            temperature_deviations = np.zeros(len(geom.coords))
 
             for i, xy in enumerate(geom.coords):
-                height_deviations[i] = get_height(xy[0], xy[1]) - ds.sel(longitude=xy[0], latitude=xy[1], method="nearest").values
+                temperature_deviations[i] = get_height(xy[0], xy[1]) - ds.sel(longitude=xy[0], latitude=xy[1], method="nearest").values
 
         else:
             raise ValueError(f"Unknown edge type: {result.type}")
 
-        values = '{"height_deviation":' + str(height_deviations.tolist()) + '}'
+        values = '{"temperature_deviation":' + str(temperature_deviations.tolist()) + '}'
         conn.execute(text(f"UPDATE {args.schema}.edges SET data = data || '{values}' WHERE id = '{result.id}'"))
 
     conn.commit()
