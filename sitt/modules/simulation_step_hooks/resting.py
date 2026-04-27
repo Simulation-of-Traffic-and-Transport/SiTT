@@ -35,10 +35,10 @@ class Resting(SimulationStepHookInterface):
         """Minimum gap to the last rest during noon (in minutes)."""
 
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
-                 time_offset: float) -> tuple[float, bool]:
+                 time_offset: float) -> tuple[float, bool, bool]:
         # check skip conditions
         if self.do_skip(agent, next_leg):
-            return time_offset, False
+            return time_offset, False, False
 
         # Get current time data
         now = agent.current_time + time_offset
@@ -47,7 +47,7 @@ class Resting(SimulationStepHookInterface):
         # reset at start of day
         if now == agent.start_time:
             agent.additional_data['noon_rest'] = False
-            return time_offset, False
+            return time_offset, False, False
 
         # Check if it's noon
         if self.is_noon(time_of_day) and not agent.additional_data.get('noon_rest', False):
@@ -64,9 +64,10 @@ class Resting(SimulationStepHookInterface):
                     time_offset += pause
                     # set flag
                     agent.additional_data['noon_rest'] = True
-                    return time_offset, False
+                    return time_offset, True, False
 
         # Check if it's a resting time
+        had_rest = False
         for rest_time in self.rest_times:
             after = rest_time['after_minutes']/60.0
 
@@ -81,9 +82,10 @@ class Resting(SimulationStepHookInterface):
                 # no rest found, add one
                 agent.add_rest(pause, time=now, reason=f"{rest_time['pause_minutes']}mins")
                 time_offset += pause
+                had_rest = True
                 break
 
-        return time_offset, False
+        return time_offset, had_rest, False
 
     def is_noon(self, time_of_day: float) -> bool:
         return self.noon and self.noon_start <= time_of_day <= self.noon_end

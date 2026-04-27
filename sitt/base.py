@@ -704,10 +704,13 @@ class SimulationStepInterface(abc.ABC):
         :param i: current simulation step number (coordinate in leg)
         :param coords: current coordinate in leg
         :param time_offset: current time offset
-        :return: tuple of new time offset and whether the simulation was cancelled
+        :return: tuple of new time offset and whether the simulation was canceled
         """
         for hook in config.simulation_step_hook:
-            (time_offset, cancelled) = hook.run_hook(config, context, agent, next_leg, i, coords, time_offset)
+            (time_offset, done, cancelled) = hook.run_hook(config, context, agent, next_leg, i, coords, time_offset)
+            if done:
+                # done indicates that we do not process more hooks
+                break
             if cancelled:
                 # update agent state
                 agent.state.signal_stop_here = True
@@ -724,7 +727,7 @@ class SimulationStepHookInterface(abc.ABC):
         self.skip: dict | None = None
 
     @abc.abstractmethod
-    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple, time_offset: float) -> tuple[float, bool]:
+    def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple, time_offset: float) -> tuple[float, bool, bool]:
         """
         Run the hook - to be implemented by specific classes
 
@@ -735,7 +738,7 @@ class SimulationStepHookInterface(abc.ABC):
         :param i: current simulation step number (coordinate in leg)
         :param coords: current coordinate in leg
         :param time_offset: current time offset
-        :return: tuple of new time offset and a boolean indicating if the day was cancelled
+        :return: tuple of new time offset and two boolean: first one indicates "done" (stop processing more hooks), the second one indicates "canceled" (stop agent for now)
         """
         pass
 

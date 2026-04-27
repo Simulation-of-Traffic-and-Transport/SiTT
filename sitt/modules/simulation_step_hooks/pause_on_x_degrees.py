@@ -32,10 +32,10 @@ class PauseOnXDegrees(SimulationStepHookInterface):
         """Key for temperature."""
 
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
-                 time_offset: float) -> tuple[float, bool]:
+                 time_offset: float) -> tuple[float, bool, bool]:
         # check skip conditions
         if self.do_skip(agent, next_leg):
-            return time_offset, False
+            return time_offset, False, False
 
         current_day = config.get_agent_date(agent, time_offset)
 
@@ -43,7 +43,7 @@ class PauseOnXDegrees(SimulationStepHookInterface):
         temperature = context.find_space_time_data(coords[1], coords[0], current_day, 't')
         if temperature is None:
             """Skip if no temperature data found."""
-            return time_offset, False
+            return time_offset, False, False
 
         if self.adjust_temp_with_height:
             # adjust temperature per 100 meters
@@ -71,4 +71,4 @@ class PauseOnXDegrees(SimulationStepHookInterface):
                                                    microseconds=-current_day.microsecond)
             time_offset += (next_hour - current_day).total_seconds() / 3600
 
-        return time_offset, False
+        return time_offset, True, False
