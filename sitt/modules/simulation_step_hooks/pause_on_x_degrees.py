@@ -69,6 +69,9 @@ class PauseOnXDegrees(SimulationStepHookInterface):
             # update time offset to the next full hour
             next_hour = current_day + dt.timedelta(hours=1, minutes=-current_day.minute, seconds=-current_day.second,
                                                    microseconds=-current_day.microsecond)
-            time_offset += (next_hour - current_day).total_seconds() / 3600
+            wait_time = (next_hour - current_day).total_seconds() / 3600
+            time_offset += wait_time
+
+            agent.add_rest(wait_time, reason=f"heat")
 
         return time_offset, True, False
