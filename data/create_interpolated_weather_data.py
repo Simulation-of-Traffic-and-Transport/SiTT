@@ -37,8 +37,8 @@ xrds['t'] = ds['t2m'] - 273.15  # Convert from Kelvin to Celsius
 # Fresh Snow Data
 ########################################################################################################################
 
-# sum snowfall in the last x hours
-xrds['snow'] = ds['csf'].rolling({'time': delta_hours}, min_periods=1).sum()
+# sum snowfall in the last x hours - in mm or l/m²
+xrds['snow'] = ds['csf'].rolling({'time': delta_hours}, min_periods=1).sum() * snow_multiplier * 3600
 
 ########################################################################################################################
 # Wind Gusts
