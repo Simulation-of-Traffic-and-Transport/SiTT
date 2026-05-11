@@ -164,7 +164,7 @@ class SimpleDAV(SimulationStepInterface):
             if cancelled:
                 if logger.level <= logging.DEBUG:
                     logger.debug(f"SimulationInterface hooks run, cancelled state")
-                return
+                break
 
             calculated_time = self._calculate_time_for_step(agent, next_leg, i, attrs)
 

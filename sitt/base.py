@@ -211,12 +211,54 @@ class Context(object):
         return None
 
     def find_space_time_data(self, lat: float, lon: float, date: dt.datetime, field: str):
+        """Finds a specific data field from spatio-temporal data sources.
+
+        This method iterates through all available spatio-temporal data sources
+        in the context and attempts to retrieve the value for a specific field
+        at a given geographic coordinate and time.
+
+        Args:
+            lat (float): The latitude for the data lookup.
+            lon (float): The longitude for the data lookup.
+            date (dt.datetime): The date and time for the data lookup.
+            field (str): The name of the data field to find (e.g., 'wind_speed').
+
+        Returns:
+            The value of the requested field if found, otherwise None. The type
+            of the return value depends on the data source.
+        """
         for data in self.space_time_data.values():
             values = data.get(lat, lon, date)
             if field in values:
                 return values[field]
         return None
 
+    def find_multiple_space_time_data(self, lat: float, lon: float, date: dt.datetime, *field: str):
+        """Finds multiple data fields from spatio-temporal data sources.
+
+        This method iterates through all available spatio-temporal data sources
+        in the context and attempts to retrieve the values for multiple specified
+        fields at a given geographic coordinate and time.
+
+        Args:
+            lat (float): The latitude for the data lookup.
+            lon (float): The longitude for the data lookup.
+            date (dt.datetime): The date and time for the data lookup.
+            *field (str): A variable number of strings, where each string is the
+                name of the data field to find (e.g., 'wind_speed', 'temperature').
+
+        Returns:
+            dict: A dictionary where keys are the requested field names and values
+            are the corresponding data values found. If a field is found in
+            multiple data sources, its value will be overwritten by the last
+            one found.
+        """
+        values = {}
+        for data in self.space_time_data.values():
+            v = data.get(lat, lon, date)
+            for f in field:
+                values[f] = v[f]
+        return values
 
 ########################################################################################################################
 # Agent and State
@@ -758,6 +800,10 @@ class SimulationStepHookInterface(abc.ABC):
         """
         # check skip conditions
         if self.skip and len(self.skip) > 0:
+            if 'types' in self.skip and len(self.skip['types']) > 0:
+                if next_leg['type'] in self.skip['types']:
+                    return True
+
             if 'transport_types' in self.skip and len(self.skip['transport_types']) > 0:
                  if agent.transport_type in self.skip['transport_types']:
                     return True

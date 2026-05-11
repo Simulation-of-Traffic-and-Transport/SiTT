@@ -74,4 +74,4 @@ class PauseOnXDegrees(SimulationStepHookInterface):
 
             agent.add_rest(wait_time, reason=f"heat")
 
-        return time_offset, True, False
+        return time_offset, do_pause, False
