@@ -14,12 +14,18 @@ dist
 # Project files that should not go into git
 config.yaml
 *.pkl
-!examples/example_graph.pkl
 network.png
 possible_routes_*.png
 simulation_output.*
+dump/*
 data/*
 !data/README.md
 !data/*.py
+examples/*
+!examples/README.md
+!examples/*.py
+!examples/*.ipynb
+!examples/example_graph.pkl
 
 *.pickle
+.ipynb_checkpoints

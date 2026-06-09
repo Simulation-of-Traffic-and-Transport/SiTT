@@ -79,12 +79,10 @@ path = "sitt/__about__.py"
 #files = ["requirements.txt"]
 
 # automatically checks .gitignore
-#[tool.hatch.build.targets.sdist]
-#exclude = [
-#  "/.idea",
-#  "/.vscode",
-#  "/.git",
-#]
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/examples",
+]
 
 [tool.hatch.envs.default]
 dependencies = [
