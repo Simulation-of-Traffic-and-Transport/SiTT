@@ -1,68 +1,92 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""Spatio temporal classes"""
+"""Spatio-temporal classes to make working with spatial and temporal data easier"""
 
 import abc
 import datetime as dt
 import logging
 
-import xarray as xr
 import numpy as np
+import xarray as xr
 
 logger = logging.getLogger()
-
 
 __all__ = [
     "SpatioTemporalInterface",
     "XArrayNetCDFData",
-    # "SpaceTimeData",
-    # "SpaceData"
 ]
 
+
 class SpatioTemporalInterface(abc.ABC):
-    # def __init__(self, data: nc.Dataset, variables: dict[str, dict[str, any]], latitude: str = 'latitude',
-    #              longitude: str = 'longitude'):
-    #     # """Variables to map values on"""
-    #
-    #     # create aggregated data
-    #     self.lat: np.ma.core.MaskedArray = data.variables[latitude][:]
-    #     """latitude array"""
-    #     self.lon: np.ma.core.MaskedArray = data.variables[longitude][:]
-    #     """longitude array"""
-    #
-    #     # add variables
-    #     self.variables: dict[str, nc.Variable] = {}
-    #     self.offsets: dict[str, float] = {}
-    #     for key in variables:
-    #         var_name = key
-    #         if 'variable' in variables[key]:
-    #             var_name = variables[key]['variable']
-    #         if var_name in data.variables:
-    #             self.variables[key] = data.variables[var_name]
-    #             if 'offset' in variables[key]:
-    #                 self.offsets[key] = variables[key]['offset']
-    #         else:
-    #             logging.getLogger().error(data.variables)
-    #             raise Exception('Variable does not exist in dataset: ' + var_name)
-    #
-    #     # set min/max values for quicker tests below
-    #     self.min_lat = self.lat.min()
-    #     self.max_lat = self.lat.max()
-    #     self.min_lon = self.lon.min()
-    #     self.max_lon = self.lon.max()
+    """
+    Interface for handling spatiotemporal data.
+
+    This abstract base class provides a blueprint for working with specific
+    data associated with geographic locations and timestamps. It defines methods
+    for retrieving general data or specific fields of data, ensuring consistent
+    access patterns for derived implementations.
+    """
 
     @abc.abstractmethod
     def get(self, lat: float, lon: float, date: dt.datetime) -> any:
-        """Get data for at given location and date"""
+        """
+        This abstract method is designed to retrieve data based on the provided geographic
+        coordinates and a specific date. Implementations of this method should define how
+        the data is fetched and returned. The method is expected to process the input
+        parameters to generate the desired output.
+
+        :param lat: Latitude of the location to retrieve data for.
+        :type lat: float
+        :param lon: Longitude of the location to retrieve data for.
+        :type lon: float
+        :param date: Date for which data should be retrieved.
+        :type date: datetime.datetime
+        :return: Data corresponding to the provided geographic location and date.
+        :rtype: Any
+        """
         pass
 
     def get_field(self, lat: float, lon: float, date: dt.datetime, field: str) -> any:
-        """Get a specific field for at given location and date"""
+        """
+        Retrieve a specific field value from the data for a given latitude, longitude, and date.
+
+        This method extracts the value of the specified field from the data corresponding
+        to the provided geographical and temporal parameters.
+
+        :param lat: Latitude coordinate of the desired location.
+        :type lat: float
+        :param lon: Longitude coordinate of the desired location.
+        :type lon: float
+        :param date: Date and time for which the field value is desired.
+        :type date: dt.datetime
+        :param field: The name of the field to be retrieved from the data.
+        :type field: str
+        :return: The value of the specified field for the provided location and date.
+        :rtype: any
+        """
         return self.get(lat, lon, date)[field]
 
 
 class XArrayNetCDFData(SpatioTemporalInterface):
+    """
+    Representation of spatial and temporal data encapsulated within an xarray Dataset.
+
+    This class is designed for handling NetCDF data stored in xarray Datasets, providing functionalities
+    for retrieving geospatial and temporal data based on specified latitude, longitude, and time inputs.
+    It features caching mechanisms for frequently accessed data and rounding to the nearest grid cell
+    for improved performance and precision.
+
+    :ivar data: The xarray Dataset containing NetCDF data.
+    :type data: xr.Dataset
+    :ivar latitude: The name of the latitude coordinate in the Dataset.
+    :type latitude: str
+    :ivar longitude: The name of the longitude coordinate in the Dataset.
+    :type longitude: str
+    :ivar time: The name of the time coordinate in the Dataset.
+    :type time: str
+    """
+
     def __init__(self, data: xr.Dataset, latitude: str = 'latitude', longitude: str = 'longitude', time: str = 'time'):
         self.data: xr.Dataset = data
         """Data from xarray netcdf file."""
@@ -82,6 +106,25 @@ class XArrayNetCDFData(SpatioTemporalInterface):
         self._cache: dict[tuple[dt.datetime, np.float64, np.float64], any] = {}
 
     def get(self, lat: float, lon: float, date: dt.datetime) -> any:
+        """
+        Retrieve data for a specific latitude, longitude, and datetime. Adjusts values
+        to the nearest grid cell and hourly timestamp. Caches the result to optimize
+        repeated requests for the same key within the same day.
+
+        :param lat: Latitude in decimal degrees. Positive values for North,
+                    negative for South.
+        :type lat: float
+        :param lon: Longitude in decimal degrees. Positive values for East,
+                    negative for West.
+        :type lon: float
+        :param date: Datetime object representing the desired timestamp. The
+                     minute, second, and microsecond components are truncated
+                     to the nearest hour.
+        :type date: datetime.datetime
+        :return: Retrieved data corresponding to the adjusted latitude,
+                 longitude, and datetime. Returns None if no data is found.
+        :rtype: any
+        """
         # round to nearest grid cell
         lat_adj = np.round(lat / self.lat_delta) * self.lat_delta
         lon_adj = np.round(lon / self.lon_delta) * self.lon_delta
@@ -108,153 +151,3 @@ class XArrayNetCDFData(SpatioTemporalInterface):
         self._cache[key] = vals
 
         return vals
-
-# class SpaceTimeData(SpatioTemporalInterface):
-#     def __init__(self, data: nc.Dataset, variables: dict[str, dict[str, any]], latitude: str = 'latitude',
-#                  longitude: str = 'longitude', time: str = 'time', start_date: dt.date | None = None):
-#         super().__init__(data, variables, latitude, longitude)
-#         # """Variables to map values on"""
-#         self.start_date: dt.date | None = start_date
-#         """Start date different from global one."""
-#
-#         self.times: nc.Variable = data.variables[time]
-#         """time dataset"""
-#         self._cache: dict[tuple[int, int, int], dict[str, any]] = {}
-#         """Cached data for quicker access"""
-#
-#         # set min/max values for quicker tests below
-#         times = self.times[:]
-#         self.min_times = times.min()
-#         self.max_times = times.max()
-#
-#     def _in_bounds(self, lat: float, lon: float, date_number: float) -> bool:
-#         """
-#         Tests if lat, lon and time are within the bounds of the dataset
-#         :param lat: latitude
-#         :param lon: longitude
-#         :param date_number: date number
-#         :return: true if in bounds, false otherwise
-#         """
-#         if self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon and self.min_times <= date_number <= self.max_times:
-#             return True
-#
-#         return False
-#
-#     def _get_date_number(self, date: dt.datetime | None) -> float | None:
-#         """
-#         Returns date number for given date - returns none if datetimes have not been set
-#
-#         :param date: date
-#
-#         :return: date number or None
-#         """
-#         if date is None:
-#             return None
-#
-#         return nc.date2num(date, self.times.units, calendar=self.times.calendar, has_year_zero=False)
-#
-#     def get(self, lat: float, lon: float, date: dt.datetime, fields: list[str] | None = None) -> dict[str, any] | None:
-#
-#         # convert to date number
-#         date_num = self._get_date_number(date)
-#         if date_num is None:
-#             return None
-#
-#         # check bounds
-#         if not self._in_bounds(lat, lon, date_num):
-#             return None
-#
-#         # add all fields, if none have been set
-#         if fields is None or len(fields) == 0:
-#             fields = list(self.variables.keys())
-#
-#         # find the closest indexes
-#         lat_idx = (np.abs(self.lat - lat)).argmin()
-#         lon_idx = (np.abs(self.lon - lon)).argmin()
-#         time_idx = (np.abs(self.times[:] - date_num)).argmin()
-#
-#         # we use a cache to store previously calculated values, because accessing indexes in the NETCDF file is quite
-#         # slow
-#         return self.get_variables_by_index(lat_idx, lon_idx, time_idx, fields)
-#
-#     def get_variables_by_index(self, lat_idx: int, lon_idx: int, time_idx: int, fields: list[str]) -> dict[str, any]:
-#         key = (lat_idx, lon_idx, time_idx)
-#         if key not in self._cache:
-#             # aggregate variables
-#             variables: dict[str, any] = {}
-#
-#             for field in fields:
-#                 if field in self.variables:
-#                     value = self.variables[field][time_idx][lat_idx][lon_idx]
-#
-#                     # apply offset, if it exists
-#                     if field in self.offsets:
-#                         value += self.offsets[field]
-#
-#                     variables[field] = value
-#
-#             self._cache[key] = variables
-#
-#             return variables
-#         else:
-#             return self._cache[key]
-#
-#
-# class SpaceData(SpatioTemporalInterface):
-#     def __init__(self, data: nc.Dataset, variables: dict[str, dict[str, any]], latitude: str = 'latitude',
-#                  longitude: str = 'longitude', time: str = 'time', start_date: dt.date | None = None):
-#         super().__init__(data, variables, latitude, longitude)
-#         self._cache: dict[tuple[int, int], dict[str, any]] = {}
-#         """Cached data for quicker access"""
-#
-#     def _in_bounds(self, lat: float, lon: float) -> bool:
-#         """
-#         Tests if lat, lon and time are within the bounds of the dataset
-#         :param lat: latitude
-#         :param lon: longitude
-#         :param date_number: date number
-#         :return: true if in bounds, false otherwise
-#         """
-#         if self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon:
-#             return True
-#
-#         return False
-#
-#     def get(self, lat: float, lon: float, date: dt.datetime, fields: list[str] | None = None) -> dict[str, any] | None:
-#         # check bounds
-#         if not self._in_bounds(lat, lon):
-#             return None
-#
-#         # add all fields, if none have been set
-#         if fields is None or len(fields) == 0:
-#             fields = list(self.variables.keys())
-#
-#         # find the closest indexes
-#         lat_idx = (np.abs(self.lat - lat)).argmin()
-#         lon_idx = (np.abs(self.lon - lon)).argmin()
-#
-#         # we use a cache to store previously calculated values, because accessing indexes in the NETCDF file is quite
-#         # slow
-#         return self.get_variables_by_index(lat_idx, lon_idx, fields)
-#
-#     def get_variables_by_index(self, lat_idx: int, lon_idx: int, fields: list[str]) -> dict[str, any]:
-#         key = (lat_idx, lon_idx)
-#         if key not in self._cache:
-#             # aggregate variables
-#             variables: dict[str, any] = {}
-#
-#             for field in fields:
-#                 if field in self.variables:
-#                     value = self.variables[field][lat_idx][lon_idx]
-#
-#                     # apply offset, if it exists
-#                     if field in self.offsets:
-#                         value += self.offsets[field]
-#
-#                     variables[field] = value
-#
-#             self._cache[key] = variables
-#
-#             return variables
-#         else:
-#             return self._cache[key]

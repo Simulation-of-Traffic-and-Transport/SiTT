@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2022-present Maximilian Kalus <info@auxnet.de>
 #
 # SPDX-License-Identifier: MIT
-"""SiTT main module, will run the command line"""
+"""SiTT main module; this will run the command line"""
 
 import sitt.cl
 
-# Fallback: Run command line
+# Main: Run command line
 if __name__ == "__main__":
     sitt.cl.run()
