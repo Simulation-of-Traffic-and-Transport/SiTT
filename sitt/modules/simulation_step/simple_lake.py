@@ -13,9 +13,26 @@ logger = logging.getLogger()
 
 
 class SimpleLake(SimulationStepInterface):
-    """Simple lake stepper that assumes a fixed speed on lakes (like being rowed)."""
+    """
+    Represents a simulation step interface for traversing a lake segment by rowing at a constant
+    speed.
+
+    This class simulates the traversal of lake segments in a predefined route, processing agent
+    state updates for each segment, handling time calculations, and running necessary hooks during
+    the simulation. It temporarily adjusts the agent's propulsion mode to accommodate lake traversal
+    logic.
+
+    :ivar speed: The rowing speed used for lake traversal calculations.
+    :type speed: float
+    """
 
     def __init__(self, speed: float = 3.):
+        """
+        Initializes an instance of the class with a specified speed.
+
+        :param speed: The initial speed value. Defaults to 3.0.
+        :type speed: float
+        """
         super().__init__()
         self.speed: float = speed
 

@@ -18,6 +18,32 @@ from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetO
 logger = logging.getLogger()
 
 class PersistAgentsToGeoPackage(SimulationDayHookInterface):
+    """
+    Handles the persistence of agent routes and metadata to a GeoPackage file.
+
+    This class is responsible for saving agent simulation data into a GeoPackage format. It ensures
+    that data is recorded in a structured way, allowing for easy analysis and visualization of
+    agent movement and routes. The class manages the lifecycle of the GeoPackage file and ensures
+    proper initialization, updating, and cleanup operations.
+
+    :ivar delete_existing_folder: Indicates whether the existing folder should be deleted before
+        starting a new simulation run.
+    :type delete_existing_folder: bool
+    :ivar basename: The base name for the output files and folder, generated based on simulation
+        route and start date.
+    :type basename: str | None
+    :ivar folder: The folder path where the GeoPackage file and other data will be stored.
+    :type folder: str | None
+    :ivar file: The fiona file handle representing the GeoPackage where the agent data will be
+        persisted.
+    :type file: fiona.Collection | None
+    :ivar min_time: The minimal start time for the simulation, derived from the configuration start
+        date.
+    :type min_time: datetime.datetime
+    :ivar route_origins: A dictionary to track the origins of agent routes. Used to map and
+        aggregate data across the simulation.
+    :type route_origins: dict
+    """
     def __init__(self, delete_existing_folder: bool = True):
         super().__init__()
         self.delete_existing_folder: bool = delete_existing_folder
@@ -30,6 +56,22 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         """Keep track of routes of agents."""
 
     def _initialize(self, config: Configuration):
+        """
+        Initializes the necessary components for simulation data storage and prepares the
+        environment for storing agent information.
+
+        This method sets the minimum simulation time, creates a structured folder for storing
+        simulation data, and opens a GeoPackage (GPKG) file for writing agent-related information.
+        If pre-existing data exists and the configuration allows, it removes the old folder before
+        creating a new one.
+
+        :param config: The configuration object containing simulation-related settings.
+            Must include `start_date` (datetime), `simulation_route` (string), and any
+            additional settings required for the initialization process.
+        :type config: Configuration
+
+        :return: None
+        """
         # set min time
         self.min_time = dt.datetime.combine(config.start_date, dt.datetime.min.time())
 
@@ -58,6 +100,33 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
             results: SetOfResults, current_day: int) -> list[Agent]:
+        """
+        Executes the main behavior of the method based on the provided parameters to manage
+        and persist the state of agents. If the `skip` attribute is set to `True`, the
+        function bypasses its normal operation and immediately returns the
+        `agents_finished_for_today`.
+
+        :param config: Configuration object containing the necessary settings for initialization
+                       and persistence operations.
+        :type config: Configuration
+        :param context: Context object providing contextual information required during the
+                        operation.
+        :type context: Context
+        :param agents: List of Agent objects that are being processed during the method's execution.
+        :type agents: list[Agent]
+        :param agents_finished_for_today: List of Agent objects that have completed their tasks for
+                                           the current day and require persistence.
+        :type agents_finished_for_today: list[Agent]
+        :param results: Aggregated results from the ongoing operations or simulations being managed
+                        by the method.
+        :type results: SetOfResults
+        :param current_day: The current day identifier used to determine the scope and progression
+                            of the process.
+        :type current_day: int
+        :return: List of Agent objects that have completed their tasks for the current day and have
+                 been persisted successfully.
+        :rtype: list[Agent]
+        """
         if self.skip:
             return agents_finished_for_today
 
@@ -74,6 +143,20 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         self.file.close()
 
     def _persist_agents(self, agents: list[Agent], config: Configuration, context: Context, current_day: int):
+        """
+        Aggregates agent data and persists it into a GeoPackage file.
+
+        This method processes a list of agents, filtering out canceled agents and determining
+        their completion status based on the simulation configuration and hub statuses. The
+        processed data for valid agents is then written to a GeoPackage file using the file
+        writer associated with the class.
+
+        :param agents: List of agent objects to be processed.
+        :param config: Configuration object containing simulation settings and parameters.
+        :param context: Context object providing necessary execution context.
+        :param current_day: The current simulation day as an integer.
+        :return: None
+        """
         # aggregate the agents and save their data into a GeoPackage file
         agent_data = []
 
@@ -94,6 +177,25 @@ class PersistAgentsToGeoPackage(SimulationDayHookInterface):
         self.file.writerecords(agent_data)
 
     def _get_agent_data(self, context: Context, agent: Agent, current_day: int, is_finished: bool):
+        """
+        Retrieves agent data in the form of a dictionary containing geometry and properties.
+
+        The method processes the agent's route and constructs geometry details, including the
+        route's coordinates, determining whether they need to be reversed. It also computes
+        route-specific properties such as start and end hubs, time details, and additional metadata.
+        This information is returned in a structured format ready for further use.
+
+        :param context: A `Context` object that provides the larger environment
+            and facilitates access to geospatial data.
+        :param agent: An `Agent` object whose routing data and properties
+            are being analyzed.
+        :param current_day: An integer representing the current simulation day.
+        :param is_finished: A boolean indicating whether the agent's task is
+            complete or still in progress.
+        :return: A dictionary containing the processed geometry and associated
+            properties for the specified agent.
+        :rtype: dict
+        """
         coordinates = []
         for i, route_key in enumerate(agent.route[1::2]):
             coords = list(force_2d(context.routes.es.find(name=route_key)['geom']).coords)

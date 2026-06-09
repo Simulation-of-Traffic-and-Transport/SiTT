@@ -16,6 +16,19 @@ from shapely.ops import transform
 
 
 def compact_graph(g: ig.Graph, transformer: Transformer) -> ig.Graph:
+    """
+    Compacts a graph by creating a subgraph that reduces the number of nodes and edges while maintaining
+    the overall geometry. This process simplifies the graph and preserves structural characteristics,
+    where the resulting graph excludes vertices with degree ≤ 2 unless they are endpoints or lie on
+    transitional chains.
+
+    :param g: The input graph to be compacted. Must be an instance of `ig.Graph`.
+    :param transformer: A transformer object used to update edge attributes and process geometry during graph
+                        compaction.
+    :return: A new compacted instance of `ig.Graph` containing reduced vertices and edges while retaining
+             the original graph's geometry.
+
+    """
     # compact graph
     # in a way, we do something similar to http://szhorvat.net/mathematica/IGDocumentation/#igsmoothen - but we
     # need to preserve the geometry
@@ -122,6 +135,20 @@ def _get_outer_neighbor(tg: ig.Graph, name: str, excluded_names: list[str]) -> i
 
 
 def _add_vertex(g: ig.Graph, attributes):
+    """
+    Adds a vertex to the graph if it does not already exist.
+
+    This function checks if a vertex with the specified name exists in the
+    given graph. If it does not find a vertex with the given name, it adds
+    a new vertex with the specified attributes.
+
+    :param g: The graph object where the vertex will be added.
+    :type g: ig.Graph
+    :param attributes: A dictionary of attributes for the vertex, where the
+        key "name" specifies the name of the vertex. Other attributes are
+        optional and can be specified in the dictionary.
+    :type attributes: dict
+    """
     try:
         g.vs.find(name=attributes['name'])
     except:
@@ -129,6 +156,24 @@ def _add_vertex(g: ig.Graph, attributes):
 
 
 def _get_segments(g: ig.Graph, source: str, target: str) -> list[tuple[str, str]]:
+    """
+    Extracts segments from the shortest path between two specified vertices in the graph.
+
+    The function identifies the shortest path connecting the `source` and `target`
+    vertices within the given graph `g`, represented as a list of vertex indices.
+    From this path, it derives a list of segment pairs, where each pair consists of
+    the names of two consecutive vertices along the path.
+
+    :param g: The graph instance structured as an `ig.Graph` object. This graph
+        provides the methods and context to determine the shortest path between
+        nodes.
+    :param source: A string identifier of the source vertex. This is the starting
+        point for calculating the shortest path.
+    :param target: A string identifier of the target vertex. This is the endpoint
+        for calculating the shortest path.
+    :return: A list of tuples where each tuple contains two strings representing
+        the names of two consecutive vertices along the derived shortest path.
+    """
     segments: list[tuple[str, str]] = []
     last_vertex = None
 
@@ -164,7 +209,30 @@ def _update_edge_attributes_of_direct_neighbors(tg: ig.Graph, transformer: Trans
 
 
 def _create_compacted_line_data(og: ig.Graph, tg: ig.Graph, source: str, target: str, transformer: Transformer):
-    """merge a path from source to target in the graph into a single shape and edge"""
+    """
+    Creates a compacted line representation of a path between two nodes in a graph.
+    This function computes the shortest path between the source and target in the
+    original graph and constructs a new line in a target graph. The line consists of
+    points that are the centers of geometric attributes of vertices, as well as the
+    centroids of intersected shapes between consecutive vertices along the path. Additionally,
+    it calculates the line's length and stores it.
+
+    :param og: Original input graph that contains vertices and edges with geometric
+        attributes for the shortest path computation.
+    :type og: ig.Graph
+    :param tg: Target graph where the compacted line representation will be added as
+        an edge.
+    :type tg: ig.Graph
+    :param source: The starting point (node) in the input graph where the shortest path
+        begins.
+    :type source: str
+    :param target: The endpoint (node) in the input graph where the shortest path ends.
+    :type target: str
+    :param transformer: A transformation object used to transform geometric attributes
+        (e.g., for length calculations).
+    :type transformer: Transformer
+    :return: None
+    """
 
     points: list = []
     last_shape: Polygon | None = None

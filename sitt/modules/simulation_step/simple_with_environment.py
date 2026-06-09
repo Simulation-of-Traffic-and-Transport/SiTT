@@ -30,6 +30,25 @@ class SimpleWithEnvironment(SimulationStepInterface):
                                                                      30.0: 0.02,
                                                                      35.0: 0.04,
                                                                      40.0: 0.08}):
+        """
+        Initializes an agent with specific movement and environmental slowdown factors.
+
+        This constructor sets various environmental and terrain-dependent slowdown factors
+        that influence the movement speed of the agent. The factors include effects from slope,
+        precipitation, snow depth, and temperature. These parameters allow for detailed modeling
+        of agent behavior under varying conditions.
+
+        :param speed: Base speed of the agent in kilometers per hour.
+        :param ascend_slowdown_factor: Factor by which time is modified when ascending based
+            on the slope percentage.
+        :param descend_slowdown_factor: Factor by which time is modified when descending based
+            on the slope percentage.
+        :param rainfall_slowdown_factor: Slowdown factor applied during rainfall.
+        :param snowfall_slowdown_factor: Slowdown factor applied during snowfall.
+        :param snow_depth_slowdown_factor: Slowdown factor applied based on snow depth.
+        :param temperature_slowdown_factors: Mapping of minimum temperatures to their associated
+            slowdown factors. Used to adjust movement based on temperature variations.
+        """
         super().__init__()
         self.speed: float = speed
         """kph of this agent"""
@@ -49,6 +68,20 @@ class SimpleWithEnvironment(SimulationStepInterface):
         This is a list of minimum temperature keys to use this slowdown. It must be defined in ascending order."""
 
     def update_state(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> State:
+        """
+        Updates the state of an agent based on the traversal of the next leg of the route. The method
+        accounts for various environmental factors such as temperature, rainfall, snowfall, and snow
+        depth, as well as slope and length of each segment of the leg. Time taken is calculated and
+        updated for the agent's state. Optionally, detailed timings and data for each leg can be
+        maintained according to the configuration.
+
+        :param config: The configuration settings containing parameters that influence the simulation.
+        :param context: The context data which includes spatial and temporal environmental factors.
+        :param agent: The agent object whose state needs to be updated as it traverses the route.
+        :param next_leg: The next segment of the route the agent is expected to traverse.
+        :return: The updated state of the agent.
+        :rtype: State
+        """
         state = agent.state
 
         # precalculate next hub
@@ -133,7 +166,19 @@ class SimpleWithEnvironment(SimulationStepInterface):
         return state
 
     def __get_temperature_slowdown_for(self, temperature) -> float:
-        """Retrieve the slowdown for the given temperature"""
+        """
+        Calculate the slowdown factor for a given temperature.
+
+        This method determines the slowdown factor based on the provided temperature
+        and predefined temperature slowdown factors. If the temperature is greater than
+        or equal to specific temperature thresholds, the corresponding slowdown factor
+        is applied. If no conditions are met, a default factor of 0.0 is returned.
+
+        :param temperature: Temperature value to determine the slowdown factor.
+        :type temperature: float
+        :return: Slowdown factor corresponding to the given temperature.
+        :rtype: float
+        """
         if len(self.temperature_slowdown_factors) > 0:
             factor = 0.0
 

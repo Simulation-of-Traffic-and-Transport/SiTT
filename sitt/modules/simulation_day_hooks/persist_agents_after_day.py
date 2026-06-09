@@ -19,7 +19,33 @@ logger = logging.getLogger()
 
 class PersistAgentsAfterDay(SimulationDayHookInterface):
     """
-    Persists all agents after each simulation day to PostgresSQL.
+    Handles the persistence of agents and related simulation data after each simulation day.
+
+    This class provides functionality to store simulation-related data into a database, such as hubs,
+    edges, simulations, and associated agents. It facilitates database connection management, schema
+    handling, and initialization of tables.
+
+    :ivar server: The database server address.
+    :type server: str
+    :ivar port: The port number of the database server.
+    :type port: int
+    :ivar db: The name of the database to connect to.
+    :type db: str
+    :ivar user: The username for database authentication.
+    :type user: str
+    :ivar password: The password for database authentication.
+    :type password: str
+    :ivar schema: The database schema to use.
+    :type schema: str
+    :ivar connection: An optional connection string for connecting to the database; used for automatic
+        configuration overriding.
+    :type connection: str | None
+    :ivar conn: The active database connection.
+    :type conn: Connection | None
+    :ivar metadata_obj: SQLAlchemy metadata object for managing schema and table definitions.
+    :type metadata_obj: MetaData
+    :ivar current_simulation_id: The ID of the currently active (inserted) simulation.
+    :type current_simulation_id: int
     """
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
@@ -158,6 +184,16 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
 
     def _initialize(self, config: Configuration):
+        """
+        Initializes and sets up the necessary tables for the simulation environment. This includes creating the database
+        tables, populating them with initial data based on the provided configuration, and assigning a unique simulation ID
+        to the newly created simulation. The method also logs the creation of the simulation.
+
+        :param config: Configuration object containing initialization parameters, such as the simulation route and start
+            date.
+
+        :return: None
+        """
         # initialize table data
         conn = self.get_connection()
 
@@ -179,6 +215,32 @@ class PersistAgentsAfterDay(SimulationDayHookInterface):
 
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent],
             results: SetOfResults, current_day: int) -> list[Agent]:
+        """
+        Runs the simulation process for persisting agent data related to a specific simulation day. This method handles
+        initializing a simulation, preventing duplicate agents, persisting agent and route information, and returning the
+        processed list of agents.
+
+        :param config: Configuration object managing simulation settings.
+        :type config: Configuration
+
+        :param context: Context object providing the execution context of the simulation.
+        :type context: Context
+
+        :param agents: List of Agent objects currently being processed in the simulation.
+        :type agents: list[Agent]
+
+        :param agents_finished_for_today: List of Agent objects that have completed their tasks for the current day.
+        :type agents_finished_for_today: list[Agent]
+
+        :param results: Object containing cumulative results of the simulation.
+        :type results: SetOfResults
+
+        :param current_day: Numerical representation of the current simulation day (e.g., 1 for day 1).
+        :type current_day: int
+
+        :return: Updated list of agents that completed processing for the current day.
+        :rtype: list[Agent]
+        """
         if self.skip:
             return agents_finished_for_today
 

@@ -21,6 +21,56 @@ from sitt import SimulationDayHookInterface, Configuration, Context, Agent, SetO
 logger = logging.getLogger()
 
 class PersistRoutesToGeoPackageAndCSV(SimulationDayHookInterface):
+    """
+    Persist agent route data to GeoPackage and CSV formats based on export configuration options.
+
+    This class serves as a hook to process and store simulation route data in multiple formats:
+    GeoPackage files for spatial and tabular analysis, and CSV files for easier tabular data
+    processing. It offers configurable options to export complete agent routes, daily aggregated
+    routes grouped by hubs, transport type usage statistics, and overnight hub details. The class
+    also supports automatic deletion of existing output folders from prior simulation runs.
+
+    :ivar delete_existing_folder: Determines if existing output folders should be deleted before running.
+    :type delete_existing_folder: bool
+    :ivar basename: Base name for output files and folder, typically based on simulation route and start date.
+    :type basename: str | None
+    :ivar folder: Path to the folder where all output files will be stored.
+    :type folder: str | None
+    :ivar export_all_routes_gpkg: If True, exports all agent route data to a GeoPackage file.
+    :type export_all_routes_gpkg: bool
+    :ivar file_all_routes_gpkg: File handle for writing agent route data to a GeoPackage file.
+    :type file_all_routes_gpkg: fiona.Collection | None
+    :ivar export_daily_routes_gpkg: If True, exports daily aggregated route data to a separate GeoPackage.
+    :type export_daily_routes_gpkg: bool
+    :ivar file_daily_routes_gpkg: File handle for writing daily aggregated routes to a GeoPackage file.
+    :type file_daily_routes_gpkg: fiona.Collection | None
+    :ivar file_daily_hubs_gpkg: File handle for storing daily hub data in a GeoPackage format.
+    :type file_daily_hubs_gpkg: fiona.Collection | None
+    :ivar export_routes_csv: If True, exports all agent route data to a CSV file.
+    :type export_routes_csv: bool
+    :ivar file_routes_csv: File handle for writing route data to a CSV file.
+    :type file_routes_csv: None
+    :ivar csv_writer_routes: CSV writer object for handling route data export.
+    :type csv_writer_routes: None
+    :ivar export_transport_types_csv: If True, exports transport type usage statistics to a CSV file.
+    :type export_transport_types_csv: bool
+    :ivar file_transport_types_csv: File handle for writing transport type data to a CSV file.
+    :type file_transport_types_csv: None
+    :ivar csv_writer_transport_types: CSV writer object for handling transport type data export.
+    :type csv_writer_transport_types: None
+    :ivar export_overnight_hubs_csv: If True, exports overnight hub data to a CSV file.
+    :type export_overnight_hubs_csv: bool
+    :ivar file_overnight_hubs_csv: File handle for writing overnight hub data to a CSV file.
+    :type file_overnight_hubs_csv: None
+    :ivar csv_writer_overnight_hubs: CSV writer object for handling overnight hub data export.
+    :type csv_writer_overnight_hubs: None
+    :ivar min_time: Minimum time reference point for the simulation based on the start date.
+    :type min_time: dt.datetime
+    :ivar hubs: Dictionary tracking hubs for each simulation day.
+    :type hubs: dict
+    :ivar hubs_yesterday: Dictionary tracking hubs from the previous simulation day.
+    :type hubs_yesterday: dict
+    """
     def __init__(self, delete_existing_folder: bool = True, export_all_routes_gpkg: bool = True,
                  export_daily_routes_gpkg: bool = True, export_routes_csv: bool = True,
                  export_transport_types_csv: bool = True, export_overnight_hubs_csv: bool = True):

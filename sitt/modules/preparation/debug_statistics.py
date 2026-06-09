@@ -23,6 +23,17 @@ class DebugStatistics(PreparationInterface):
         """Append to existing file?"""
 
     def run(self, config: Configuration, context: Context) -> Context:
+        """
+        Analyzes and outputs statistics about a simulated route's nodes, edges, lengths, slopes, and shortest paths
+        from a given configuration and context with optional CSV export.
+
+        :param config: Configuration object holding simulation parameters such as routes, start, and end nodes.
+        :type config: Configuration
+        :param context: Context containing the current state of the route network, nodes, and attributes.
+        :type context: Context
+        :return: The updated context object after performing the analysis.
+        :rtype: Context
+        """
         writer = None
         if self.save:
             f = open(self.filename, 'a' if self.append else 'w', newline='')

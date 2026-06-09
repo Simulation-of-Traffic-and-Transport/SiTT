@@ -67,6 +67,20 @@ class PathWeeder:
         self.crs_to = crs_to
 
     def get_k_paths(self, start: str, end: str, k: int) -> BestPathsResult:
+        """
+        Extracts and returns the `k` shortest paths between a specified start and end node
+        in the graph, using edge weights to determine path cost. Each subsequent path is
+        computed by penalizing previously visited edges to ensure path diversity.
+
+        :param start: The name of the starting node in the graph
+        :type start: str
+        :param end: The name of the ending node in the graph
+        :type end: str
+        :param k: The number of shortest paths to compute
+        :type k: int
+        :return: A result object containing the computed paths and related information
+        :rtype: BestPathsResult
+        """
         # # create articulation_points
         # articulation_points = []
         # for idx in self.graph.articulation_points():
@@ -147,6 +161,18 @@ class PathWeeder:
 
 
 def convert_graph_to_shapefile(graph: ig.Graph, output_path: str, shapefile_name: str) -> None:
+    """
+    Converts an igraph object into a shapefile with polyline geometries.
+
+    This function processes the edges of an igraph Graph object and creates a shapefile
+    with polyline geometries for each edge. It ensures that the geometries of the edges
+    are in a clockwise direction before writing them to the shapefile.
+
+    :param graph: An igraph Graph object containing edges with geometry and name attributes.
+    :param output_path: The directory path where the shapefile will be saved.
+    :param shapefile_name: The name of the shapefile to be created.
+    :return: None
+    """
     w = shapefile.Writer(target=path.join(output_path, shapefile_name), shapeType=shapefile.POLYLINE, autoBalance=True)
     w.field("name", "C")
 
@@ -160,8 +186,3 @@ def convert_graph_to_shapefile(graph: ig.Graph, output_path: str, shapefile_name
         w.record(e["name"])
 
     w.close()
-
-
-# TODO:
-# google-drive://ronix75@googlemail.com/GVfsSharedWithMe/1lT4TAgWlKEnnDHOmJ9FRQVDb2al5GouV/1GWd14DWct9sE441Si6GTr_MgmPjNSsml/1lyFQ5XBcCy9WYkyl5ybetIRG-vxN6V5p
-# Flusstiefen

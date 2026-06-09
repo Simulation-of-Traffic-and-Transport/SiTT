@@ -47,11 +47,31 @@ id_counter = 0
 
 
 def generate_nanoid() -> str:
+    """
+    Generates a secure, URL-friendly unique identifier string using the nanoid library.
+
+    This function creates a random identifier string that consists of uppercase letters,
+    lowercase letters, and digits. The length of the generated identifier is always 12
+    characters.
+
+    :return: A 12-character long alphanumeric string.
+    :rtype: str
+    """
     return nanoid.generate('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12)
 
 
 def generate_id() -> str:
-    """This utility function will generate uids for agents in increasing numerical order, padded with leading zeros."""
+    """
+    Generate an increasing zero-padded unique identifier string.
+
+    This function increments a global counter and generates a zero-padded identifier
+    string of the counter's value. The ID is always six characters long, padded with
+    leading zeros as needed.
+
+    :return: A uniquely generated identifier string based on the incremented global
+        counter.
+    :rtype: str
+    """
     global id_counter
 
     id_counter += 1
@@ -142,6 +162,18 @@ class Configuration:
         logging.basicConfig(format='%(asctime)s %(message)s')
 
     def __setattr__(self, att, value):
+        """
+        Sets an attribute on the object and observes changes in logger settings when specific
+        attributes are modified. If the 'verbose' attribute is set to a truthy value, the logging
+        level is updated to INFO, enabling more detailed logging output. If the 'quiet' attribute
+        is set to a truthy value, the logging level is set to ERROR, suppressing less important
+        messages. Changes to other attributes are passed to the superclass for assignment.
+
+        :param att: The name of the attribute being set.
+        :type att: str
+        :param value: The value to assign to the attribute.
+        :return: None
+        """
         # observe changes in logger settings
         if att == 'verbose' and value:
             logger = logging.getLogger()
@@ -152,9 +184,29 @@ class Configuration:
         return super().__setattr__(att, value)
 
     def __repr__(self):
+        """
+        Represents the string representation of an object in YAML format.
+
+        This method serializes the object into a YAML string representation using ``yaml.dump``.
+        It is useful for creating a human-readable, serialized version of the object.
+
+        :return: A string containing the YAML serialized representation of the object.
+        :rtype: str
+        """
         return yaml.dump(self)
 
     def __getstate__(self):
+        """
+        Gets the state of the object for serialization, ensuring non-serializable
+        attributes and unnecessary data are excluded.
+
+        This method creates a copy of the object's current state and modifies it
+        by removing or transforming attributes that cannot or should not be
+        serialized.
+
+        :return: A dictionary representing the serializable state of the object.
+        :rtype: dict
+        """
         state = self.__dict__.copy()
         # delete out, because we cannot pickle this
         if 'out' in state:
@@ -168,9 +220,29 @@ class Configuration:
         return state
 
     def get_agent_date(self, agent: Agent, additional_offset: float = 0.) -> dt.datetime:
+        """
+        Calculate the current date and time for a given agent, based on a start date and
+        offset values.
+
+        This method computes the agent's current datetime by combining the `start_date`
+        with the agent's current time in hours. Additionally, an optional offset in hours
+        can be applied to this computation. This function does not account for DST (Daylight
+        Saving Time) changes, as noted in the TODO comment (reminder).
+
+        :param agent: An Agent instance that includes the current time in hours as a
+            float. This value specifies the agent's position in the simulation relative
+            to the start date.
+        :param additional_offset: A float representing an extra offset in hours to be
+            added to the computed datetime. Defaults to 0.
+        :return: A datetime object representing the agent's current datetime, calculated
+            using the `start_date`, the agent's current time, and the additional offset.
+        :rtype: datetime.datetime
+        """
         # get start date as datetime object
         current_date: dt.datetime = (dt.datetime.combine(self.start_date, dt.datetime.min.time()))
         # TODO: check DST changes - we must not have these!
+        # DST has been checked in other modules, so this should not be a problem, but we might have to double-check
+        # this some time, so the TODO remains here as a reminder.
 
         # calculate current day and time
         current_date += dt.timedelta(hours=agent.current_time)
@@ -189,6 +261,21 @@ class Context(object):
     """The context object is a read-only container for simulation threads."""
 
     def __init__(self):
+        """
+            Represents a data structure to manage and process graphical data for paths and routes.
+
+            Attributes
+            ----------
+            graph : ig.Graph | None
+                Full (multi-)graph data for roads, rivers and other paths (undirected).
+
+            routes : ig.Graph | None
+                Path to be traversed from start to end - it is a directed version of the graph. Used by the simulation to
+                find the correct route. It is a multidigraph containing possible routes.
+
+            space_time_data : dict[str, SpatioTemporalInterface]
+                Spatio-temporal data associated with the graph and routes.
+        """
         self.graph: ig.Graph | None = None
         """Full (multi-)graph data for roads, rivers and other paths (undirected)"""
         self.routes: ig.Graph | None = None
@@ -197,6 +284,9 @@ class Context(object):
         find the correct route. It is a multidigraph containing possible routes.
         """
         self.space_time_data: dict[str, SpatioTemporalInterface] = {}
+        """
+        Spatio-temporal data associated with the graph and routes. This serves as a buffer for lookups.
+        """
 
     def get_path_by_id(self, path_id: str) -> ig.Edge | None:
         """Get path by id"""
@@ -286,7 +376,7 @@ class State(object):
 
 
     def reset(self) -> State:
-        """Prepare state for new step"""
+        """Prepare state for a new step"""
         self.time_taken = 0.
         self.time_for_legs = []
         self.data_for_legs = []
@@ -375,12 +465,16 @@ class Agent(object):
 
     def prepare_for_new_day(self, current_day: int = 1, current_time: float = 8., max_time: float = 16.):
         """
-        reset to defaults for a day
+        Prepare the system for a new day by setting the time, resetting the state, and initializing
+        necessary attributes for tracking the day's operations.
 
-        :param current_day: current day to set
-        :param current_time:
-        :param max_time:
-        :return:
+        This method calculates the start of the new day based on the provided parameters
+        and resets certain states as part of the preparation process.
+
+        :param current_day: The day number to be set, with 1 representing the first day.
+        :param current_time: The starting time for the current day in hours (default is 8.0).
+        :param max_time: The maximum allowed time for operations during the current day in hours (default is 16.0).
+        :return: None
         """
         # set values for new day
         self.current_time = (current_day-1) * 24 + current_time
@@ -478,6 +572,19 @@ class Agent(object):
         return min_time
 
     def get_rest_times_within(self, start_time) -> Generator[tuple[float, float, str], None, None]:
+        """
+        Generate a sequence of rest periods from the rest history that overlap or occur
+        after the given start time.
+
+        This method iterates over the rest history in reverse chronological order and
+        yields rest periods that either overlap the `start_time` or started after it.
+
+        :param start_time: The starting time (float) from which to filter rest periods.
+        :return: A generator yielding tuples of the form (time, length, reason), where
+            `time` is the starting time of the rest period, `length` is its duration,
+            and `reason` is a string explaining the reason for the rest.
+        :rtype: Generator[tuple[float, float, str], None, None]
+        """
         # go back the rest history
         for time, length, reason in reversed(self.rest_history):
             if time + length >= start_time:
@@ -487,8 +594,14 @@ class Agent(object):
 
     def get_most_recent_rest_time(self) -> float | None:
         """
-        Return the most recent rest time
-        :return: most recent rest time in hours
+        Retrieve the most recent rest time from the rest history.
+
+        This method evaluates if there is any available rest history data and,
+        if so, returns the most recent rest time recorded. If no rest history
+        exists, it returns None.
+
+        :return: The most recent rest time or None if no rest history exists.
+        :rtype: float | None
         """
         if self.rest_history and len(self.rest_history) > 0:
             return self.rest_history[-1][0]
@@ -496,6 +609,20 @@ class Agent(object):
             return None
 
     def get_rest_times_from_to(self, start_time: float, end_time: float, sort_by_length: bool = False) -> list[tuple[float, float, str]]:
+        """
+        Extracts and filters rest time intervals within a specified time range.
+
+        This method retrieves rest time intervals from the `rest_history` attribute
+        that start and end within the given `start_time` and `end_time` range. The
+        option to sort the resulting list by the duration of the rest periods is available.
+
+        :param start_time: The starting point of the time range to filter rest intervals.
+        :param end_time: The ending point of the time range to filter rest intervals.
+        :param sort_by_length: Whether to sort the returned list by the duration of
+            the rest intervals in descending order. Defaults to False.
+        :return: A list of tuples, where each tuple represents a rest time interval
+            with starting time (float), length (float), and an associated description (str).
+        """
         fitting_rest_times = []
 
         for rest in self.rest_history:
@@ -509,6 +636,22 @@ class Agent(object):
         return fitting_rest_times if len(fitting_rest_times) > 0 else []
 
     def create_route_data(self, from_hub: str, to_hub: str, route_key: str, departure: float, is_revered: bool = False) -> None:
+        """
+        Creates data for a route by validating its consistency, appending route details, and calculating
+        time points for the route legs.
+
+        :param from_hub: The starting point of the route (hub name or identifier).
+        :type from_hub: str
+        :param to_hub: The destination point of the route (hub name or identifier).
+        :type to_hub: str
+        :param route_key: A unique key or identifier for the route.
+        :type route_key: str
+        :param departure: The departure time from the starting hub.
+        :type departure: float
+        :param is_revered: Indicates whether the route is reversed (optional, defaults to False).
+        :type is_revered: bool
+        :return: None
+        """
         # check, if route is consistent
         if len(self.route) > 0:
             if self.route[-1] != from_hub:
@@ -540,6 +683,31 @@ class Agent(object):
         self.route_times[route_key] = times
 
     def iterate_routes(self) -> Generator:
+        """
+        Iterates through and yields details of routes, providing information about
+        hubs and edges. The method determines if the current item in the route is
+        a hub or an edge and yields corresponding data.
+
+        :return: A generator yielding dictionaries containing details about hubs and edges
+        :rtype: Generator[Dict[str, Any], None, None]
+
+        Dictionaries yielded by the generator may include:
+          - For hubs:
+              - type (str): Type of the item, will always be 'hub'.
+              - uid (str): Unique identifier of the hub.
+              - arrival (Optional[Any]): Arrival time to the hub, or None if not applicable.
+              - departure (Optional[Any]): Departure time from the hub, or None if not applicable.
+              - rest (Optional[Any]): The rest time at the hub, or None if no rest time exists.
+              - idx (int): Index of the hub in the route.
+
+          - For edges:
+              - type (str): Type of the item, will always be 'edge'.
+              - uid (str): Unique identifier of the edge.
+              - legs (List[Any]): A list of times corresponding to the legs of the edge.
+              - rest (Optional[Any]): The rest time for the edge, or None if no rest time exists.
+              - idx (int): Index of the edge in the route.
+              - reversed (bool): Indicates whether the edge is reversed.
+        """
         for i, key in enumerate(self.route):
             # odd or even?
             if i % 2 == 0:
@@ -587,7 +755,19 @@ class SetOfResults:
         """general list of agents"""
 
     def add_agent(self, agent: Agent) -> None:
-        # add vertex
+        """
+        Adds an agent to the agents list.
+
+        This method takes an agent object and appends it to the list of agents
+        contained within the instance. This operation effectively represents
+        adding a vertex to the graph data structure.
+
+        :param agent: The agent object to be added to the agents list.
+        :type agent: Agent
+
+        :return: None
+        :rtype: None
+        """
         self.agents.append(agent)
 
     def __repr__(self) -> str:
@@ -607,6 +787,20 @@ class PreparationInterface(abc.ABC):
     """
 
     def __init__(self):
+        """
+        Initialize the runtime settings for the object.
+
+        This constructor sets up default values for attributes that control runtime
+        behavior and conditions.
+
+        Attributes
+        ----------
+        skip : bool
+            A flag indicating whether to skip the current operation. Defaults to False.
+        conditions : list[str]
+            A list of conditions that may influence runtime decisions. Defaults to an
+            empty list.
+        """
         # runtime settings
         self.skip: bool = False
         self.conditions: list[str] = []
@@ -614,11 +808,20 @@ class PreparationInterface(abc.ABC):
     @abc.abstractmethod
     def run(self, config: Configuration, context: Context) -> Context:
         """
-        Run the preparation module
+        Execute the primary logic of the class implementation. This method is an
+        abstract method and must be implemented by a concrete subclass. The method
+        receives a configuration and an execution context, performs its operation,
+        and returns an updated context.
 
-        :param config: configuration (read-only)
-        :param context: context (can be changed and returned)
-        :return: updated context object
+        :param config: The configuration instance containing the required settings
+            for executing the method.
+        :type config: Configuration
+        :param context: The context instance that provides information about the
+            execution state and is updated during the execution of this method.
+        :type context: Context
+        :return: An updated Context instance reflecting the changes made during
+            method execution.
+        :rtype: Context
         """
         pass
 
@@ -627,16 +830,62 @@ class SimulationDayHookInterface(abc.ABC):
     Simulation module interface for hooks at the start or the end of a day - expect to return a (new) list of agents
     """
     def __init__(self):
+        """
+        Initializes the class. This constructor method sets up the runtime settings
+        that determine the behavior of the instance.
+
+        :ivar skip: A flag indicating whether to skip the current execution. Defaults to False.
+        :type skip: bool
+        :ivar conditions: A list of conditions to be applied during execution. Defaults to an
+            empty list of strings.
+        :type conditions: list[str]
+        """
         # runtime settings
         self.skip: bool = False
         self.conditions: list[str] = []
 
     @abc.abstractmethod
     def run(self, config: Configuration, context: Context, agents: list[Agent], agents_finished_for_today: list[Agent], results: SetOfResults, current_day: int) -> list[Agent]:
+        """
+        Executes the main logic for processing agents, their statuses, and results within the given execution
+        context and configuration. This method is abstract and must be implemented by subclasses. It should
+        handle the agents' actions for the specified day, track finished agents, and update results based
+        on their progress.
+
+        :param config: Configuration object containing all necessary simulation or execution settings.
+        :param context: Context object providing shared state and environment for the execution.
+        :param agents: List of Agent objects representing entities participating in the execution.
+        :param agents_finished_for_today: List of Agent objects that have completed their actions for the
+            current day. This list is updated during execution.
+        :param results: SetOfResults object used to collect or store outcomes generated by the agents or execution.
+        :param current_day: Integer representing the current day of the execution being processed.
+
+        :return: List of Agent objects representing the state of agents, potentially with updated statuses
+            or modifications, after processing for the current day has been completed.
+        """
         pass
 
     @abc.abstractmethod
     def finish_simulation(self, results: SetOfResults, config: Configuration, context: Context, current_day: int) -> None:
+        """
+        Summarizes the simulation results and finalizes the simulation process.
+
+        This method is declared as an abstract method and must be implemented by
+        any subclass. Its purpose is to process the results of the simulation
+        based on the provided configuration, context, and simulation day. It
+        handles any post-simulation tasks required to finalize the simulation.
+
+        :param results: A collection of results from the simulation. The structure
+            or format of the results depends on the specific implementation.
+        :param config: The configuration object that provides settings or parameters
+            used to control the simulation behavior.
+        :param context: The current state or context in which the simulation is
+            being executed. This may include environment details, state variables,
+            or auxiliary information for finalization tasks.
+        :param current_day: The current day in the simulation timeline or the day
+            on which the simulation concludes, represented as an integer.
+        :return: None
+        """
         pass
 
 
@@ -646,12 +895,33 @@ class SimulationDefineStateInterface(abc.ABC):
     """
 
     def __init__(self):
+        """
+        Represents a class responsible for managing runtime settings, which includes the ability
+        to toggle skipping behavior and configure a list of conditions.
+
+        Attributes:
+            skip (bool): A flag indicating whether certain operations should be skipped.
+            conditions (list[str]): A list of conditions used for runtime configuration.
+        """
         # runtime settings
         self.skip: bool = False
         self.conditions: list[str] = []
 
     @abc.abstractmethod
     def define_state(self, config: Configuration, context: Context, agent: Agent) -> State:
+        """
+        Defines the state of the system based on the provided configuration, execution context,
+        and agent details. This method is abstract and must be implemented in a subclass.
+
+        :param config: Configuration settings required to define the state.
+        :type config: Configuration
+        :param context: Contextual information about the system's execution environment.
+        :type context: Context
+        :param agent: The agent responsible for interacting with the system.
+        :type agent: Agent
+        :return: The state of the system determined based on the input parameters.
+        :rtype: State
+        """
         pass
 
 
@@ -661,13 +931,43 @@ class SimulationStepInterface(abc.ABC):
     """
 
     def __init__(self):
+        """
+        Initializes an instance of the class with default runtime settings.
+
+        :ivar skip: A boolean flag indicating whether to skip certain operations.
+        :ivar conditions: A dictionary representing conditions used during runtime.
+        :ivar cancel: A dictionary representing cancellation settings during runtime.
+        """
         # runtime settings
         self.skip: bool = False
         self.conditions: dict[str, any] = {}
         self.cancel: dict[str, any] = {}
 
     def check_conditions(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
-        """Checks conditions for this step"""
+        """
+        Evaluates specified conditions to determine whether certain criteria are met.
+
+        This method checks whether the conditions specified for the given context,
+        configuration, agent, and next leg are satisfied. If the `skip` attribute
+        is set to True, the method automatically returns False without evaluating
+        any conditions.
+
+        :param config: Configuration object containing settings and parameters for
+            evaluating conditions.
+        :type config: Configuration
+        :param context: Context object that provides necessary contextual
+            information for evaluating conditions.
+        :type context: Context
+        :param agent: Agent performing actions or involved in the current
+            context of evaluation.
+        :type agent: Agent
+        :param next_leg: The next edge or step in the graph or sequence of
+            operations being evaluated.
+        :type next_leg: ig.Edge
+        :return: Returns True if all conditions are satisfied, or False otherwise.
+            If the `skip` attribute is set to True, the method returns False immediately.
+        :rtype: bool
+        """
         # skip set to true?
         if self.skip:
             return False
@@ -675,12 +975,62 @@ class SimulationStepInterface(abc.ABC):
         return self._check_conditions(self.conditions, config, context, agent, next_leg)
 
     def check_cancel(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
-        """Checks cancel conditions for this step"""
+        """
+        Check if the cancel conditions are met for a given agent and next leg in the context.
+
+        This method evaluates the specified cancellation conditions against the provided configuration,
+        context, agent state, and the leg of the journey being considered. The result indicates whether
+        the cancel conditions are not met.
+
+        :param config: Configuration settings providing necessary parameters for the evaluation.
+        :type config: Configuration
+        :param context: Operational context in which the check is performed.
+        :type context: Context
+        :param agent: Agent object representing the entity being evaluated.
+        :type agent: Agent
+        :param next_leg: Edge object representing the next leg of the journey to consider.
+        :type next_leg: ig.Edge
+        :return: A boolean value indicating whether the cancel conditions are not met.
+        :rtype: bool
+        """
         return not self._check_conditions(self.cancel, config, context, agent, next_leg)
 
     @staticmethod
     def _check_conditions(conditions, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge) -> bool:
-        """Internal method: Checks conditions for this step"""
+        """
+        Evaluates a set of conditions against the provided parameters, such as route type, agent transport
+        type, and attributes of the next edge. The function returns `True` if all specified conditions are
+        satisfied, and `False` otherwise. It is typically used to validate whether the agent can proceed
+        along the specified path based on the given constraints.
+
+        :param conditions: A dictionary containing multiple condition categories to evaluate.
+            Supported condition keys include:
+                - 'types': List of valid route types that the `next_leg['type']` must match.
+                - 'not_types': List of route types that the `next_leg['type']` must not match.
+                - 'transport_types': List of valid transport types for the agent.
+                - 'not_transport_types': List of invalid transport types for the agent.
+                - 'additional_data': Dictionary where keys represent additional agent attributes,
+                  and values are lists of allowable values for the corresponding attributes.
+                - 'edge_data': Dictionary where keys represent edge attribute names, and values are lists
+                  of disallowed values for those attributes in the `next_leg`.
+
+        :param config: Configuration object used for routing validation within the context.
+            The specific influence this parameter has on the validation can vary depending on how
+            conditions are structured and verified.
+
+        :param context: Contextual information that might help determine global/system-level
+            conditions or rules to evaluate. Provides valuable state information that complements
+            condition-checking.
+
+        :param agent: Instance of the Agent class, which includes properties like its
+            transport type and additional metadata (e.g., custom or user-defined properties
+            in `additional_data`).
+
+        :param next_leg: The next edge/segment in the route graph being evaluated. This includes its
+            attributes and type, influencing how conditions are matched or violated.
+
+        :return bool: Returns `True` if all conditions are satisfied, `False` otherwise.
+        """
         # no conditions?
         if not conditions or len(conditions) == 0:
             return True
@@ -821,6 +1171,16 @@ class OutputInterface(abc.ABC):
     """
 
     def __init__(self):
+        """
+        Initializes an instance of the class with runtime settings.
+
+        Attributes
+        ----------
+        skip : bool
+            A flag to indicate if certain operations should be skipped.
+        conditions : list[str]
+            A list of condition strings applicable to runtime logic.
+        """
         # runtime settings
         self.skip: bool = False
         self.conditions: list[str] = []

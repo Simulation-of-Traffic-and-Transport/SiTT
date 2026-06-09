@@ -26,7 +26,25 @@ class CreateRoutes(BaseClass, PreparationInterface):
 
 
     def run(self, config: Configuration, context: Context) -> Context:
-        """prepare simulation"""
+        """
+        Run the simulation preparation process.
+
+        This method prepares the simulation routes using the given configuration and context.
+        It performs validation, graph conversions, and auto-detection of missing start or end
+        points as needed. Logs relevant debug messages during the process.
+
+        :param config: A Configuration object containing simulation settings. The required fields
+            include `simulation_starts`, `simulation_ends`, `simulation_route`, and
+            `simulation_route_reverse`. If `simulation_starts` or `simulation_ends` is None,
+            they will be auto-detected.
+        :type config: Configuration
+        :param context: A Context object containing the graph and additional data required
+            for the preparation process. The `routes` attribute will be updated with the
+            directed graph generated during this process.
+        :type context: Context
+        :return: A Context object updated with the prepared directed graph in the `routes` attribute.
+        :rtype: Context
+        """
         starts = config.simulation_starts
         ends = config.simulation_ends
         autodetect_starts = False
@@ -67,6 +85,21 @@ class CreateRoutes(BaseClass, PreparationInterface):
         return context
 
     def run_check_graph(self, config: Configuration, g: ig.Graph):
+        """
+        Evaluates the integrity and connectivity of a directed graph. The method checks if the graph contains disjoint
+        components and validates the shortest paths from specified start nodes to defined end nodes.
+
+        :param config: Configuration object containing the simulation parameters. Specifically, it includes the
+                       start nodes (`simulation_starts`) and end nodes (`simulation_ends`) for the graph pathfinding
+                       checks.
+        :type config: Configuration
+        :param g: The graph to be validated. It should be an instance of `igraph.Graph` representing the network
+                  structure to analyze for connectivity and pathfinding.
+        :type g: igraph.Graph
+        :return: None. All findings are logged either as warnings or information messages, and critical issues raise
+                 an exception to notify the caller.
+        :rtype: None
+        """
         # do we have disjunct graphs?
         components = len(g.connected_components(mode='weak'))
         if components > 1:

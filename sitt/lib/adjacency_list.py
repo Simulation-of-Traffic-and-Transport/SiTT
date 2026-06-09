@@ -145,6 +145,26 @@ def get_shortest_path(g: ig.Graph, start_node: int | str | ig.Vertex, end_node: 
     return path
 
 def node_to_index(g: ig.Graph, node: int | str | ig.Vertex) -> int:
+    """
+    Convert a node (vertex) representation to its corresponding index in the graph.
+
+    This function accepts a node represented in one of the following forms:
+    - `ig.Vertex` object.
+    - The name of the vertex in string format.
+    - The integer index of the vertex.
+
+    The method resolves and returns the integer index representation of the
+    node, which is essential for operations that require referencing the
+    vertex using its index.
+
+    :param g: The graph object of type `ig.Graph` to which the node belongs.
+    :param node: The node representation to convert. It can be of type
+        `ig.Vertex`, `str` (node name), or `int` (node index).
+    :return: The integer index of the node in the graph.
+    :rtype: int
+    :raises ValueError: If the node type is invalid or cannot be resolved to an
+        index.
+    """
     # convert start_node to index
     if type(node) == ig.Vertex:
         return node.index

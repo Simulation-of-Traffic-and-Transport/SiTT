@@ -81,7 +81,19 @@ class BaseClass(abc.ABC):
         self.config = config
 
     def is_skipped(self, module: object, context: Context) -> bool:
-        """check for skip"""
+        """
+        Determines whether a given module should be skipped based on its attributes and conditions.
+
+        This function evaluates the module's `skip` attribute, if present, and the conditions
+        defined in its `conditions` attribute. If the `skip` attribute is set to True, the module
+        is skipped. If conditions exist, they are evaluated, and the module is skipped if any
+        condition is unmet.
+
+        :param module: An object representing the module under evaluation.
+        :param context: A context object to provide additional information for evaluating conditions.
+        :return: A boolean indicating whether the module should be skipped.
+        :rtype: bool
+        """
         if hasattr(module, 'skip') and module.skip:
             logger.info("Skipping %s due to setting" % module)
             return True
@@ -103,7 +115,24 @@ class BaseClass(abc.ABC):
         return False
 
     def condition_ok(self, key: str, condition: str, data: Any, module: object, context: Context = None) -> bool:
-        """Handle single condition"""
+        """
+        Evaluates a condition based on a given key and associated data.
+
+        This method validates a specific condition by interpreting the `key` parameter
+        and applying the associated logic. The validation may check the existence of
+        a file, the presence of data in an object, or specific boolean values. If the key
+        is not recognized, the method logs a warning.
+
+        :param key: The condition key indicating the type of validation to be performed.
+        :param condition: A descriptive string for the condition being evaluated.
+        :param data: The data or context required for condition evaluation. This can
+            include file paths, objects, or other parameters depending on the key.
+        :param module: The module where the condition evaluation takes place. Used for
+            context and error logging.
+        :param context: Additional execution context. Defaults to None.
+        :return: A boolean indicating whether the condition was successfully validated.
+        :rtype: bool
+        """
         if key == 'file_must_exist':
             return os.path.exists(data)
         elif key == 'data_must_exist':
@@ -128,6 +157,20 @@ class BaseClass(abc.ABC):
         return True
 
     def class_instance_for_name(self, name: str, module: object, context: Context) -> object | None:
+        """
+        Resolves and returns an instance or object based on the provided name, optionally considering
+        module and context for the resolution. If the name matches predefined keys, the corresponding
+        object is returned.
+
+        :param name: The identifier used to determine which object to return.
+        :type name: str
+        :param module: The module object to be evaluated when the name is 'module'.
+        :type module: object
+        :param context: The context object to be returned when the name is 'context'.
+        :type context: Context
+        :return: The resolved object based on the name or None if no match is found.
+        :rtype: object | None
+        """
         if name == 'context':
             return context
         if name == 'config':
@@ -195,7 +238,18 @@ class Simulation(BaseClass):
         """Current day of simulation"""
 
     def check(self) -> bool:
-        """check settings"""
+        """
+        Checks the simulation configuration and context for validity.
+
+        This method verifies the presence of required simulation start hubs,
+        end hubs, and defined routes. Logs errors if any of these configurations
+        are missing. Informational logs are emitted when the logger level is set
+        to `INFO` or lower.
+
+        :return: Returns a boolean value indicating if the simulation configuration
+            and context are valid.
+        :rtype: bool
+        """
         ok = True
 
         # Checking start and stop hubs
@@ -217,9 +271,13 @@ class Simulation(BaseClass):
 
     def run(self) -> SetOfResults:
         """
-        Run the simulation - this is the entry point to actually start the simulation core
+        Executes the main simulation loop for a specified model, managing the initialization,
+        execution, and finalization stages of the simulation. The process involves preparing
+        initial states, iterating through simulation days, and calculating statistics or history
+        once the simulation concludes. **This is the entry point to perform the core simulation.**
 
-        :return: created set of results object
+        :return: Aggregate results of the simulation execution.
+        :rtype: SetOfResults
         """
         logger.info("******** Simulation: started ********")
 
@@ -235,11 +293,6 @@ class Simulation(BaseClass):
         while len(agents):
             agents = self._run_single_day(agents)
 
-            # # TODO: make this configurable
-            # if self.current_day > 30:
-            #     logger.info("Simulation finished after 30 days!")
-            #     break
-
         # end simulation - do some history and statistics
         self._end_simulation()
 
@@ -248,6 +301,16 @@ class Simulation(BaseClass):
         return self.results
 
     def _initialize_simulation(self) -> list[Agent]:
+        """
+        Initializes the simulation by setting up the simulation state and generating
+        a list of agents to execute the simulation. This function sets the starting
+        simulation day, iterates over the defined starting hubs, and creates agents
+        based on available transport routes and means of transport.
+
+        :return: A list of `Agent` instances representing the initial set of agents
+                for the simulation.
+        :rtype: list[Agent]
+        """
         # set day counter to first day
         self.current_day = 1
 
@@ -275,10 +338,19 @@ class Simulation(BaseClass):
 
     def _run_single_day(self, agents: list[Agent]) -> list[Agent]:
         """
-        Run single day - called in the outer loop of run
+        Executes the simulation logic for a **single day** (outer loop), managing agent states, executing preparation
+        steps, day hooks, and logging progress at each step of the day. The function iterates through agents and
+        handles processing until they complete their tasks for the day. At the end, it determines which
+        agents will proceed to the next day and increments the simulation day counter.
 
-        :param agents: list of agents
-        :return: new list of agents (can be empty list -> this indicates the end of the simulation)
+        :param agents:
+            A list of active agents for the current day. Each agent represents an independent
+            entity in the simulation, capable of performing tasks and transitioning
+            through various states as part of the simulation.
+        :returns:
+            A list of agents that will continue to the next simulation day.
+        :rtype:
+            list[Agent]
         """
         agents_finished_for_today: list[Agent] = []
         """keeps finished agents for this day"""
@@ -334,11 +406,17 @@ class Simulation(BaseClass):
     def _run_single_step(self, agent: Agent, agents_proceed: list[Agent],
                          agents_finished_for_today: list[Agent]):
         """
-        Run a single step for a specific agent - all parameters will be mutated in this method!
+        Executes a single simulation step for a given agent. It calculates the agent's current state, determines
+        the next route based on agent conditions, applies any relevant simulation hooks for state and step updates,
+        and determines whether the agent proceeds, ends the day, or completes the simulation.
+        **All parameters will be mutated in this method!**
 
-        :param agent: agent to run results for (mutated)
-        :param agents_proceed: list of agents that proceed today (mutated)
-        :param agents_finished_for_today:  list of agents that have finished for today (mutated)
+        :param agent: An instance of Agent, representing the entity for which the simulation step
+            is being executed.
+        :param agents_proceed: A list containing agents that are ready to proceed to the next hub.
+        :param agents_finished_for_today: A list containing agents that have completed their actions
+            for the current simulation day.
+        :return: None
         """
 
         # calculate state of agent at this node
@@ -404,6 +482,18 @@ class Simulation(BaseClass):
 
     @staticmethod
     def _agent_finish(agent: Agent, agents_finished_for_today: list[Agent]):
+        """
+        Marks an agent as finished for the day by updating its state and adding it to the list
+        of finished agents. The method updates the agent's visited hubs, resets its route-related
+        attributes, sets its status to finished, and appends it to the list of agents that have
+        completed their activities for the day.
+
+        :param agent: The agent to mark as finished.
+        :type agent: Agent
+        :param agents_finished_for_today: The list of agents that have finished their tasks
+            for the day. The given agent will be appended to this list.
+        :type agents_finished_for_today: list[Agent]
+        """
         agent.visited_hubs.add(agent.next_hub)
         agent.this_hub = agent.next_hub
         agent.next_hub = ''
@@ -414,6 +504,20 @@ class Simulation(BaseClass):
 
 
     def _agent_proceed(self, agent: Agent, agents_proceed: list[Agent], agents_finished_for_today: list[Agent]):
+        """
+        Handles the processing of an agent reaching a hub and performs necessary updates related
+        to routing and overnight tracking. The method determines if the agent has reached an
+        overnight hub, updates the last possible resting place, manages visited hubs, and adds
+        the agent to appropriate processing lists.
+
+        :param agent: The agent being processed.
+        :type agent: Agent
+        :param agents_proceed: A list to collect agents that are ready to proceed further in their route.
+        :type agents_proceed: list[Agent]
+        :param agents_finished_for_today: A list to collect agents whose processing for the day is complete.
+        :type agents_finished_for_today: list[Agent]
+        :return: None
+        """
         # if we deal with overnight tracebacks, we want to remember the last possible resting place and time
         if self.config.overnight_trace_back:
             # get some data about the hub that was just reached
@@ -448,10 +552,12 @@ class Simulation(BaseClass):
 
     def _agent_end_day(self, agent: Agent, agents_finished_for_today: list[Agent]):
         """
-        End this day for agent.
+        End the simulation day for a given agent by updating its state and taking necessary actions
+        like handling retries, cancellations, and route tracebacks.
 
-        :param agent: agent to run results for (mutated)
-        :param agents_finished_for_today:  list of agents that have finished for today (mutated)
+        :param agent: Agent object for which the day's simulation is being ended
+        :param agents_finished_for_today: List of Agent objects that have completed their day
+        :return: None
         """
 
         if logger.level <= logging.DEBUG:
@@ -627,6 +733,15 @@ class Simulation(BaseClass):
         return agents, []
 
     def _finish_day(self, agents: list[Agent]) -> list[Agent]:
+        """
+        Processes a day's end for agents, grouping them by hubs, checking if their journey should end,
+        and determining the agents to proceed to the next day.
+
+        :param agents: List of Agent objects to be processed at the end of the simulation day.
+        :type agents: list[Agent]
+        :return: A list of Agent objects that are assigned to proceed to the next day of the simulation.
+        :rtype: list[Agent]
+        """
         # first, we group our agents per hub - finished or cancelled agents are ignored, se we might have an empty list here
         agents_per_hub = self._group_agents_by_hub(agents)
         agents_proceeding_tomorrow: list[Agent] = []

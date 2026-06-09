@@ -134,6 +134,21 @@ def config_class_loader(data: dict, config: Configuration | None = None) -> Conf
     return config
 
 def _set_config_data_if_set(config: Configuration, key: str, data: Any) -> None:
+    """
+    Sets the configuration data for a given key if the data is valid.
+
+    This function processes the provided key and data through the `_parse_step_data`
+    utility function. If valid data is returned, it assigns the processed data
+    to the corresponding attribute in the configuration object.
+
+    :param config: The Configuration object where the processed data is to be set.
+    :type config: Configuration
+    :param key: The key representing the configuration attribute.
+    :type key: str
+    :param data: The data associated with the key to be processed and set.
+    :type data: Any
+    :return: None
+    """
     _step_data = _parse_step_data(key, data, config)
     if _step_data:
         config.__setattr__(key, _step_data)
@@ -172,6 +187,28 @@ def _load_step_classes(key: str, data: dict, config: Configuration) -> list[
 
 def _load_steps_from_raw_list(key: str, data: dict, raw_class_list: list, config: Configuration) -> list[
     PreparationInterface | SimulationDayHookInterface | SimulationDefineStateInterface | SimulationStepInterface | OutputInterface]:
+    """
+    Loads and initializes a list of class instances from a given raw class list. Each entry in the raw
+    class list must define the name of a module and a class, and optionally specify arguments to
+    initialize the instances. Handles special cases such as connections and conditional modules.
+
+    :param key: A string key to identify the current context for loading steps.
+    :type key: str
+    :param data: The configuration data containing settings and connections.
+    :type data: dict
+    :param raw_class_list: A list of dictionaries containing details about each class, including
+        module, class, and optional arguments or submodules.
+    :type raw_class_list: list
+    :param config: An instance of the `Configuration` class, used for further configuration settings.
+    :type config: Configuration
+    :return: A list of initialized instances, which implement one or more interfaces among
+        `PreparationInterface`, `SimulationDayHookInterface`, `SimulationDefineStateInterface`,
+        `SimulationStepInterface`, and `OutputInterface`.
+    :rtype: list[PreparationInterface | SimulationDayHookInterface | SimulationDefineStateInterface |
+        SimulationStepInterface | OutputInterface]
+    :raises Exception: When a required field (`class` or `module`) is not defined in the raw class list.
+    :raises Exception: When a required connection specified in the configuration cannot be found.
+    """
     class_list = []
 
     for entry in raw_class_list:

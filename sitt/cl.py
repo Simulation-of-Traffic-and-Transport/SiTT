@@ -14,7 +14,7 @@ from sitt.loaders import load_configuration_from_yaml, config_class_loader
 
 def parse_params() -> Namespace:
     """
-    Parse parameters from command line
+    Parse parameters from the command line
     :return:
     """
     # see: https://docs.python.org/3/library/argparse.html

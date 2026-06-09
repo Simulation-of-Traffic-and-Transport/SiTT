@@ -36,6 +36,20 @@ class DebugDisplayPathsAndHubs(PreparationInterface):
         """Name of the shapefile to save"""
 
     def run(self, config: Configuration, context: Context) -> Context:
+        """
+        Processes and visualizes a network based on a given configuration and context.
+
+        This method performs case-insensitive comparisons of the simulation route, visualizes
+        nodes and edges of a graph, optionally displays the visualization, saves it to a file,
+        and can export the network as a shapefile if required.
+
+        :param config: Configuration settings containing simulation parameters.
+        :type config: Configuration
+        :param context: Context containing the graph and other required data.
+        :type context: Context
+        :return: Updated context after processing and visualization.
+        :rtype: Context
+        """
         # convert route to lower case for case-insensitive comparison
         route = config.simulation_route.lower()
 

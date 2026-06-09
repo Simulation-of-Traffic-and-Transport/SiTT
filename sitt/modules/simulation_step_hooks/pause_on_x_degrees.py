@@ -14,8 +14,57 @@ logger = logging.getLogger()
 
 
 class PauseOnXDegrees(SimulationStepHookInterface):
+    """
+    Logic to pause the agent's progression when specific temperature thresholds are reached.
+
+    This class evaluates whether an agent should pause its movement based on temperature
+    conditions. The thresholds for pausing can be defined globally, per transport type, or for
+    specific data types. Additionally, temperature can be adjusted based on height deviations
+    to reflect realistic conditions.
+
+    :ivar pause_threshold: General temperature threshold at which the agent should pause
+        (default None).
+    :type pause_threshold: float | None
+    :ivar pause_thresholds: Dictionary specifying temperature thresholds for various transport
+        types.
+    :type pause_thresholds: dict[str, float]
+    :ivar additional_thresholds: Additional pause thresholds for different data types
+        (if set).
+    :type additional_thresholds: dict[str, float]
+    :ivar adjust_temp_with_height: Flag indicating whether to adjust the temperature based
+        on height deviations.
+    :type adjust_temp_with_height: bool
+    :ivar adjust_temp_step: The step size for temperature adjustment per 100-meter height
+        deviation.
+    :type adjust_temp_step: float
+    :ivar temperature_field: The key for accessing temperature data from the context.
+    :type temperature_field: str
+    """
     def __init__(self, pause_threshold=None, pause_thresholds: dict[str, float] = {}, additional_thresholds: dict[str, float] = {},
                  adjust_temp_with_height=True, adjust_temp_step = 0.65, temperature_field='t'):
+        """
+        Initializes an instance of the class that controls temperature thresholds and adjustments.
+
+        The class is used to manage various temperature configurations, including a general
+        pause threshold, specific thresholds for particular types, and additional thresholds.
+        It also supports adjustments to temperature with respect to height variations.
+
+        :param pause_threshold: General temperature threshold at which the agent should pause.
+        :param pause_thresholds: Dictionary of specific temperature thresholds for particular types.
+        :param additional_thresholds: Dictionary of additional pause thresholds for different data types.
+        :param adjust_temp_with_height: Whether to adjust temperature thresholds based on height variations.
+        :param adjust_temp_step: Step size for adjusting temperature due to height changes,
+            measured in degrees per 100 meters.
+        :param temperature_field: Key representing the field used for temperature data.
+
+        :ivar pause_threshold: General temperature threshold at which the agent should pause.
+        :ivar pause_thresholds: Dictionary representing specific temperature thresholds for particular types.
+        :ivar additional_thresholds: Dictionary representing additional pause thresholds for different data types.
+        :ivar adjust_temp_with_height: Boolean value determining if temperature adjustments should occur
+            with height variations.
+        :ivar adjust_temp_step: Step size for adjusting temperature caused by height changes.
+        :ivar temperature_field: String key identifying the temperature field.
+        """
         super().__init__()
         self.pause_threshold: float | None = pause_threshold
         """General temperature threshold at which the agent should pause (default None)."""
@@ -33,6 +82,27 @@ class PauseOnXDegrees(SimulationStepHookInterface):
 
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
                  time_offset: float) -> tuple[float, bool, bool]:
+        """
+        Executes a hook for the agent's simulation process. This function performs conditions and threshold checks based
+        on environmental and agent-specific parameters, updating the agent's state if necessary.
+
+        :param config: Configuration object providing simulation configuration and utility methods.
+        :type config: Configuration
+        :param context: Context object containing spatial and temporal simulation data.
+        :type context: Context
+        :param agent: Agent object representing the simulated entity.
+        :type agent: Agent
+        :param next_leg: Graph edge representing the next leg of the agent's journey.
+        :type next_leg: ig.Edge
+        :param i: Index of the current sub-leg or segment in the leg.
+        :type i: int
+        :param coords: Tuple containing latitude and longitude coordinates of the current position.
+        :type coords: tuple
+        :param time_offset: The offset in hours from the start of the simulation for this agent.
+        :type time_offset: float
+        :return: Updated time offset, a flag indicating whether a pause occurred, and a boolean reserved for other state flags.
+        :rtype: tuple[float, bool, bool]
+        """
         # check skip conditions
         if self.do_skip(agent, next_leg):
             return time_offset, False, False

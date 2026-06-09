@@ -14,7 +14,34 @@ logger = logging.getLogger()
 
 
 class PauseOnWind(SimulationStepHookInterface):
+    """
+    PauseOnWind is a simulation step hook interface used to pause agents based on wind gust thresholds.
+
+    This class evaluates wind conditions and determines whether an agent's progress in the simulation
+    should be paused based on predefined thresholds. The thresholds can be configured for different
+    transport types and additional data conditions. If a pause condition is met, the time offset
+    is adjusted, and the agent's rest state is updated accordingly.
+
+    :ivar pause_thresholds: Pause thresholds for different weather conditions. These thresholds are mapped
+                            to transport types.
+    :type pause_thresholds: dict
+    :ivar additional_thresholds: Additional pause thresholds for other data types (if set). These thresholds
+                                 are mapped to specific data types with their respective threshold values.
+    :type additional_thresholds: dict[str, float]
+    """
     def __init__(self, pause_thresholds: dict = {}, additional_thresholds: dict[str, float] = {}):
+        """
+        Initializes the class with predefined pause thresholds and additional thresholds.
+
+        :param pause_thresholds: Pause thresholds for different weather conditions.
+            This dictionary should contain keys representing weather conditions
+            and corresponding values indicating their thresholds.
+        :type pause_thresholds: dict
+        :param additional_thresholds: Additional pause thresholds for different
+            data types (if set). The dictionary should consist of string keys
+            for data types and float values for respective thresholds.
+        :type additional_thresholds: dict[str, float]
+        """
         super().__init__()
         self.pause_thresholds = pause_thresholds
         """Pause thresholds for different weather conditions."""
@@ -23,6 +50,28 @@ class PauseOnWind(SimulationStepHookInterface):
 
     def run_hook(self, config: Configuration, context: Context, agent: Agent, next_leg: ig.Edge, i: int, coords: tuple,
                  time_offset: float) -> tuple[float, bool, bool]:
+        """
+        Executes the hook to evaluate wind conditions and determines whether the agent should pause its activity based on
+        wind thresholds. If a pause is triggered, updates the agent's time offset to account for the rest period.
+
+        :param config: Configuration object providing access to simulation settings and helper methods.
+        :type config: Configuration
+        :param context: Context object providing access to environmental data, including wind conditions.
+        :type context: Context
+        :param agent: The agent object whose activity is being evaluated.
+        :type agent: Agent
+        :param next_leg: The next segment or path the agent is scheduled to follow.
+        :type next_leg: ig.Edge
+        :param i: Index representing the current step or evaluation iteration.
+        :type i: int
+        :param coords: Tuple indicating the spatial coordinates (latitude, longitude) of the agent.
+        :type coords: tuple
+        :param time_offset: The current time offset relative to the simulation's start time, represented in hours.
+        :type time_offset: float
+        :return: A tuple consisting of the updated time offset, a boolean indicating whether a pause occurred,
+            and a boolean indicating if the operation should terminate prematurely (always false).
+        :rtype: tuple[float, bool, bool]
+        """
         # check skip conditions
         if self.do_skip(agent, next_leg):
             return time_offset, False, False

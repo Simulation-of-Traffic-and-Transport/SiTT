@@ -17,7 +17,30 @@ logger = logging.getLogger()
 
 class PersistAgentsToCSV(SimulationDayHookInterface):
     """
-    Persist agents' routes to a CSV file.
+    PersistAgentsToCSV hook is responsible for storing simulation output data in a structured CSV format.
+
+    The class is designed to track and persist information about agents and their completed routes in a
+    simulation environment. It ensures proper initialization, data folder management, daily updates,
+    and finalization at the end of the simulation. It also handles hierarchical agent route origins
+    to collect detailed route-related data across parent-child agent relationships.
+
+    :ivar delete_existing_folder: Boolean flag to determine whether existing output folders should
+        be removed before creating new ones.
+    :type delete_existing_folder: bool
+    :ivar basename: The base name of the output files and folder, derived from simulation route
+        and start date.
+    :type basename: str | None
+    :ivar folder: The output folder path where simulation data is stored.
+    :type folder: str | None
+    :ivar min_time: The earliest time considered by the simulation as a `datetime` object.
+    :type min_time: datetime.datetime
+    :ivar csv_file: The file handle for the CSV file where finished agents' data is saved.
+    :type csv_file: file
+    :ivar csv_writer: A CSV writer object used to write rows to the CSV file.
+    :type csv_writer: csv.writer
+    :ivar route_origins: A dictionary tracking the route origins of agents, including detailed
+        hierarchical origin information across agent relationships.
+    :type route_origins: dict
     """
     def __init__(self, delete_existing_folder: bool = True):
         """

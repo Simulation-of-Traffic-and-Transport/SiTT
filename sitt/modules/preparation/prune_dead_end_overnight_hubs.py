@@ -12,9 +12,35 @@ logger = logging.getLogger()
 
 
 class PruneDeadEndOvernightHubs(PreparationInterface):
-    """Dummy class for testing - this is an empty class that can be taken as template for custom modules."""
+    """
+    PruneDeadEndOvernightHubs identifies and marks "dead-end" overnight hubs as no-go.
+
+    This class is responsible for analyzing a given context and marking certain
+    overnight hubs as "no-go" if they are considered dead ends. An overnight hub
+    is deemed a dead end if it only has a single neighboring node in the graph,
+    and that single neighbor is also an overnight hub. The purpose of this class
+    is to prepare the routing network for efficient operations by identifying these
+    irrelevant hubs and removing their usability for routing.
+
+    :ivar skip: Determines whether the pruning should be skipped or executed.
+    :type skip: bool
+    """
 
     def run(self, config: Configuration, context: Context) -> Context:
+        """
+        Evaluates the context for overnight hubs with dead ends and marks them as "no-go".
+        A hub is considered a dead end if it has only one neighbor, which itself is an
+        overnight hub. This function updates the context accordingly.
+
+        :param config: A configuration object containing operational parameters like
+                       simulation start and end points.
+        :type config: Configuration
+        :param context: A context object containing information about the current state,
+                        including routes and graphs.
+        :type context: Context
+        :return: The updated context after processing the overnight hubs.
+        :rtype: Context
+        """
         if self.skip:
             return context
 

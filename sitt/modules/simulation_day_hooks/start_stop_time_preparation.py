@@ -20,8 +20,17 @@ TO_RAD = math.pi/180.0
 
 class StartStopTimePreparation(SimulationDayHookInterface):
     """
-    This preparation will add a certain padding to the agent's start and stop time.
-    It uses the timezonefinder library to get the timezone of the agent's hub.
+    Class for preparing start and stop times of agents based on sunrise and sunset times, with configurable padding.
+
+    This class provides functionality to calculate and adjust agent start and stop times for simulation days
+    based on geographical sunrise and sunset times at agent hubs. It allows for custom time paddings to be
+    applied, providing flexibility for scenarios requiring agents to start earlier or end later relative to
+    the natural daylight hours.
+
+    :ivar day_start_padding: The padding in hours applied to the sunrise time to determine the agent start time.
+    :type day_start_padding: float
+    :ivar day_end_padding: The padding in hours applied to the sunset time to determine the agent stop time.
+    :type day_end_padding: float
     """
 
     def __init__(self, day_start_padding: float = -0.5, day_end_padding: float = 0.5):

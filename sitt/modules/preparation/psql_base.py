@@ -15,7 +15,28 @@ from sitt import PreparationInterface
 
 
 class PSQLBase(PreparationInterface, ABC):
-    """Abstract base class for all PSQL models."""
+    """
+    Encapsulates the logic for managing a connection to a PostgreSQL database with PostGIS support and
+    handling operations such as retrieving tables, creating schema metadata, and building a graph from
+    database records.
+
+    This class provides an abstraction that eases interaction with the database by offering high-level
+    methods to fetch and manipulate data structures related to hubs (vertices) and edges for graph
+    representations.
+
+    :ivar server: Hostname of the PostgreSQL server.
+    :type server: str
+    :ivar port: Port number of the PostgreSQL server.
+    :type port: int
+    :ivar db: Name of the PostgreSQL database.
+    :type db: str
+    :ivar user: Username to connect to the database.
+    :type user: str
+    :ivar password: Password to connect to the database.
+    :type password: str
+    :ivar schema: Schema in the PostgreSQL database to operate within.
+    :type schema: str
+    """
 
     def __init__(self, server: str = 'localhost', port: int = 5432, db: str = 'sitt', user: str = 'postgres',
                  password: str = 'postgres', schema: str = 'sitt', connection: str | None = None):
@@ -85,6 +106,15 @@ class PSQLBase(PreparationInterface, ABC):
                      directions_col, schema=self.schema)
 
     def load_graph_from_database(self) -> ig.Graph:
+        """
+        Loads a graph from a database using hubs and edges data and returns it as an igraph
+        Graph object. It retrieves hubs and edges from the database tables, constructs
+        vertices and edges, and adds attributes to them if available.
+
+        :return: An igraph Graph object, containing vertices and edges loaded from the
+            database with associated attributes.
+        :rtype: ig.Graph
+        """
         g: ig.Graph = ig.Graph()
 
         # create connection

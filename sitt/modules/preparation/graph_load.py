@@ -41,7 +41,19 @@ logger = logging.getLogger()
 
 
 class GraphLoad(PSQLBase):
-    """Load graph from database or file."""
+    """
+    Class for loading a graph either from a pickled file or a database and optionally saving it to a file.
+
+    This class is designed for efficient management of graph data in applications that utilize
+    PostgreSQL as the database backend. It provides functionality to load a graph from a
+    pickled file, or if not available, to fetch it from the database.
+
+    :ivar filename: Path to the file where the graph is pickled. If empty, the graph will be
+        loaded from the database.
+    :type filename: str
+    :ivar save: Indicates whether the graph should be saved to a file after loading it from the database.
+    :type save: bool
+    """
 
     def __init__(self, filename: str = 'saved_graph.pkl', save: bool = False, server: str = 'localhost',
                  port: int = 5432, db: str = 'sitt', user: str = 'postgres', password: str = 'postgres',
@@ -52,6 +64,20 @@ class GraphLoad(PSQLBase):
         self.save: bool = save
 
     def run(self, config: Configuration, context: Context) -> Context:
+        """
+        Loads a graph either from a pickled file or a database and integrates it into the provided context.
+
+        If a filename is provided and it exists, the graph is loaded from the file. Otherwise, the graph
+        is retrieved from the database and optionally saved to a file for future use. Detailed log messages
+        will be generated for tracking the process.
+
+        :param config: Configuration object containing parameters and settings.
+        :type config: Configuration
+        :param context: Context object to update with the loaded graph.
+        :type context: Context
+        :return: Updated context containing the loaded graph.
+        :rtype: Context
+        """
         # graph exists in pickled form - load it!
         if self.filename != '' and os.path.exists(self.filename):
             if logger.level <= logging.INFO:

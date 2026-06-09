@@ -17,7 +17,24 @@ logger = logging.getLogger()
 
 class LoadDataFromNETCDF(PreparationInterface):
     """
-    Load generic data from a netcdf file and save it to a retrievable structure.
+    Loads data from a NETCDF file and stores it in the context for further
+    processing. This class is designed to read space-time data, providing
+    specific support for latitude, longitude, and time dimensions.
+
+    This class is initialized with the necessary dataset configuration,
+    such as the filename to load, and the identifiers for latitude, longitude,
+    and time within the dataset.
+
+    :ivar name: Key in the context to identify the space-time data.
+    :type name: str
+    :ivar filename: File path to the NETCDF dataset.
+    :type filename: str
+    :ivar latitude: Name of the latitude variable in the dataset.
+    :type latitude: str
+    :ivar longitude: Name of the longitude variable in the dataset.
+    :type longitude: str
+    :ivar time: Name of the time variable in the dataset.
+    :type time: str
     """
 
     def __init__(self, name: str = 'temperature', filename: str = 'sitt_data.nc',
@@ -36,6 +53,19 @@ class LoadDataFromNETCDF(PreparationInterface):
 
 
     def run(self, config: Configuration, context: Context) -> Context:
+        """
+        Run the process to load a NETCDF file and store the processed data in the given context.
+
+        This method reads a NETCDF file using its filename, processes it with XArray, and then saves
+        the processed data into the `space_time_data` attribute of the provided context.
+
+        :param config: Configuration object containing settings and parameters for the operation.
+        :type config: Configuration
+        :param context: Context object where the processed space-time data will be stored after processing.
+        :type context: Context
+        :return: The updated context that includes the stored space-time data.
+        :rtype: Context
+        """
         if logger.level <= logging.INFO:
             logger.info("Loading NETCDF file: " + self.filename)
 
