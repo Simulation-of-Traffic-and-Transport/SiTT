@@ -24,7 +24,7 @@ Public mirror: https://github.com/Simulation-of-Traffic-and-Transport/SiTT
 
 ## Installation
 
-You need Python 3.10 or later to run SiTT Moreover, the principal components of the simulation are contained in a
+You need Python 3.11 or later to run SiTT Moreover, the principal components of the simulation are contained in a
 PostgreSQL database, more specifically one with the [PostGIS](https://www.postgis.net/) extension. PostGis should
 be pretty recent and should have Geos >= 3.11.0 included, otherwise we will have to implement certain things in Python
 which will be pretty slow. SiTT also makes use of JSONB in PostgreSQL, but since this has been introduced in

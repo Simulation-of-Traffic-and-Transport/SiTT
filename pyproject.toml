@@ -16,8 +16,8 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "License :: OSI Approved :: MIT License",
@@ -29,13 +29,16 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
+    "cartopy==0.25.0",
     "cdsapi>=0.7.7",
+    "contextily==1.7.0",
     "dask>=2025.11.0",
     "extremitypathfinder[numba]~=2.7.1",
     "fiona>=1.10.1",
     "geoalchemy2>=0.18.1",
     "geopandas>=1.1.1",
     "igraph>=1.0.0",
+    "jupyter==1.1.1",
     "matplotlib>=3.10.7",
     "nanoid>=2.0.0",
     "netcdf4>=1.7.3",

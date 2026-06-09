@@ -71,6 +71,6 @@ logger: logging.Logger = logging.getLogger()
 
 # Minimum version check
 python_version: tuple[int] = sys.version_info[:2]
-if python_version[0] < 3 or (python_version[0] == 3 and python_version[1] < 10):
-    logger.critical("Your Python version is too old. SiTT requires at least Python 3.10.")
+if python_version[0] < 3 or (python_version[0] == 3 and python_version[1] < 11):
+    logger.critical("Your Python version is too old. SiTT requires at least Python 3.11.")
     sys.exit(-1)
